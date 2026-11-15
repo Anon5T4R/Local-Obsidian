@@ -26,9 +26,16 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Busca | `toLowerCase` + `includes` (limitação #1 Keep) | igual, **sem** folding de acento e **sem** stemming | decisão do upstream mantida |
 | Regex na busca | `new RegExp` do JS | crate `regex` (mesmo `.*`), sintaxe do Rust | JS tem backreference/lookahead; Rust não (diferença anotada) |
 | Embed | injeta `<div class="embed">` no HTML | vira callout `> [!embed] Nota › Seção` | sem pipeline HTML |
-| Watcher de arquivos | chokidar | ainda não (refresh manual no menu) | autosave + watcher precisam ignorar as escritas do próprio app; unidade própria |
+| Watcher de arquivos | chokidar (`awaitWriteFinish`, eventos por tipo) | `notify` 8, recursivo, com debounce de 300 ms; `.saving`/dotfiles/`.openobsidian` descartados; **a nota aberta vence** (buffer sujo não é sobrescrito, avisa na status bar) | o do upstream não filtra as escritas do próprio app nem o `srs.json`; aqui o "próprio write" é reconhecido por path + instante, não por tempo de settle |
 | Math | KaTeX | TeX em monoespaçado (pendente) | ver nota abaixo |
 | Binários (PDF/DOCX/EPUB/ODT) na árvore | aparecem | fora da árvore | listar o que não abre é pior que não listar |
+| SRS/flashcards | `srs.ts` + `cards.ts` + main/IPC (`srs.json`) | crate `localobsidian-review` (SM-2 + extração + arquivo) + painel Review | mesmo algoritmo e **mesmo arquivo**; o app só lê/escreve `.openobsidian/srs.json` |
+| Estado do SRS em memória | cache por vault no processo main | `VaultState.srs`, re-sincronizado no reload e depois de cada save | o Electron precisa do cache porque o renderer é outro processo; aqui é um `BTreeMap` no mesmo dono do buffer |
+| Import `.apkg` | `main/apkg.ts` (zip + SQLite) | **adiado** (F5, com o João) | ler `.apkg` pede SQLite (dep com C) ou um parser de banco próprio; fora da regra pure-Rust |
+| Grafos | `GraphView.tsx` (força dirigida, d3) | anéis determinísticos (hub no centro, `MAX_NODES` 240), rótulos e clique abre a nota | força que nunca assenta é bonita no print e ruim de ler; o mesmo vault desenha igual |
+| Calendário | `CalendarPopover` + `utils/calendar.ts` | popover próprio: grade de 6 semanas, dia com nota marcado, cria a diária a partir de `_templates/daily.md` | mesma conta de mês (clamp de dia) e de nota diária `YYYY-MM-DD` |
+| Templates | `TemplateModal` + 6 embutidos + `exampleTemplate` | 4 embutidos (Blank/Daily/Meeting/Project) + notas do usuário em `_templates/`; variáveis `{{title}}`, `{{date[:fmt]}}`, `{{time}}`, `{{datetime}}` | o `exampleTemplate` é demo de bloco de query; os outros dois embutidos não tinham uso no port |
+| Nota diária | nome `YYYY-MM-DD` na raiz + template `daily` | igual | — |
 
 ### Math: avaliação do RaTeX (pendente, unidade própria)
 
@@ -42,7 +49,22 @@ egui. Fica como unidade separada (com o João), junto dos pins `ratex-* =0.1.14`
 
 - Autocomplete do `[[` existe e é testado; falta só o fuzzy por alias (hoje é `contains`).
 - O painel de busca não tem histórico de queries (o upstream tampouco).
-- Sem grafo, sem SRS/flashcards, sem IA (o port é files-only, por contrato).
+- Sem IA (o port é files-only, por contrato).
+- Import de `.apkg` adiado para o F5 (precisa de SQLite; ver a tabela acima).
+- Checkbox clicável na leitura segue pendente (hoje é `Ctrl+Enter` no editor).
+
+### Decisão do arquiteto 2026-11-15: limitações #4 e #5 do upstream
+
+As duas limitações de `docs/limitations.md` do upstream que tocam a gramática de query ficam
+**idênticas ao upstream**, de propósito:
+
+- **#4 — vírgula = AND** (e não OR, como a documentação de busca sugere).
+- **#5 — `limit:` conta como "houve intenção"** de busca, mesmo quando não limita nada.
+
+Motivo: **a gramática de query é uma só** entre o desktop e o `OpenObsidianAndroid` (regra do próprio
+`limitations.md`), e o Android está congelado. Mudar o significado de qualquer das duas aqui faria o
+mesmo cofre responder diferente nos dois lados. Quando o Android for tocado de novo, #4 e #5 caem
+**juntas**, com release notes nos dois repos.
 
 ## Spec funcional (somente leitura)
 

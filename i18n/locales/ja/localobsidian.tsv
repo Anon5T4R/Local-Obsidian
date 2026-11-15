@@ -52,6 +52,62 @@
 	no note links this one	このノートへのリンクはありません
 	Tags ({count})	タグ ({count})
 	Clear the tag	タグを解除
+	Review	復習
+	Review the whole vault	保管庫全体を復習
+	Review this note	このノートを復習
+	Review #{tag}	#{tag} を復習
+	Close the review panel	復習パネルを閉じる
+	{count} cards due	期限のカード {count} 枚
+	the whole vault	保管庫全体
+	{left} to review, {done} done	残り {left} 枚、{done} 枚完了
+	practice - nothing is graded	練習 — 記録されません
+	Open the note this card lives in	このカードのノートを開く
+	this card has no answer	このカードには答えがありません
+	Reveal ({key})	答えを表示 ({key})
+	Space	スペース
+	Again	もう一度
+	Hard	難しい
+	Good	良い
+	Easy	簡単
+	Suspend	保留
+	done for now - {count} reviewed	今日はここまで — {count} 枚復習
+	nothing is due in this deck	このデッキに期限のカードはありません
+	Repeat the {count} of this session	このセッションの {count} 枚をやり直す
+	Review a week ahead	一週間先まで復習
+	Statistics	統計
+	Restart	再読み込み
+	Reload the queue with what is due today	今日の期限でキューを再読み込み
+	The vault's review statistics	保管庫の復習統計
+	Review statistics	復習の統計
+	Cards	カード
+	Due today	今日が期限
+	New	新規
+	Suspended	保留中
+	Learned	習得済み
+	Retention	定着率
+	Average ease	平均の易しさ
+	Next 14 days	今後 14 日
+	Notes with the most cards	カードが多いノート
+	could not write the review schedule	復習スケジュールを書き込めませんでした
+	Graph	グラフ
+	Show the graph	グラフを表示
+	Calendar	カレンダー
+	Show the calendar	カレンダーを表示
+	Previous month	前の月
+	Next month	次の月
+	Today	今日
+	Back to this month	今月に戻る
+	Open this day's note	この日のノートを開く
+	Template	テンプレート
+	your own templates live in {folder}/	自分のテンプレートは {folder}/ にあります
+	could not read the template	テンプレートを読めませんでした
+	the note changed on disk; your unsaved text was kept	ノートがディスク上で変更されました。未保存のテキストは保持されています
+	the vault changed on disk and was reloaded	保管庫がディスク上で変更され、再読み込みしました
+	there are no notes to draw	描くノートがありません
+	Blank	白紙
+	Daily note	デイリーノート
+	Meeting	会議
+	Project	プロジェクト
 	Filter notes	ノートを絞り込む
 	Clear the filter	絞り込みを解除
 	{count} notes	{count} 件のノート

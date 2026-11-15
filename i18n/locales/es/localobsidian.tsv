@@ -52,6 +52,62 @@
 	no note links this one	ninguna nota enlaza esta
 	Tags ({count})	Etiquetas ({count})
 	Clear the tag	Quitar la etiqueta
+	Review	Repaso
+	Review the whole vault	Repasar todo el cofre
+	Review this note	Repasar esta nota
+	Review #{tag}	Repasar #{tag}
+	Close the review panel	Cerrar el panel de repaso
+	{count} cards due	{count} tarjetas por repasar
+	the whole vault	todo el cofre
+	{left} to review, {done} done	{left} por repasar, {done} hechas
+	practice - nothing is graded	práctica: no se registra nada
+	Open the note this card lives in	Abrir la nota de esta tarjeta
+	this card has no answer	esta tarjeta no tiene respuesta
+	Reveal ({key})	Mostrar ({key})
+	Space	Espacio
+	Again	Otra vez
+	Hard	Difícil
+	Good	Bien
+	Easy	Fácil
+	Suspend	Suspender
+	done for now - {count} reviewed	por hoy es todo: {count} repasadas
+	nothing is due in this deck	no hay nada pendiente en este mazo
+	Repeat the {count} of this session	Repetir las {count} de esta sesión
+	Review a week ahead	Repasar una semana por delante
+	Statistics	Estadísticas
+	Restart	Reiniciar
+	Reload the queue with what is due today	Recargar la cola con lo que vence hoy
+	The vault's review statistics	Las estadísticas de repaso del cofre
+	Review statistics	Estadísticas de repaso
+	Cards	Tarjetas
+	Due today	Vencen hoy
+	New	Nuevas
+	Suspended	Suspendidas
+	Learned	Aprendidas
+	Retention	Retención
+	Average ease	Facilidad media
+	Next 14 days	Próximos 14 días
+	Notes with the most cards	Notas con más tarjetas
+	could not write the review schedule	no se pudo guardar el calendario de repaso
+	Graph	Grafo
+	Show the graph	Mostrar el grafo
+	Calendar	Calendario
+	Show the calendar	Mostrar el calendario
+	Previous month	Mes anterior
+	Next month	Mes siguiente
+	Today	Hoy
+	Back to this month	Volver a este mes
+	Open this day's note	Abrir la nota de este día
+	Template	Plantilla
+	your own templates live in {folder}/	tus plantillas viven en {folder}/
+	could not read the template	no se pudo leer la plantilla
+	the note changed on disk; your unsaved text was kept	la nota cambió en el disco; tu texto sin guardar se mantuvo
+	the vault changed on disk and was reloaded	el cofre cambió en el disco y se recargó
+	there are no notes to draw	no hay notas que dibujar
+	Blank	En blanco
+	Daily note	Nota diaria
+	Meeting	Reunión
+	Project	Proyecto
 	Filter notes	Filtrar notas
 	Clear the filter	Limpiar el filtro
 	{count} notes	{count} notas

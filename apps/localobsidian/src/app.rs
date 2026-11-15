@@ -8,20 +8,24 @@ use std::path::PathBuf;
 
 use craft_update::updater::{Action, Status, Updater};
 
+use crate::calendar;
 use crate::editor::{self, EditorAction};
+use crate::graph;
 use crate::i18n;
 use crate::images::Images;
 use crate::panels::{self, PanelAction};
 use crate::pickers::Pickers;
 use crate::prefs::Prefs;
+use crate::review_ui::{Deck, Review};
 use crate::sidebar::{self, SidebarAction};
 use crate::suite_entry::APP;
+use crate::templates;
 use crate::tl;
 use crate::vault_state::{VaultState, ViewMode};
 
 /// A small dialog the page opens on top of itself.
 enum Dialog {
-    NewNote { name: String },
+    NewNote { name: String, template: String },
     Rename { name: String },
 }
 
@@ -37,6 +41,19 @@ pub struct LocalApp {
     vault: VaultState,
     /// The pictures the reading view has decoded (`![[foto.png]]`).
     images: Images,
+    /// The review session and its statistics panel.
+    review: Review,
+    /// Whether the link graph is on screen.
+    graph_open: bool,
+    /// Whether the calendar popover is on screen, and the month it shows.
+    calendar_open: bool,
+    calendar_month: String,
+    /// The vault folder as the OS sees it changing.
+    watcher: Option<crate::watcher::Watcher>,
+    /// When the folder was last seen changing (the debounce clock).
+    fs_change: Option<std::time::Instant>,
+    /// The note this app wrote last, and when: its own save is not news.
+    saved_at: Option<(std::path::PathBuf, std::time::Instant)>,
     sidebar_open: bool,
     dialog: Option<Dialog>,
     /// The last vault is opened on the first frame, not in the constructor: building the window
@@ -66,6 +83,13 @@ impl LocalApp {
             prefs,
             vault,
             images: Images::default(),
+            review: Review::default(),
+            graph_open: false,
+            calendar_open: false,
+            calendar_month: crate::calendar::today_iso(),
+            watcher: None,
+            fs_change: None,
+            saved_at: None,
             dialog: None,
         }
     }
@@ -91,7 +115,7 @@ impl LocalApp {
                     ui.close();
                 }
                 if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("New note..."))).clicked() {
-                    self.dialog = Some(Dialog::NewNote { name: String::new() });
+                    self.dialog = Some(Dialog::NewNote { name: String::new(), template: String::new() });
                     ui.close();
                 }
                 if ui.add_enabled(has_note, egui::Button::new(tl!("Rename note..."))).clicked() {
@@ -152,9 +176,45 @@ impl LocalApp {
                     self.remember();
                     ui.close();
                 }
+                if ui.checkbox(&mut self.graph_open, tl!("Show the graph")).clicked() {
+                    ui.close();
+                }
+                if ui.checkbox(&mut self.calendar_open, tl!("Show the calendar")).clicked() {
+                    ui.close();
+                }
                 ui.separator();
                 if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Refresh the vault"))).clicked() {
                     self.reload();
+                    ui.close();
+                }
+            });
+            ui.menu_button(tl!("Review"), |ui| {
+                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Review the whole vault"))).clicked() {
+                    self.review.start(&self.vault, Deck::All);
+                    ui.close();
+                }
+                let note = self.vault.active.as_ref().and_then(|path| {
+                    self.vault.files.iter().find(|file| &file.path == path).map(|file| (file.relative_path.clone(), file.name.clone()))
+                });
+                if ui.add_enabled(note.is_some(), egui::Button::new(tl!("Review this note"))).clicked()
+                    && let Some((relative, _)) = note
+                {
+                    self.review.start(&self.vault, Deck::Note(relative));
+                    ui.close();
+                }
+                if let Some(tag) = self.vault.tag_filter.clone()
+                    && ui.button(i18n::tr_fmt("Review #{tag}", &[("tag", &tag)])).clicked()
+                {
+                    self.review.start(&self.vault, Deck::Tag(tag));
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button(tl!("Review statistics")).clicked() {
+                    self.review.stats_open = true;
+                    ui.close();
+                }
+                if self.review.open && ui.button(tl!("Close the review panel")).clicked() {
+                    self.review.open = false;
                     ui.close();
                 }
             });
@@ -202,10 +262,27 @@ impl LocalApp {
                 PanelAction::GoToSection(section) => self.goto_section(&section),
             });
         }
+        if self.review.open {
+            egui::Panel::right("review").resizable(true).default_size(320.0).show(ui, |ui| {
+                self.review.ui(ui, &mut self.vault);
+            });
+        }
+        if self.review.stats_open {
+            egui::Panel::right("review-stats").resizable(true).default_size(300.0).show(ui, |ui| {
+                self.review.stats_ui(ui, &mut self.vault);
+            });
+        }
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 let notes = self.vault.files.len();
                 ui.label(egui::RichText::new(i18n::tr_fmt("{count} notes", &[("count", &notes.to_string())])).small().weak());
+                let due = self.vault.srs_stats().due;
+                if due > 0 {
+                    ui.separator();
+                    if ui.small_button(i18n::tr_fmt("{count} cards due", &[("count", &due.to_string())])).clicked() {
+                        self.review.start(&self.vault, Deck::All);
+                    }
+                }
                 if let Some(message) = &self.vault.message {
                     ui.separator();
                     ui.label(egui::RichText::new(message).small());
@@ -243,7 +320,18 @@ impl LocalApp {
         let mut cancel = false;
         let mut open = true;
         match dialog {
-            Dialog::NewNote { mut name } => {
+            Dialog::NewNote { mut name, mut template } => {
+                if template.is_empty() {
+                    template = "blank".to_string();
+                }
+                // The picker offers the built-ins and the user's own notes under `_templates/`.
+                let user_templates: Vec<(String, String)> = self
+                    .vault
+                    .files
+                    .iter()
+                    .filter(|note| templates::is_template_path(&note.relative_path))
+                    .map(|note| (note.path.to_string_lossy().to_string(), note.name.clone()))
+                    .collect();
                 egui::Window::new(tl!("New note"))
                     .open(&mut open)
                     .collapsible(false)
@@ -251,21 +339,60 @@ impl LocalApp {
                     .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
                     .show(ui.ctx(), |ui| {
                         ui.label(tl!("Note name"));
-                        let response = ui.add(egui::TextEdit::singleline(&mut name).desired_width(240.0));
+                        let response = ui.add(egui::TextEdit::singleline(&mut name).desired_width(300.0));
                         response.request_focus();
                         submitted |= response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new(tl!("Template")).small().weak());
+                        for builtin in templates::builtins() {
+                            let label = tl!(builtin.label);
+                            if ui.selectable_label(template == builtin.id, label).clicked() {
+                                template = builtin.id.to_string();
+                            }
+                        }
+                        for (path, label) in &user_templates {
+                            if ui.selectable_label(template == *path, label).clicked() {
+                                template = path.clone();
+                            }
+                        }
+                        if !user_templates.is_empty() {
+                            ui.label(
+                                egui::RichText::new(i18n::tr_fmt("your own templates live in {folder}/", &[("folder", templates::TEMPLATES_DIR)]))
+                                    .small()
+                                    .weak(),
+                            );
+                        }
+                        ui.add_space(6.0);
                         ui.horizontal(|ui| {
                             submitted |= ui.add_enabled(!name.trim().is_empty(), egui::Button::new(tl!("Create"))).clicked();
                             cancel |= ui.button(tl!("Cancel")).clicked();
                         });
                     });
                 if submitted && !name.trim().is_empty() {
-                    match self.vault.create_note(name.trim()) {
-                        Ok(_) => self.remember(),
-                        Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not create the note"))),
+                    let now = chrono::Local::now();
+                    // A user template is a note of the vault: read it and expand its placeholders.
+                    let content = match self.vault.files.iter().find(|note| note.path.to_string_lossy() == template) {
+                        Some(note) => match std::fs::read_to_string(&note.path) {
+                            Ok(raw) => templates::expand_vars(&raw, name.trim(), now),
+                            Err(error) => {
+                                self.vault.message = Some(format!("{}: {error}", tl!("could not read the template")));
+                                String::new()
+                            }
+                        },
+                        None => templates::expand_builtin(&template, name.trim(), now),
+                    };
+                    if !content.is_empty() {
+                        match self.vault.create_note_with(name.trim(), &content, None) {
+                            Ok(path) => {
+                                // The file we just wrote is not an outside change.
+                                self.saved_at = Some((path, std::time::Instant::now()));
+                                self.remember();
+                            }
+                            Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not create the note"))),
+                        }
                     }
                 } else if open && !cancel {
-                    self.dialog = Some(Dialog::NewNote { name });
+                    self.dialog = Some(Dialog::NewNote { name, template });
                 }
             }
             Dialog::Rename { mut name } => {
@@ -293,6 +420,67 @@ impl LocalApp {
                     self.dialog = Some(Dialog::Rename { name });
                 }
             }
+        }
+    }
+
+    /// The link graph, in its own window.
+    fn graph(&mut self, ui: &mut egui::Ui) {
+        if !self.graph_open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(tl!("Graph")).open(&mut open).default_size([720.0, 620.0]).show(ui.ctx(), |ui| {
+            if let Some(path) = graph::show(ui, &self.vault) {
+                self.vault.open_note(&path);
+            }
+        });
+        self.graph_open = open;
+    }
+
+    /// The calendar window: a day with a note opens it, a day without creates it.
+    fn calendar(&mut self, ui: &mut egui::Ui) {
+        if !self.calendar_open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(tl!("Calendar")).open(&mut open).default_size([330.0, 340.0]).resizable(false).show(ui.ctx(), |ui| {
+            let marked = |iso: &str| self.vault.files.iter().any(|note| note.name == iso);
+            if let Some(iso) = calendar::show(ui, &mut self.calendar_month, &marked, i18n::code()) {
+                self.open_daily_note(&iso);
+                self.calendar_open = false;
+            }
+        });
+        self.calendar_open = open;
+    }
+
+    /// Opens the daily note for `iso`, creating it from `_templates/daily.md` when the user has one.
+    fn open_daily_note(&mut self, iso: &str) {
+        if !calendar::is_daily_note_name(iso) {
+            return;
+        }
+        if let Some(note) = self.vault.files.iter().find(|note| note.name == iso) {
+            let path = note.path.clone();
+            self.vault.open_note(&path);
+            return;
+        }
+        let template = self
+            .vault
+            .files
+            .iter()
+            .find(|note| templates::is_template_path(&note.relative_path) && note.name.eq_ignore_ascii_case("daily"))
+            .map(|note| note.path.clone());
+        let now = calendar::local_midnight(iso).unwrap_or_else(chrono::Local::now);
+        let content = match template.and_then(|path| std::fs::read_to_string(path).ok()) {
+            Some(raw) => templates::expand_vars(&raw, iso, now),
+            None => format!("# {iso}\n\n"),
+        };
+        let root = self.vault.root.clone();
+        match self.vault.create_note_with(iso, &content, root.as_deref()) {
+            Ok(path) => {
+                self.saved_at = Some((path, std::time::Instant::now()));
+                self.remember();
+            }
+            Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not create the note"))),
         }
     }
 
@@ -383,6 +571,9 @@ impl LocalApp {
         match self.vault.open(path.clone()) {
             Ok(()) => {
                 self.vault.open_first_note();
+                // The OS watch: a note changed elsewhere (another editor, a sync client) shows up.
+                self.watcher = crate::watcher::Watcher::start(&path);
+                self.fs_change = None;
                 self.prefs.last_vault = Some(path);
                 self.remember();
             }
@@ -399,8 +590,47 @@ impl LocalApp {
 
     fn save(&mut self) {
         match self.vault.save() {
-            Ok(()) => self.vault.message = Some(tl!("saved").to_string()),
+            Ok(()) => {
+                self.vault.message = Some(tl!("saved").to_string());
+                // Our own write is not news from the outside: the watcher must ignore it.
+                if let Some(path) = self.vault.active.clone() {
+                    self.saved_at = Some((path, std::time::Instant::now()));
+                }
+            }
             Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not save the note"))),
+        }
+    }
+
+    /// What to do about a change another program made in the vault.
+    ///
+    /// The upstream rule, kept: **the open note wins** - if it is dirty, the text the user is typing
+    /// is not replaced, and the window says so instead. Everything else is re-read.
+    fn react_to_disk(&mut self, changed: &[std::path::PathBuf]) {
+        // A folder can appear or vanish without its notes being reported one by one.
+        let relevant: Vec<std::path::PathBuf> =
+            changed.iter().filter(|path| crate::watcher::is_note_path(path) || path.extension().is_none()).cloned().collect();
+        if relevant.is_empty() {
+            return;
+        }
+        let changed = relevant.as_slice();
+        let now = std::time::Instant::now();
+        let own = self.saved_at.as_ref().filter(|(_, at)| now.duration_since(*at) < std::time::Duration::from_secs(3)).map(|(path, _)| path.clone());
+        if changed.iter().all(|path| Some(path) == own.as_ref()) {
+            return;
+        }
+        let touches_open = changed.iter().any(|path| Some(path) == self.vault.active.as_ref());
+        if touches_open && self.vault.dirty {
+            self.vault.message = Some(tl!("the note changed on disk; your unsaved text was kept").to_string());
+            return;
+        }
+        match self.vault.reload() {
+            Ok(()) => {
+                if touches_open {
+                    self.vault.reload_open_note();
+                }
+                self.vault.message = Some(tl!("the vault changed on disk and was reloaded").to_string());
+            }
+            Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not read the vault"))),
         }
     }
 
@@ -459,6 +689,25 @@ impl eframe::App for LocalApp {
             wake = true;
         }
 
+        if self.review.handle_keys(&mut self.vault, ctx) {
+            wake = true;
+        }
+
+        // The vault folder as the OS sees it: collect the events, act when it is quiet again.
+        if let Some(watcher) = &mut self.watcher
+            && watcher.poll()
+        {
+            self.fs_change = Some(std::time::Instant::now());
+            wake = true;
+        }
+        if crate::watcher::Watcher::settled(self.fs_change) {
+            let changed = self.watcher.as_mut().map(crate::watcher::Watcher::take).unwrap_or_default();
+            self.fs_change = None;
+            if !changed.is_empty() {
+                self.react_to_disk(&changed);
+                wake = true;
+            }
+        }
         let save_shortcut = ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S));
         if save_shortcut && self.vault.dirty {
             self.save();
@@ -488,6 +737,10 @@ impl eframe::App for LocalApp {
         }
         self.vault.refresh_search();
         if self.vault.autosave() {
+            // The autosave's own write comes back through the watcher; it is not news from outside.
+            if let Some(path) = self.vault.active.clone() {
+                self.saved_at = Some((path, std::time::Instant::now()));
+            }
             wake = true;
         }
         if wake {
@@ -510,6 +763,8 @@ impl eframe::App for LocalApp {
             self.about(ui);
         }
         self.dialogs(ui);
+        self.graph(ui);
+        self.calendar(ui);
 
         // The update prompt and its progress, drawn last so it sits above the window's content.
         match self.updater.show(ui.ctx()) {

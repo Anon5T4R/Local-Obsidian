@@ -9,7 +9,7 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v0.3.0)
+## O que funciona hoje (v0.4.0)
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
   das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
@@ -27,6 +27,24 @@ que o mesmo cofre abra nos dois.
 - **Leitura**: títulos, listas, citação, callouts (`> [!warning]`), tabelas alinhadas, blocos de
   código, imagens de `_attachments/` e links clicáveis; **Edit | Read | Split**.
 - **Renomear** uma nota reescreve os `[[links]]` que apontavam para ela (e diz quantos).
+- **Revisão (SRS)**: flashcards escritos na própria nota — `> [!card]- Pergunta` com a resposta no
+  corpo, ou `> [!card]` com `==destaques==` (uma lacuna por destaque, tipo cloze) e `> [!mnemonic]?` —
+  agendados por SM-2 e revisados num painel só de teclado (`Espaço` mostra, `1`–`4` avaliam, `Esc`
+  fecha). Baralhos: cofre inteiro, a nota aberta ou uma tag. Painel de estatísticas com vencimento,
+  retenção, facilidade média e previsão de 14 dias. O cronograma mora em `.openobsidian/srs.json`,
+  **o mesmo arquivo que o OpenObsidianAndroid lê** (mesmos campos, mesma ordem, nada de estado extra);
+  o cartão guarda o id estável (hash da pergunta), então editar a resposta não zera o agendamento.
+- **Grafo** (`Visualizar → Mostrar o grafo`): as notas como nós e os `[[links]]` como arestas, com a
+  nota mais ligada no centro e o resto em anel; passar o mouse acende os links do nó e clicar abre a nota.
+- **Calendário** (`Visualizar → Mostrar o calendário`): grade do mês com os dias que já têm nota
+  marcados; clicar abre a nota diária (`YYYY-MM-DD`) e a cria quando falta, a partir de
+  `_templates/daily.md` se existir.
+- **Modelos**: ao criar uma nota, escolher um dos quatro embutidos (em branco, diária, reunião,
+  projeto) ou uma nota sua de `_templates/`, com `{{title}}`, `{{date}}`, `{{date:DD/MM/YYYY}}`,
+  `{{time}}` e `{{datetime}}` expandidos.
+- **Cofre observado**: mudança feita por outro programa (editor, cliente de sync) entra sozinha, com
+  debounce de 300 ms; as escritas do próprio app e o `srs.json` são ignorados. Se a nota aberta tiver
+  texto não salvo, **o seu texto vence** e a barra de status avisa.
 - Interface em pt-br, es e ja.
 
 ## O que já vem do molde

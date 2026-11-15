@@ -11,18 +11,23 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod app;
+mod calendar;
 mod completions;
 mod editor;
 mod editor_keys;
 mod fonts;
+mod graph;
 mod i18n;
 mod images;
 mod panels;
 mod pickers;
 mod prefs;
+mod review_ui;
 mod sidebar;
 mod suite_entry;
+mod templates;
 mod vault_state;
+mod watcher;
 
 #[cfg(test)]
 mod ui_tests;

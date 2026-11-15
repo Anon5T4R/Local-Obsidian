@@ -52,6 +52,62 @@
 	no note links this one	nenhuma nota aponta para esta
 	Tags ({count})	Tags ({count})
 	Clear the tag	Limpar a tag
+	Review	Revisão
+	Review the whole vault	Revisar o cofre inteiro
+	Review this note	Revisar esta nota
+	Review #{tag}	Revisar #{tag}
+	Close the review panel	Fechar o painel de revisão
+	{count} cards due	{count} cards para revisar
+	the whole vault	o cofre inteiro
+	{left} to review, {done} done	{left} para revisar, {done} feitos
+	practice - nothing is graded	treino — nada é registrado
+	Open the note this card lives in	Abrir a nota deste card
+	this card has no answer	este card não tem resposta
+	Reveal ({key})	Mostrar ({key})
+	Space	Espaço
+	Again	De novo
+	Hard	Difícil
+	Good	Bom
+	Easy	Fácil
+	Suspend	Suspender
+	done for now - {count} reviewed	por hoje é isso — {count} revisados
+	nothing is due in this deck	nada vence neste baralho
+	Repeat the {count} of this session	Repetir os {count} desta sessão
+	Review a week ahead	Revisar uma semana à frente
+	Statistics	Estatísticas
+	Restart	Reiniciar
+	Reload the queue with what is due today	Recarregar a fila com o que vence hoje
+	The vault's review statistics	As estatísticas de revisão do cofre
+	Review statistics	Estatísticas de revisão
+	Cards	Cards
+	Due today	Vencem hoje
+	New	Novos
+	Suspended	Suspensos
+	Learned	Aprendidos
+	Retention	Retenção
+	Average ease	Facilidade média
+	Next 14 days	Próximos 14 dias
+	Notes with the most cards	Notas com mais cards
+	could not write the review schedule	não foi possível gravar o cronograma de revisão
+	Graph	Grafo
+	Show the graph	Mostrar o grafo
+	Calendar	Calendário
+	Show the calendar	Mostrar o calendário
+	Previous month	Mês anterior
+	Next month	Próximo mês
+	Today	Hoje
+	Back to this month	Voltar para este mês
+	Open this day's note	Abrir a nota deste dia
+	Template	Modelo
+	your own templates live in {folder}/	seus modelos ficam em {folder}/
+	could not read the template	não foi possível ler o modelo
+	the note changed on disk; your unsaved text was kept	a nota mudou no disco; seu texto não salvo foi mantido
+	the vault changed on disk and was reloaded	o cofre mudou no disco e foi recarregado
+	there are no notes to draw	não há notas para desenhar
+	Blank	Em branco
+	Daily note	Nota diária
+	Meeting	Reunião
+	Project	Projeto
 	Filter notes	Filtrar notas
 	Clear the filter	Limpar o filtro
 	{count} notes	{count} notas

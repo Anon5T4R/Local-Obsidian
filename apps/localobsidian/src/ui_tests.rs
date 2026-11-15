@@ -79,7 +79,7 @@ fn record(sink: &Rc<RefCell<PanelAction>>, action: PanelAction) {
 }
 
 /// Saves the harness's screen when the QA render is asked for.
-fn shot(harness: &mut Harness<'_, VaultState>, name: &str) {
+fn shot<State>(harness: &mut Harness<'_, State>, name: &str) {
     if std::env::var_os("LOCALOBSIDIAN_QA_RENDER").is_none() {
         return;
     }
@@ -167,6 +167,39 @@ fn the_backlinks_panel_lists_the_notes_that_link_the_open_one() {
 }
 
 #[test]
+fn the_review_panel_shows_a_due_card_reveals_it_and_grades_it() {
+    let scratch = Scratch::new("review", &[("Sepse.md", "# Sepse\n\n> [!card]- Qual a tríade do qSOFA?\n> FR, PAS e Glasgow.\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+
+    // Opening the vault schedules the card of the note: due today, so the session has work.
+    assert_eq!(state.srs_stats().total, 1, "{:?}", state.srs);
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::All);
+
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(560.0, 900.0))
+        .build_ui_state(|ui, (state, review): &mut (VaultState, crate::review_ui::Review)| review.ui(ui, state), (state, review));
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review");
+
+    harness.get_by_label("Qual a tríade do qSOFA?");
+    harness.get_by_label_contains("Reveal").click();
+    harness.run_steps(2);
+    harness.get_by_label("FR, PAS e Glasgow.");
+    shot(&mut harness, "ui-review-answer");
+
+    harness.get_by_label("Good (3)").click();
+    harness.run_steps(2);
+
+    // The card left the session and the schedule on disk says it was answered once.
+    let saved = std::fs::read_to_string(scratch.0.join(".openobsidian/srs.json")).expect("the schedule was written");
+    assert!(saved.contains("\"reps\": 1"), "{saved}");
+    assert!(saved.contains("\"due\":"), "{saved}");
+    assert_eq!(harness.state().0.srs_stats().due, 0, "it is no longer due today");
+}
+
+#[test]
 fn the_tag_chips_filter_the_tree() {
     let (_scratch, state) = demo_vault("tags");
     let mut harness =
@@ -177,4 +210,46 @@ fn the_tag_chips_filter_the_tree() {
     harness.get_by_label("uti 1").click();
     harness.run_steps(2);
     assert_eq!(harness.state().tag_filter.as_deref(), Some("uti"), "the chip filters the tree by that tag");
+}
+
+#[test]
+fn the_graph_draws_the_vault_and_says_so_when_there_is_nothing_to_draw() {
+    let (_scratch, state) = demo_vault("graph");
+    let mut harness = Harness::builder().with_size(egui::vec2(640.0, 520.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            crate::graph::show(ui, state);
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-graph");
+
+    // An empty vault draws the message instead of an empty canvas.
+    let mut empty = Harness::builder().with_size(egui::vec2(400.0, 300.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            crate::graph::show(ui, state);
+        },
+        VaultState::default(),
+    );
+    empty.run_steps(2);
+    empty.get_by_label("there are no notes to draw");
+}
+
+#[test]
+fn the_calendar_walks_the_months() {
+    let state = (crate::calendar::today_iso(), vec![crate::calendar::today_iso()]);
+    let mut harness = Harness::builder().with_size(egui::vec2(340.0, 380.0)).build_ui_state(
+        |ui, (month, marked): &mut (String, Vec<String>)| {
+            let days = marked.clone();
+            crate::calendar::show(ui, month, &|iso: &str| days.iter().any(|day| day == iso), "en");
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-calendar");
+
+    let before = harness.state().0.clone();
+    harness.get_by_label(">").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().0, crate::calendar::add_months(&before, 1), "the arrow moves one month ahead");
 }

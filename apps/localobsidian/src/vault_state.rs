@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use localobsidian_md::{embeds, links, outline, preview};
+use localobsidian_review as review;
 use localobsidian_vault as vault;
 
 /// Autosave waits this long after the last keystroke, so a burst of typing is one write.
@@ -96,6 +97,10 @@ pub struct VaultState {
     pub pending_line: Option<usize>,
     /// The `[[wikilink` being typed, when the popup is open.
     pub completion: Option<crate::completions::Completion>,
+    /// The schedule in `.openobsidian/srs.json`, as the phone reads it.
+    pub srs: review::SrsFile,
+    /// The schedule changed and has not reached the disk yet.
+    pub srs_dirty: bool,
     /// The cached reading view of [`Self::revision`].
     preview_cache: Option<(u64, Vec<preview::Block>)>,
     /// The cached outline of [`Self::revision`].
@@ -182,6 +187,8 @@ impl VaultState {
         self.tree_generation = self.tree_generation.wrapping_add(1);
         // The notes changed under the results: the next frame that draws the panel searches again.
         self.search.invalidate();
+        // The schedule is shared with the phone: read it again and reconcile it with the notes.
+        self.load_and_sync_srs();
 
         // A note that disappeared from disk (renamed elsewhere) closes; edits in flight survive
         // until the user picks a note again.
@@ -253,7 +260,43 @@ impl VaultState {
         self.dirty = false;
         self.last_edit = None;
         self.index = vault::index::build(&self.files, &self.contents);
+        self.sync_note_srs(&path);
         Ok(())
+    }
+
+    /// Reconciles one note's cards with the schedule after it was written: a new card starts due
+    /// today, and a card whose question disappeared leaves the schedule.
+    fn sync_note_srs(&mut self, path: &Path) {
+        let Some(relative) = self.files.iter().find(|note| note.path == path).map(|note| note.relative_path.clone()) else { return };
+        let Some(content) = self.contents.get(path) else { return };
+        let cards: Vec<(String, String)> = review::extract_cards(&relative, content).into_iter().map(|card| (card.id, card.q)).collect();
+        let today = review::today();
+        let (next, added, removed) = review::sync_file(&self.srs, &relative, &cards, &today);
+        if added > 0 || removed > 0 || next != self.srs {
+            self.srs = next;
+            self.srs_dirty = true;
+            self.save_srs();
+        }
+    }
+
+    /// Re-reads the open note from disk, keeping the caret's text only when it is dirty.
+    pub fn reload_open_note(&mut self) {
+        let Some(path) = self.active.clone() else { return };
+        if self.dirty {
+            return;
+        }
+        match vault::read_note(&path) {
+            Ok(text) => {
+                self.buffer = text;
+                self.revision = self.revision.wrapping_add(1);
+                self.preview_cache = None;
+                self.outline_cache = None;
+                if let Some(entry) = self.contents.get_mut(&path) {
+                    *entry = self.buffer.clone();
+                }
+            }
+            Err(error) => self.message = Some(format!("{}: {error}", path.display())),
+        }
     }
 
     /// Writes the open note when the last keystroke is old enough. Returns whether it wrote.
@@ -272,15 +315,6 @@ impl VaultState {
     }
 
     /// Creates `name.md` in the vault root and opens it.
-    pub fn create_note(&mut self, name: &str) -> io::Result<PathBuf> {
-        let root = self.root.clone().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no vault is open"))?;
-        let folder = self.active.as_ref().and_then(|path| path.parent().map(Path::to_path_buf)).unwrap_or(root);
-        let path = vault::create_note(&folder, name)?;
-        self.reload()?;
-        self.open_note(&path);
-        Ok(path)
-    }
-
     /// Renames the open note and rewrites every `[[link]]` that pointed at it in the vault.
     /// Returns how many links changed.
     pub fn rename_active(&mut self, new_name: &str) -> io::Result<usize> {
@@ -415,6 +449,122 @@ impl VaultState {
         }
         sources.sort_by_key(|note| note.to_lowercase());
         sources
+    }
+
+    /// The text of a note, as last read or written.
+    pub fn contents_of(&self, path: &Path) -> Option<&String> {
+        self.contents.get(path)
+    }
+
+    /// Resolves a wikilink as if it were written in `from` (the graph needs this per note).
+    pub fn resolve_note_from(&self, target: &str, from: Option<&Path>) -> Option<&vault::NoteFile> {
+        vault::resolve_note(&self.files, target, from, Some(&self.index.aliases))
+    }
+
+    /// Writes a note's whole text (a note created from a template).
+    pub fn create_note_with(&mut self, name: &str, content: &str, folder: Option<&Path>) -> io::Result<PathBuf> {
+        let root = self.root.clone().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no vault is open"))?;
+        let folder =
+            folder.map(Path::to_path_buf).or_else(|| self.active.as_ref().and_then(|path| path.parent().map(Path::to_path_buf))).unwrap_or(root);
+        let path = vault::create_note(&folder, name)?;
+        vault::write_atomic(&path, content)?;
+        self.reload()?;
+        self.open_note(&path);
+        Ok(path)
+    }
+
+    /// Where the shared schedule lives: `.openobsidian/srs.json` in the vault.
+    pub fn srs_path(&self) -> Option<PathBuf> {
+        self.root.as_ref().map(|root| root.join(".openobsidian").join("srs.json"))
+    }
+
+    /// Every card the notes currently declare, keyed by the note's relative path.
+    fn cards_in_vault(&self) -> BTreeMap<String, Vec<(String, String)>> {
+        let mut found = BTreeMap::new();
+        for note in &self.files {
+            let Some(content) = self.contents.get(&note.path) else { continue };
+            let cards = review::extract_cards(&note.relative_path, content);
+            found.insert(note.relative_path.clone(), cards.into_iter().map(|card| (card.id, card.q)).collect());
+        }
+        found
+    }
+
+    /// Reads `.openobsidian/srs.json` and reconciles it with the notes, the same way both other
+    /// apps do on open. A card keeps its schedule while its question does not change.
+    fn load_and_sync_srs(&mut self) {
+        let Some(path) = self.srs_path() else { return };
+        let (file, dropped) = review::srs::load(&path);
+        let today = review::today();
+        let synced = review::sync_vault(&file, &self.cards_in_vault(), &today);
+        self.srs_dirty = dropped > 0 || synced != file;
+        self.srs = synced;
+        if self.srs_dirty {
+            self.save_srs();
+        }
+    }
+
+    /// Writes the schedule. Returns whether it reached the disk.
+    pub fn save_srs(&mut self) -> bool {
+        let Some(path) = self.srs_path() else { return false };
+        match review::srs::save(&path, &self.srs) {
+            Ok(()) => {
+                self.srs_dirty = false;
+                true
+            }
+            Err(error) => {
+                log::warn!("srs: cannot write {}: {error}", path.display());
+                self.message = Some(format!("{}: {error}", crate::i18n::tr("could not write the review schedule")));
+                false
+            }
+        }
+    }
+
+    /// The schedule's numbers, for the toolbar badge and the statistics panel.
+    pub fn srs_stats(&self) -> review::SrsStats {
+        review::stats(&self.srs, &review::today())
+    }
+
+    /// The statistics panel's report.
+    pub fn srs_report(&self) -> review::SrsReport {
+        review::report(&self.srs, &review::today())
+    }
+
+    /// Grades a card and writes the schedule at once, so a crash cannot lose a review session.
+    pub fn grade_card(&mut self, id: &str, grade: review::Grade) -> bool {
+        let today = review::today();
+        let Some(card) = self.srs.cards.get(id).cloned() else { return false };
+        self.srs.cards.insert(id.to_string(), review::grade(&card, grade, &today));
+        self.srs_dirty = true;
+        self.save_srs()
+    }
+
+    /// Parks a card the user cannot answer yet; `suspended: false` brings it back.
+    pub fn suspend_card(&mut self, id: &str, suspended: bool) {
+        if let Some(card) = self.srs.cards.get_mut(id) {
+            card.suspended = suspended;
+            self.srs_dirty = true;
+            self.save_srs();
+        }
+    }
+
+    /// The answer of a card, read from the note it lives in: an edited answer shows on the next
+    /// review without any re-sync.
+    pub fn card_answer(&self, id: &str) -> Option<String> {
+        let card = self.srs.cards.get(id)?;
+        let note = self.note_for_card(&card.file)?;
+        let content = self.contents.get(&note.path)?;
+        review::extract_cards(&note.relative_path, content).into_iter().find(|found| found.id == id).map(|found| found.a)
+    }
+
+    /// The note a card's `file` (relative path) points at. Cards scheduled before the relative-path
+    /// fix carry an absolute path, so both shapes are accepted.
+    pub fn note_for_card(&self, file: &str) -> Option<&vault::NoteFile> {
+        let wanted = file.replace('\\', "/");
+        self.files
+            .iter()
+            .find(|note| note.relative_path.replace('\\', "/") == wanted)
+            .or_else(|| self.files.iter().find(|note| note.path.to_string_lossy().replace('\\', "/") == wanted))
+            .or_else(|| self.files.iter().find(|note| note.path.to_string_lossy().replace('\\', "/").ends_with(&format!("/{wanted}"))))
     }
 
     /// The outline of the open note, rebuilt when its text changed.
@@ -567,6 +717,13 @@ fn count_notes(node: &vault::Node) -> usize {
 mod tests {
     use super::*;
 
+    /// Gives the tests a vault without touching a disk (the graph's layout is pure).
+    impl VaultState {
+        pub fn replace_contents_for_tests(&mut self, contents: BTreeMap<PathBuf, String>) {
+            self.contents = contents;
+        }
+    }
+
     /// A vault of this test on disk, removed when the guard drops.
     struct Scratch(PathBuf);
 
@@ -670,7 +827,7 @@ mod tests {
     fn a_new_note_starts_with_its_title_and_opens() {
         let scratch = Scratch::new("create", &[]);
         let mut state = opened(&scratch);
-        let path = state.create_note("Receita").expect("create");
+        let path = state.create_note_with("Receita", "# Receita\n\n", None).expect("create");
         assert_eq!(state.active.as_deref(), Some(path.as_path()));
         assert_eq!(state.buffer, "# Receita\n\n");
     }
