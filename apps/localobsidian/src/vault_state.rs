@@ -7,11 +7,57 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use localobsidian_md::{embeds, preview};
+use localobsidian_md::{embeds, links, preview};
 use localobsidian_vault as vault;
 
 /// Autosave waits this long after the last keystroke, so a burst of typing is one write.
 pub const AUTOSAVE_AFTER: Duration = Duration::from_millis(800);
+
+/// Which pane the note is shown in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ViewMode {
+    /// The Markdown source.
+    #[default]
+    Edit,
+    /// The reading view.
+    Read,
+    /// Both, side by side.
+    Split,
+}
+
+impl ViewMode {
+    /// What the View menu and the toggle button show as the value.
+    pub fn key(self) -> &'static str {
+        match self {
+            ViewMode::Edit => "edit",
+            ViewMode::Read => "read",
+            ViewMode::Split => "split",
+        }
+    }
+
+    /// The mode a settings file asked for; anything unknown falls back to the editor.
+    pub fn from_key(key: &str) -> Self {
+        match key {
+            "read" => ViewMode::Read,
+            "split" => ViewMode::Split,
+            _ => ViewMode::Edit,
+        }
+    }
+
+    /// The mode the toggle button cycles into.
+    pub fn next(self) -> Self {
+        match self {
+            ViewMode::Edit => ViewMode::Read,
+            ViewMode::Read => ViewMode::Split,
+            ViewMode::Split => ViewMode::Edit,
+        }
+    }
+
+    /// Whether the reading view is on screen (alone or beside the editor).
+    pub fn shows_reading(self) -> bool {
+        matches!(self, ViewMode::Read | ViewMode::Split)
+    }
+}
 
 /// The vault and the note in front of the user.
 #[derive(Default)]
@@ -32,8 +78,8 @@ pub struct VaultState {
     /// The sidebar's filter box.
     pub filter: String,
     pub sort: vault::Sort,
-    /// Reading view instead of the editor.
-    pub preview_open: bool,
+    /// Which pane the note is shown in.
+    pub view: ViewMode,
     /// A message for the status strip (a save, a rename's link count, an error).
     pub message: Option<String>,
     /// Bumped on every edit, so the reading view knows when to rebuild.
@@ -215,6 +261,25 @@ impl VaultState {
             return Some(self.buffer.clone());
         }
         self.contents.get(&file.path).cloned()
+    }
+
+    /// The file an image destination points at, inside the vault.
+    ///
+    /// A note writes `![[foto.png]]` or `![alt](_attachments/foto.png)`; both land here. The lookup
+    /// follows the vault's own convention - the note's folder first, then the vault root, then
+    /// `_attachments/` in either - and never leaves the vault or touches the network.
+    pub fn attachment_path(&self, destination: &str) -> Option<PathBuf> {
+        let root = self.root.as_ref()?;
+        let target = links::from_url(destination).unwrap_or_else(|| destination.to_string());
+        let target = target.trim();
+        if target.is_empty() || target.starts_with("http://") || target.starts_with("https://") || target.starts_with("data:") {
+            return None;
+        }
+        let target = target.trim_start_matches('/').replace('\\', "/");
+        let note_dir = self.active.as_ref().and_then(|path| path.parent().map(Path::to_path_buf)).unwrap_or_else(|| root.clone());
+        [note_dir.join(&target), root.join(&target), root.join("_attachments").join(&target), note_dir.join("_attachments").join(&target)]
+            .into_iter()
+            .find(|candidate| candidate.is_file())
     }
 
     /// Rebuilds the reading view when the text changed (cheap when it did not).
@@ -467,13 +532,28 @@ mod tests {
                         }
                     }
                     Block::Code { text: code, .. } => text.push_str(code),
+                    // The callout/table/image blocks keep their own text; the walk only needs the
+                    // headings, paragraphs, quotes and lists this test puts in the note.
+                    Block::Callout { title, body, .. } => {
+                        text.push_str(title);
+                        walk(body, text, links);
+                    }
+                    Block::Table { headers, rows, .. } => {
+                        for cell in headers.iter().chain(rows.iter().flatten()) {
+                            for span in cell {
+                                text.push_str(&span.plain());
+                            }
+                        }
+                    }
+                    Block::Image { destination, .. } => text.push_str(destination),
                     Block::Rule => {}
                 }
             }
         }
         walk(blocks, &mut text, &mut links);
         assert!(text.contains("texto alvo"), "{text}");
-        assert!(text.contains("[!embed] Alvo › Um"), "{text}");
+        // The embed is a callout: its head is the source, its body is the embedded note.
+        assert!(text.contains("Alvo › Um"), "{text}");
         assert_eq!(links, ["Fim"]);
     }
 }

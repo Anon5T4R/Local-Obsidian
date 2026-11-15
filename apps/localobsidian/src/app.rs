@@ -10,12 +10,13 @@ use craft_update::updater::{Action, Status, Updater};
 
 use crate::editor::{self, EditorAction};
 use crate::i18n;
+use crate::images::Images;
 use crate::pickers::Pickers;
 use crate::prefs::Prefs;
 use crate::sidebar::{self, SidebarAction};
 use crate::suite_entry::APP;
 use crate::tl;
-use crate::vault_state::VaultState;
+use crate::vault_state::{VaultState, ViewMode};
 
 /// A small dialog the page opens on top of itself.
 enum Dialog {
@@ -33,6 +34,8 @@ pub struct LocalApp {
     language: String,
     prefs: Prefs,
     vault: VaultState,
+    /// The pictures the reading view has decoded (`![[foto.png]]`).
+    images: Images,
     sidebar_open: bool,
     dialog: Option<Dialog>,
     /// The last vault is opened on the first frame, not in the constructor: building the window
@@ -48,7 +51,7 @@ impl LocalApp {
 
         let mut vault = VaultState::default();
         vault.sort = prefs.sort;
-        vault.preview_open = prefs.preview_open;
+        vault.view = prefs.view;
 
         Self {
             updater: Updater::new(&APP, env!("CARGO_PKG_VERSION")),
@@ -60,6 +63,7 @@ impl LocalApp {
             sidebar_open: prefs.sidebar_open,
             prefs,
             vault,
+            images: Images::default(),
             dialog: None,
         }
     }
@@ -67,7 +71,7 @@ impl LocalApp {
     fn remember(&self) {
         let mut prefs = self.prefs.clone();
         prefs.sort = self.vault.sort;
-        prefs.preview_open = self.vault.preview_open;
+        prefs.view = self.vault.view;
         prefs.sidebar_open = self.sidebar_open;
         prefs.language = self.language.clone();
         prefs.save();
@@ -114,10 +118,15 @@ impl LocalApp {
                     self.remember();
                     ui.close();
                 }
-                if ui.checkbox(&mut self.vault.preview_open, tl!("Reading view")).clicked() {
-                    self.remember();
-                    ui.close();
-                }
+                ui.menu_button(tl!("Note view"), |ui| {
+                    for (mode, label) in [(ViewMode::Edit, tl!("Edit")), (ViewMode::Read, tl!("Read")), (ViewMode::Split, tl!("Split"))] {
+                        if ui.radio(self.vault.view == mode, label).clicked() {
+                            self.vault.view = mode;
+                            self.remember();
+                            ui.close();
+                        }
+                    }
+                });
                 ui.menu_button(tl!("Sort notes"), |ui| {
                     for (sort, label) in [
                         (localobsidian_vault::Sort::Name, tl!("Name")),
@@ -177,7 +186,7 @@ impl LocalApp {
                 }
             });
         });
-        egui::CentralPanel::default_margins().show(ui, |ui| match editor::show(ui, &mut self.vault) {
+        egui::CentralPanel::default_margins().show(ui, |ui| match editor::show(ui, &mut self.vault, &mut self.images) {
             EditorAction::None => {}
             EditorAction::Save => self.save(),
             EditorAction::Navigate(target) => self.navigate(&target),
@@ -376,8 +385,8 @@ impl LocalApp {
             let path = note.path.clone();
             self.vault.open_note(&path);
             if parsed.hash.is_some() {
-                // Reading view shows the whole note; scrolling to a section is a later step.
-                self.vault.preview_open = true;
+                // The reading view shows the whole note; scrolling to the section is a later step.
+                self.vault.view = ViewMode::Read;
                 self.remember();
             }
         } else {

@@ -47,6 +47,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("md", Class::Standalone),
     // The vault: the folder scan, the index, link resolution, safe writes. Uses the note format.
     ("vault", Class::Layer(3)),
+    // Markdown editing commands: pure text transforms, no UI, no filesystem.
+    ("editor", Class::Layer(2)),
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later).

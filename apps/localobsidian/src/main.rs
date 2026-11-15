@@ -12,8 +12,10 @@
 
 mod app;
 mod editor;
+mod editor_keys;
 mod fonts;
 mod i18n;
+mod images;
 mod pickers;
 mod prefs;
 mod sidebar;

@@ -16,12 +16,16 @@ workspace = true
 craft-i18n = { workspace = true }
 craft-update = { workspace = true }
 craft-window = { workspace = true }
+localobsidian-editor = { workspace = true }
 localobsidian-md = { workspace = true }
 localobsidian-vault = { workspace = true }
 # `clipboard` is a separate eframe feature in 0.37: without it egui-winit simulates an in-process
 # clipboard and cut/copy/paste, RequestPaste and the Wayland PRIMARY path are unavailable.
 eframe = { workspace = true, features = ["default_fonts", "clipboard", "wgpu", "glow", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
+# Decoding the pictures a note shows (`![[foto.png]]`); craft-update already pulls `image` in for
+# the app icon, so these features cost no new package.
+image = { workspace = true }
 log = { workspace = true }
 pollster = { workspace = true }
 rfd = { workspace = true }

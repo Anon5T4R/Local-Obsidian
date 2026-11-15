@@ -22,6 +22,7 @@ craft-update = { version = "=0.1.0", path = "libs/craft-libs/crates/update/", fe
 craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
 
 # the app's own layers (crates/localobsidian-*)
+localobsidian-editor = { path = "crates/editor" }
 localobsidian-md = { path = "crates/md" }
 localobsidian-vault = { path = "crates/vault" }
 
@@ -30,6 +31,8 @@ localobsidian-vault = { path = "crates/vault" }
 pulldown-cmark = { version = "0.13", default-features = false }
 # YAML 1.2 for the frontmatter block; pure Rust, no C. `encoding` off: notes are UTF-8 by contract.
 saphyr = { version = "0.3", default-features = false }
+# Decoding the pictures a note shows. No C: every format listed here is pure Rust.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
 
 # foundation
 log = "0.4"

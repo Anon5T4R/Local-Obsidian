@@ -10,12 +10,14 @@ use std::path::PathBuf;
 
 use localobsidian_vault::Sort;
 
+use crate::vault_state::ViewMode;
+
 /// What the app remembers. Every field has a default that is safe to start from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Prefs {
     pub last_vault: Option<PathBuf>,
     pub sort: Sort,
-    pub preview_open: bool,
+    pub view: ViewMode,
     pub sidebar_open: bool,
     /// [`crate::i18n::AUTO`] or a language code.
     pub language: String,
@@ -23,7 +25,7 @@ pub struct Prefs {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { last_vault: None, sort: Sort::Name, preview_open: false, sidebar_open: true, language: crate::i18n::AUTO.to_string() }
+        Self { last_vault: None, sort: Sort::Name, view: ViewMode::Edit, sidebar_open: true, language: crate::i18n::AUTO.to_string() }
     }
 }
 
@@ -58,7 +60,13 @@ impl Prefs {
             Some("modified") => Sort::Modified,
             _ => Sort::Name,
         };
-        prefs.preview_open = value.get("preview_open").and_then(|v| v.as_bool()).unwrap_or(prefs.preview_open);
+        // `preview_open` is the settings file of the first release: a reading view that was on is
+        // the Read mode, and one that was off is the editor.
+        prefs.view = match value.get("view").and_then(|v| v.as_str()) {
+            Some(key) => ViewMode::from_key(key),
+            None if value.get("preview_open").and_then(|v| v.as_bool()).unwrap_or(false) => ViewMode::Read,
+            None => ViewMode::Edit,
+        };
         prefs.sidebar_open = value.get("sidebar_open").and_then(|v| v.as_bool()).unwrap_or(prefs.sidebar_open);
         if let Some(language) = value.get("language").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
             prefs.language = language.to_string();
@@ -74,7 +82,7 @@ impl Prefs {
                 Sort::NameDesc => "name-desc",
                 Sort::Modified => "modified",
             },
-            "preview_open": self.preview_open,
+            "view": self.view.key(),
             "sidebar_open": self.sidebar_open,
             "language": self.language,
         })
@@ -115,7 +123,7 @@ mod tests {
         assert!(prefs.last_vault.is_none());
         assert_eq!(prefs.sort, Sort::Name);
         assert!(prefs.sidebar_open);
-        assert!(!prefs.preview_open);
+        assert_eq!(prefs.view, ViewMode::Edit);
     }
 
     #[test]
@@ -123,12 +131,20 @@ mod tests {
         let prefs = Prefs {
             last_vault: Some(PathBuf::from("C:/vault")),
             sort: Sort::Modified,
-            preview_open: true,
+            view: ViewMode::Split,
             sidebar_open: false,
             language: "pt-br".to_string(),
         };
         let again = Prefs::from_json(&prefs.to_json());
         assert_eq!(again, prefs);
+    }
+
+    #[test]
+    fn the_first_releases_settings_file_still_reads() {
+        let legacy = Prefs::from_json(&serde_json::json!({ "preview_open": true }));
+        assert_eq!(legacy.view, ViewMode::Read);
+        let legacy = Prefs::from_json(&serde_json::json!({ "preview_open": false }));
+        assert_eq!(legacy.view, ViewMode::Edit);
     }
 
     #[test]

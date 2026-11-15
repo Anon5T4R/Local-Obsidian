@@ -21,6 +21,7 @@
 	Save	保存
 	Quit Local Obsidian	Local Obsidian を終了
 	Show the sidebar	サイドバーを表示
+	Note view	ノートの表示
 	Reading view	閲覧ビュー
 	Sort notes	ノートの並び順
 	Name	名前
@@ -45,7 +46,8 @@
 	Pick one in the sidebar, or create a new note.	サイドバーから選ぶか、新規ノートを作成してください。
 	Edit	編集
 	Read	閲覧
-	Switch between the editor and the reading view	エディタと閲覧ビューを切り替える
+	Split	分割
+	Switch between the editor, the reading view and both	エディタ、閲覧ビュー、その両方を切り替える
 	saved	保存しました
 	could not save the note	ノートを保存できませんでした
 	could not save the note that was open	開いていたノートを保存できませんでした

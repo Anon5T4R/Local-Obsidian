@@ -1,0 +1,12 @@
+[package]
+name = "localobsidian-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's Markdown editing commands: wraps, list continuation, prefixes and checkbox toggles as pure text transforms (no UI, no filesystem)"
+
+[lints]
+workspace = true

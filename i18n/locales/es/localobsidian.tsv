@@ -21,6 +21,7 @@
 	Save	Guardar
 	Quit Local Obsidian	Salir de Local Obsidian
 	Show the sidebar	Mostrar la barra lateral
+	Note view	Vista de la nota
 	Reading view	Modo lectura
 	Sort notes	Ordenar notas
 	Name	Nombre
@@ -45,7 +46,8 @@
 	Pick one in the sidebar, or create a new note.	Elige una en la barra lateral o crea una nota nueva.
 	Edit	Editar
 	Read	Leer
-	Switch between the editor and the reading view	Alternar entre el editor y el modo lectura
+	Split	Dividido
+	Switch between the editor, the reading view and both	Alternar entre el editor, el modo lectura y ambos
 	saved	guardado
 	could not save the note	no se pudo guardar la nota
 	could not save the note that was open	no se pudo guardar la nota que estaba abierta

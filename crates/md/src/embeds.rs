@@ -50,6 +50,10 @@ fn expand_chunk(chunk: &str, resolve: &Resolver<'_>, depth: usize, seen: &mut Ve
 fn embedded(inner: &str, resolve: &Resolver<'_>, depth: usize, seen: &mut Vec<String>) -> String {
     // `![[Note|30]]`: the part after `|` is a sizing hint, not part of the target.
     let raw = inner.split('|').next().unwrap_or(inner);
+    // `![[foto.png]]` is an attachment, not a transclusion: the preview draws it as an image.
+    if is_attachment(raw) {
+        return format!("![[{inner}]]");
+    }
     let parsed = parse_target(raw);
     let key = raw.trim().to_lowercase();
 
@@ -90,6 +94,16 @@ fn embedded(inner: &str, resolve: &Resolver<'_>, depth: usize, seen: &mut Vec<St
 /// pass does not turn it into a half-broken link.
 fn broken(raw: &str) -> String {
     format!("!\\[\\[{}\\]\\]", raw.trim())
+}
+
+/// Whether the target names a file that is not a note (an image, a PDF): those are attachments,
+/// and the embed pass must leave them for the image pass.
+fn is_attachment(target: &str) -> bool {
+    let target = target.trim();
+    let Some(extension) = target.rsplit_once('.').map(|(_, extension)| extension.to_lowercase()) else {
+        return false;
+    };
+    !extension.is_empty() && extension != "md" && extension.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
 /// The slice of `markdown` under the heading whose text matches `heading`, up to the next heading
@@ -202,5 +216,11 @@ mod tests {
     fn a_block_reference_is_not_a_section() {
         let out = expand("![[Nota#^bloco]]", &resolver);
         assert!(out.contains("conteúdo"), "{out}");
+    }
+
+    #[test]
+    fn an_attachment_is_left_for_the_image_pass() {
+        assert_eq!(expand("![[gato.png]]", &resolver), "![[gato.png]]");
+        assert_eq!(expand("![[foto.jpg|300]]", &resolver), "![[foto.jpg|300]]");
     }
 }
