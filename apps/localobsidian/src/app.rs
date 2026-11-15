@@ -53,6 +53,7 @@ impl LocalApp {
         let mut vault = VaultState::default();
         vault.sort = prefs.sort;
         vault.view = prefs.view;
+        vault.outline_open = prefs.outline_open;
 
         Self {
             updater: Updater::new(&APP, env!("CARGO_PKG_VERSION")),
@@ -73,6 +74,7 @@ impl LocalApp {
         let mut prefs = self.prefs.clone();
         prefs.sort = self.vault.sort;
         prefs.view = self.vault.view;
+        prefs.outline_open = self.vault.outline_open;
         prefs.sidebar_open = self.sidebar_open;
         prefs.language = self.language.clone();
         prefs.save();
@@ -147,6 +149,7 @@ impl LocalApp {
                     ui.close();
                 }
                 if ui.checkbox(&mut self.vault.outline_open, tl!("Show the outline")).clicked() {
+                    self.remember();
                     ui.close();
                 }
                 ui.separator();
@@ -468,6 +471,7 @@ impl eframe::App for LocalApp {
         let outline_shortcut = ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::O));
         if outline_shortcut && self.vault.root.is_some() {
             self.vault.outline_open = !self.vault.outline_open;
+            self.remember();
             wake = true;
         }
         let escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));

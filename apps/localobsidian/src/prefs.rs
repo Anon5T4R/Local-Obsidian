@@ -19,13 +19,22 @@ pub struct Prefs {
     pub sort: Sort,
     pub view: ViewMode,
     pub sidebar_open: bool,
+    /// Whether the outline panel was on screen.
+    pub outline_open: bool,
     /// [`crate::i18n::AUTO`] or a language code.
     pub language: String,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { last_vault: None, sort: Sort::Name, view: ViewMode::Edit, sidebar_open: true, language: crate::i18n::AUTO.to_string() }
+        Self {
+            last_vault: None,
+            sort: Sort::Name,
+            view: ViewMode::Edit,
+            sidebar_open: true,
+            outline_open: false,
+            language: crate::i18n::AUTO.to_string(),
+        }
     }
 }
 
@@ -68,6 +77,7 @@ impl Prefs {
             None => ViewMode::Edit,
         };
         prefs.sidebar_open = value.get("sidebar_open").and_then(|v| v.as_bool()).unwrap_or(prefs.sidebar_open);
+        prefs.outline_open = value.get("outline_open").and_then(|v| v.as_bool()).unwrap_or(prefs.outline_open);
         if let Some(language) = value.get("language").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
             prefs.language = language.to_string();
         }
@@ -84,6 +94,7 @@ impl Prefs {
             },
             "view": self.view.key(),
             "sidebar_open": self.sidebar_open,
+            "outline_open": self.outline_open,
             "language": self.language,
         })
     }
@@ -133,6 +144,7 @@ mod tests {
             sort: Sort::Modified,
             view: ViewMode::Split,
             sidebar_open: false,
+            outline_open: true,
             language: "pt-br".to_string(),
         };
         let again = Prefs::from_json(&prefs.to_json());
