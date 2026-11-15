@@ -35,13 +35,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
     }
     ui.separator();
 
+    state.rebuild_filtered_tree();
     let tree = state.filtered_tree();
+    let empty = tree.is_empty();
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        if tree.is_empty() {
+        if empty {
             ui.label(egui::RichText::new(tl!("no note matches the filter")).weak());
             return;
         }
-        action = show_nodes(ui, &tree, state);
+        action = show_nodes(ui, tree, state);
     });
     action
 }

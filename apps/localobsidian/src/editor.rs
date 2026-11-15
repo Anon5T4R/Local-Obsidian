@@ -88,19 +88,23 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
 
     if state.preview_open {
         state.refresh_preview();
-        let blocks = state.preview().to_vec();
+        let vault: &VaultState = state;
+        let blocks = vault.preview();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            if let Some(target) = show_blocks(ui, &blocks, state) {
+            if let Some(target) = show_blocks(ui, blocks, vault) {
                 action = EditorAction::Navigate(target);
             }
         });
     } else {
-        let mut text = state.buffer.clone();
-        let output = egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.add(egui::TextEdit::multiline(&mut text).font(TextStyle::Monospace).desired_width(f32::INFINITY).desired_rows(24).code_editor())
+        let mut changed = false;
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            let response = ui.add(
+                egui::TextEdit::multiline(&mut state.buffer).font(TextStyle::Monospace).desired_width(f32::INFINITY).desired_rows(24).code_editor(),
+            );
+            changed = response.changed();
         });
-        if output.inner.changed() {
-            state.edit(text);
+        if changed {
+            state.touch();
         }
     }
     action

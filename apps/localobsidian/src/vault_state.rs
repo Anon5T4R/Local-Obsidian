@@ -40,6 +40,10 @@ pub struct VaultState {
     pub revision: u64,
     /// The cached reading view of [`Self::revision`].
     preview_cache: Option<(u64, Vec<preview::Block>)>,
+    /// The filtered tree, and the inputs it was built from (the filter and the tree's generation).
+    filtered_cache: Option<(u64, String, Vec<vault::Node>)>,
+    /// Bumped whenever the tree changes, so the filtered view knows when to rebuild.
+    tree_generation: u64,
     contents: BTreeMap<PathBuf, String>,
     last_edit: Option<Instant>,
 }
@@ -72,6 +76,7 @@ impl VaultState {
             }
         }
         self.index = vault::index::build(&self.files, &self.contents);
+        self.tree_generation = self.tree_generation.wrapping_add(1);
 
         // A note that disappeared from disk (renamed elsewhere) closes; edits in flight survive
         // until the user picks a note again.
@@ -89,6 +94,7 @@ impl VaultState {
     pub fn set_sort(&mut self, sort: vault::Sort) {
         self.sort = sort;
         self.tree = vault::sorted(&self.tree, sort);
+        self.tree_generation = self.tree_generation.wrapping_add(1);
     }
 
     /// The note to show first after opening a vault: the last one used, else the first of the tree.
@@ -122,12 +128,8 @@ impl VaultState {
         }
     }
 
-    /// The editor's text changed.
-    pub fn edit(&mut self, text: String) {
-        if text == self.buffer {
-            return;
-        }
-        self.buffer = text;
+    /// Marks the buffer as edited: dirty, a new revision for the reading view, autosave due.
+    pub fn touch(&mut self) {
         self.dirty = true;
         self.revision = self.revision.wrapping_add(1);
         self.last_edit = Some(Instant::now());
@@ -230,12 +232,22 @@ impl VaultState {
         self.preview_cache.as_ref().map(|(_, blocks)| blocks.as_slice()).unwrap_or_default()
     }
 
-    /// The tree as the sidebar shows it, with the filter applied.
-    pub fn filtered_tree(&self) -> Vec<vault::Node> {
-        if self.filter.trim().is_empty() {
-            return self.tree.clone();
+    /// Rebuilds the filtered tree when the filter or the tree changed. The sidebar calls this
+    /// before drawing; [`Self::filtered_tree`] then hands back the cached slice for free.
+    pub fn rebuild_filtered_tree(&mut self) {
+        let filter = self.filter.trim().to_string();
+        let stale =
+            self.filtered_cache.as_ref().is_none_or(|(generation, cached_filter, _)| *generation != self.tree_generation || *cached_filter != filter);
+        if !stale {
+            return;
         }
-        filter_tree(&self.tree, &self.index, self.filter.trim())
+        let nodes = if filter.is_empty() { self.tree.clone() } else { filter_tree(&self.tree, &self.index, &filter) };
+        self.filtered_cache = Some((self.tree_generation, filter, nodes));
+    }
+
+    /// The tree as the sidebar shows it: the cache [`Self::rebuild_filtered_tree`] filled.
+    pub fn filtered_tree(&self) -> &[vault::Node] {
+        self.filtered_cache.as_ref().map(|(_, _, nodes)| nodes.as_slice()).unwrap_or_default()
     }
 
     /// How many notes the current filter keeps.
@@ -361,7 +373,8 @@ mod tests {
         let scratch = Scratch::new("save", &[("Nota.md", "antes")]);
         let mut state = opened(&scratch);
         state.open_note(&scratch.0.join("Nota.md"));
-        state.edit("depois".to_string());
+        state.buffer = "depois".to_string();
+        state.touch();
         assert!(state.dirty);
         state.save().expect("save");
         assert!(!state.dirty);
@@ -374,7 +387,8 @@ mod tests {
         let scratch = Scratch::new("switch", &[("A.md", "a"), ("B.md", "b")]);
         let mut state = opened(&scratch);
         state.open_note(&scratch.0.join("A.md"));
-        state.edit("editado".to_string());
+        state.buffer = "editado".to_string();
+        state.touch();
         state.open_note(&scratch.0.join("B.md"));
         assert_eq!(std::fs::read_to_string(scratch.0.join("A.md")).expect("read"), "editado");
     }
@@ -409,10 +423,12 @@ mod tests {
             Scratch::new("filter", &[("Pasta/Cardio.md", "#sistema/cardio"), ("Pasta/Outra.md", "#uti"), ("Raiz.md", "---\naliases: [SCA]\n---\n")]);
         let mut state = opened(&scratch);
         state.filter = "#cardio".to_string();
+        state.rebuild_filtered_tree();
         let kept = state.filtered_tree();
         assert_eq!(kept.len(), 1, "{kept:?}");
         assert_eq!(kept[0].children.len(), 1);
         state.filter = "sca".to_string();
+        state.rebuild_filtered_tree();
         assert_eq!(state.filtered_count(), 1);
     }
 
