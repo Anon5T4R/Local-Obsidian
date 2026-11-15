@@ -20,7 +20,43 @@ pub const KITCHEN_SINK: &str = "Bloqueios - tudo em um.md";
 /// How many notes the generated vault holds: the size the app is used at.
 const NOTES: usize = 520;
 
-/// The note with one of every block the reading view knows. Committed in `qa/kitchen-sink.md`, so the
+/// A note that is nothing but a table, so a capture at a small window shows the table without
+/// scrolling past the rest of the kitchen sink.
+const TABLE_NOTE: &str = r#"---
+tipo: qa
+---
+
+# Tabela grande
+
+| Droga | Dose habitual | Apresentação | Observações de uso clínico no plantão | Ajuste renal |
+|:--|:--|:--|:--|:--|
+| Noradrenalina | 0,05 a 0,5 mcg/kg/min | ampola 4 mg/4 mL | Primeira escolha no choque séptico; titular pela PAM média | não precisa |
+| Dobutamina | 2,5 a 20 mcg/kg/min | ampola 250 mg/20 mL | Baixo débito com congestão; cuidado com taquiarritmia | não precisa |
+| Adrenalina | 0,01 a 0,5 mcg/kg/min | ampola 1 mg/mL | Anafilaxia e PCR; em infusão contínua exige acesso central | não precisa |
+| Vasopressina | 0,03 U/min | ampola 20 U/mL | Poupa noradrenalina; não titular, dose fixa | não precisa |
+| Nitroglicerina | 5 a 200 mcg/min | ampola 5 mg/mL | Edema agudo de pulmão hipertensivo; cefaleia limita o aumento | não precisa |
+| Furosemida | 20 a 40 mg IV | ampola 20 mg/2 mL | Congestão com diurese baixa; monitorar potássio | reduzir na DRC |
+| Amiodarona | 150 mg em 10 min | ampola 150 mg/3 mL | Taquicardia ventricular; depois 1 mg/min por 6 h | usar com cautela |
+| Sulfato de magnésio | 2 g IV em 20 min | ampola 10% 10 mL | Torsades e pré-eclâmpsia; vigiar reflexos | reduzir na DRC |
+| Ceftriaxona | 2 g IV 1×/dia | frasco 1 g | Meningite e pneumonia grave; não precisa ajustar | não precisa |
+| Piperacilina-tazobactam | 4,5 g IV 6/6 h | frasco 4,5 g | Cobertura ampla; infundir em 30 min | ajustar na DRC |
+| Vancomicina | 15 a 20 mg/kg 12/12 h | frasco 500 mg | Guiar pelo nível sérico; infundir em 1 h | ajustar na DRC |
+| Enoxaparina | 1 mg/kg 12/12 h | seringa 40 mg | Profilaxia 40 mg/dia; tratamento no Tromboembolismo | ajustar na DRC |
+| Hidrocortisona | 50 mg IV 6/6 h | frasco 100 mg | Choque séptico refratário a vasopressor | não precisa |
+| Insulina regular | 0,1 U/kg/h | frasco 100 U/mL | Bomba de infusão; alvo 140 a 180 mg/dL | reduzir na DRC |
+| Gluconato de cálcio | 1 g IV | ampola 10% 10 mL | Hipercalemia com alteração no ECG | não precisa |
+| Bicarbonato de sódio | 1 mEq/kg | ampola 8,4% 10 mL | Acidose grave com pH < 7,1; ventilar bem | não precisa |
+| Naloxona | 0,04 a 0,4 mg IV | ampola 0,4 mg/mL | Intoxicação por opioide; repetir se necessário | não precisa |
+| Flumazenil | 0,2 mg IV | ampola 0,1 mg/mL | Intoxicação por benzodiazepínico; risco de convulsão | não precisa |
+| Protamina | 1 mg para cada 1 mg de heparina | ampola 10 mg/mL | Reversão de heparina; infundir devagar | não precisa |
+| Tramadol | 50 a 100 mg IV | ampola 50 mg/mL | Dor moderada; evite em epilepsia | reduzir na DRC |
+| Metoclopramida | 10 mg IV | ampola 5 mg/mL | Náusea; contraindicada em Parkinson | reduzir na DRC |
+| Ondansetrona | 4 a 8 mg IV | ampola 2 mg/mL | Náusea refratária; cuidado com QT longo | não precisa |
+
+Uma frase depois da tabela, para o bloco não terminar colado no rodapé.
+"#;
+
+/// A note with one of every block the reading view knows. Committed in `qa/kitchen-sink.md`, so the
 /// generator and the app's own layout test use the same file.
 fn everything() -> Result<String, String> {
     let path = crate::root().join("qa").join("kitchen-sink.md");
@@ -39,6 +75,7 @@ pub fn vault(dir: Option<&str>) -> Result<(), String> {
     std::fs::create_dir_all(&target).map_err(|error| format!("cannot create {}: {error}", target.display()))?;
 
     write(&target, KITCHEN_SINK, &everything()?)?;
+    write(&target, "_qa/Tabela grande.md", TABLE_NOTE)?;
     write(&target, "_qa/Frontmatter inválido.md", BROKEN_FRONTMATTER)?;
     write(&target, "_qa/Sem frontmatter.md", "# Sem frontmatter\n\nUma nota limpa.\n")?;
     write(&target, "_qa/Frontmatter vazio.md", "---\n---\n\n# Frontmatter vazio\n")?;
@@ -116,31 +153,46 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
         let note = if vault.join(format!("{wanted}.md")).is_file() { Some(wanted.to_string()) } else { None };
         for (width, height) in [(1920, 1080), (1366, 768), (1024, 600), (800, 500)] {
             let shot = shots.join(format!("vault-{label}-{width}x{height}.png"));
-            let mut command = Command::new(&app);
-            command
-                .env("LOCALOBSIDIAN_NO_PREFS", "1")
-                .env("LOCALOBSIDIAN_QA_SHOT", &shot)
-                .env("LOCALOBSIDIAN_QA_VAULT", vault)
-                .env("LOCALOBSIDIAN_QA_VIEW", "read")
-                .env("LOCALOBSIDIAN_QA_SIZE", format!("{width}x{height}"))
-                .env("LOCALOBSIDIAN_QA_FRAMES", "45");
-            if let Some(note) = &note {
-                command.env("LOCALOBSIDIAN_QA_NOTE", note);
-            }
-            let status = command.status().map_err(|error| format!("cannot start {}: {error}", app.display()))?;
-            if !status.success() {
-                return Err(format!("{} exited with {status}", app.display()));
-            }
-            if !shot.is_file() {
-                return Err(format!("{} was not written", shot.display()));
-            }
+            shoot(&app, vault, note.as_deref(), width, height, &shot)?;
             written += 1;
+        }
+        // The table note is captured at the two sizes where a table is most at risk of collapsing,
+        // so the archive has the table itself and not only the top of the kitchen sink.
+        if label == "gerado" && vault.join("_qa/Tabela grande.md").is_file() {
+            for (width, height) in [(1366, 768), (800, 500)] {
+                let shot = shots.join(format!("tabela-{width}x{height}.png"));
+                shoot(&app, vault, Some("Tabela grande"), width, height, &shot)?;
+                written += 1;
+            }
         }
     }
     let elapsed = started.elapsed();
     println!("qa-shots: {written} PNGs in {} ({:.1}s)", shots.display(), elapsed.as_secs_f32());
     if elapsed.as_secs() > 120 {
         println!("qa-shots: slower than two minutes - keep it out of CI and run it at the end of a phase");
+    }
+    Ok(())
+}
+
+/// One window of the app, one PNG. Blocks until the app has written the picture and closed.
+fn shoot(app: &Path, vault: &Path, note: Option<&str>, width: u32, height: u32, shot: &Path) -> Result<(), String> {
+    let mut command = Command::new(app);
+    command
+        .env("LOCALOBSIDIAN_NO_PREFS", "1")
+        .env("LOCALOBSIDIAN_QA_SHOT", shot)
+        .env("LOCALOBSIDIAN_QA_VAULT", vault)
+        .env("LOCALOBSIDIAN_QA_VIEW", "read")
+        .env("LOCALOBSIDIAN_QA_SIZE", format!("{width}x{height}"))
+        .env("LOCALOBSIDIAN_QA_FRAMES", "45");
+    if let Some(note) = note {
+        command.env("LOCALOBSIDIAN_QA_NOTE", note);
+    }
+    let status = command.status().map_err(|error| format!("cannot start {}: {error}", app.display()))?;
+    if !status.success() {
+        return Err(format!("{} exited with {status}", app.display()));
+    }
+    if !shot.is_file() {
+        return Err(format!("{} was not written", shot.display()));
     }
     Ok(())
 }

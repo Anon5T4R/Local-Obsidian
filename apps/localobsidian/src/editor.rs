@@ -473,17 +473,25 @@ fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>],
 
     // What each column would like: its widest cell, measured without wrapping.
     let mut natural = vec![TABLE_MIN_COL; columns];
+    // And the narrowest it may get without breaking a word in the middle: the widest single word it
+    // holds, header included. Five columns at 800 px do not fit "Noradrenalina"; the honest answer is
+    // a table wider than the page with a horizontal scroll, not a word cut in half.
+    let mut floors = vec![TABLE_MIN_COL; columns];
     for (column, cell) in headers.iter().enumerate() {
         natural[column] = natural[column].max(text_width(ui, cell, head) + 2.0 * TABLE_PAD);
+        floors[column] = floors[column].max(word_width(ui, cell, head) + 2.0 * TABLE_PAD);
     }
     for row in rows {
         for (column, cell) in row.iter().enumerate() {
             if let Some(slot) = natural.get_mut(column) {
                 *slot = (*slot).max(text_width(ui, cell, body) + 2.0 * TABLE_PAD);
             }
+            if let Some(slot) = floors.get_mut(column) {
+                *slot = (*slot).max(word_width(ui, cell, body) + 2.0 * TABLE_PAD);
+            }
         }
     }
-    let widths = column_widths(available, &natural);
+    let widths = column_widths(available, &natural, &floors);
 
     // Each row's height, from the tallest cell wrapped at the width it will get.
     let heights: Vec<f32> = std::iter::once(headers)
@@ -494,6 +502,34 @@ fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>],
             row_height(ui, cells, &widths, style, TABLE_PAD).min(TABLE_MAX_ROW)
         })
         .collect();
+    let total_width: f32 = widths.iter().sum();
+    if total_width > available + 1.0 {
+        // Wider than the pane: it scrolls sideways rather than folding the words.
+        let mut hit = None;
+        egui::ScrollArea::horizontal().id_salt("table-scroll").show(ui, |ui| {
+            hit = paint_table(ui, headers, rows, aligns, &widths, &heights, state, head, body);
+        });
+        ui.add_space(6.0);
+        return hit;
+    }
+    let hit = paint_table(ui, headers, rows, aligns, &widths, &heights, state, head, body);
+    ui.add_space(6.0);
+    hit
+}
+
+/// Draws the measured table at the cursor. Split out because a table wider than the pane is drawn
+/// inside a horizontal scroll area instead of on the page.
+fn paint_table(
+    ui: &mut egui::Ui,
+    headers: &[Vec<Span>],
+    rows: &[Vec<Vec<Span>>],
+    aligns: &[Align],
+    widths: &[f32],
+    heights: &[f32],
+    state: &VaultState,
+    head: Style,
+    body: Style,
+) -> Option<Hit> {
     let total_width: f32 = widths.iter().sum();
     let total_height: f32 = heights.iter().sum();
     let table = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(total_width, total_height));
@@ -522,7 +558,7 @@ fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>],
         painter.line_segment([egui::pos2(table.left(), y), egui::pos2(table.right(), y)], egui::Stroke::new(1.0, line));
     }
     let mut x = table.left();
-    for width in &widths {
+    for width in widths {
         x += width;
         painter.line_segment([egui::pos2(x, table.top()), egui::pos2(x, table.bottom())], egui::Stroke::new(1.0, line));
     }
@@ -551,7 +587,6 @@ fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>],
         }
         y += height;
     }
-    ui.add_space(6.0);
     hit
 }
 
@@ -575,9 +610,19 @@ fn row_height(ui: &egui::Ui, cells: &[Vec<Span>], widths: &[f32], style: Style, 
     tallest + 2.0 * pad
 }
 
-/// How wide each column is: what it asked for, grown to fill the page when there is room, shrunk
-/// but never below [`MIN_COL`] when there is not.
-fn column_widths(available: f32, natural: &[f32]) -> Vec<f32> {
+/// The width of the widest single word of a cell: no column is narrower than this, so a line never
+/// breaks inside a word (a table that will not fit then scrolls sideways instead).
+fn word_width(ui: &egui::Ui, spans: &[Span], style: Style) -> f32 {
+    let text: String = spans.iter().map(Span::plain).collect();
+    let font = egui::FontId::proportional(style.size);
+    text.split_whitespace()
+        .map(|word| ui.painter().layout_no_wrap(word.to_string(), font.clone(), egui::Color32::WHITE).size().x)
+        .fold(0.0_f32, f32::max)
+}
+
+/// How wide each column is: what it asked for, grown to fill the page when there is room, shrunk but
+/// never below the width of its longest word when there is not.
+fn column_widths(available: f32, natural: &[f32], floors: &[f32]) -> Vec<f32> {
     let asked: f32 = natural.iter().sum();
     if asked <= available && asked > 0.0 {
         let slack = available - asked;
@@ -585,15 +630,16 @@ fn column_widths(available: f32, natural: &[f32]) -> Vec<f32> {
     }
     let mut widths = natural.to_vec();
     // Shrink proportionally in a few passes: one pass overshoots, because taking the same share from
-    // a column that already hit the floor would make the others too narrow.
+    // a column that already hit its floor would make the others too narrow.
     for _ in 0..6 {
         let total: f32 = widths.iter().sum();
         if total <= available {
             break;
         }
         let scale = (available / total).min(1.0);
-        for width in &mut widths {
-            *width = (*width * scale).max(TABLE_MIN_COL);
+        for (index, width) in widths.iter_mut().enumerate() {
+            let floor = floors.get(index).copied().unwrap_or(TABLE_MIN_COL).max(TABLE_MIN_COL);
+            *width = (*width * scale).max(floor);
         }
     }
     widths
