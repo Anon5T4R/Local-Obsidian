@@ -9,7 +9,7 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v1.1.0)
+## O que funciona hoje (v1.2.0)
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
   das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
@@ -32,6 +32,24 @@ que o mesmo cofre abra nos dois.
   `- [ ]` na leitura é uma caixa de verdade: clicar nela alterna a linha no arquivo. `#tag` no corpo
   vira chip e clicar nele filtra a barra lateral. As tabelas usam a largura da página, com faixa de
   cabeçalho, linhas alternadas e quebra por palavra.
+- **Leitura com medida de livro**: a coluna tem 820 px e fica centrada, com degraus de tipo de
+  verdade (H1 29, H2 21, corpo 15) e ritmo entre blocos — o texto não vira mais uma parede de 150
+  caracteres por linha. O frontmatter aparece como **card de propriedades** no topo (tipo, aliases e
+  tags em chips, na ordem do arquivo), o código inline é um chip neutro, a tabela tem o respiro de
+  ~40 px por linha, e o painel de código do Split ganha realce (fences, títulos, citações, `#tags`,
+  `[[links]]`, `==destaques==`). **Zoom da renderização** de 0.8 a 1.6 (`Ctrl+=`, `Ctrl+-`,
+  `Ctrl+0` ou `Visualizar → Zoom`), guardado nas preferências.
+- **Documentos da pasta**: `.pdf`, `.docx`, `.odt`, `.epub` e `.txt` que estão no cofre aparecem na
+  árvore — apagados, entre as notas e as pastas — e **abrem no app do sistema** com um clique; o
+  menu de contexto de uma pasta (ou de um documento) mostra no gerenciador de arquivos. Continuam
+  não sendo notas: busca, wikilinks e backlinks não os veem.
+- **IA** (`IA → Conversar sobre a nota`): painel de chat que manda a nota aberta como contexto e
+  recebe a resposta em pedaços (SSE), com `Enviar`, `Parar`, `Inserir na nota` e `Limpar`. A conexão
+  (`IA → Conexão…`) aceita qualquer provedor compatível com a API da OpenAI — Ollama e llama-server
+  são uma URL base e um modelo —, busca a lista de modelos do provedor e guarda a chave **no
+  keychain do sistema**, nunca num arquivo. Sem conexão, o painel diz o que falta. É o `local-ai`
+  compartilhado da suíte, com nenhum servidor nosso no caminho: nada sai da máquina sem o endpoint
+  que o usuário configurou.
 - **Importar documento** (`Arquivo → Importar um arquivo Word ou OpenDocument...`): um `.docx` ou
   `.odt` vira uma nota na pasta da nota aberta, com títulos, listas (numeradas inclusive), negrito,
   itálico, links e tabelas. Imagens, gráficos, notas de rodapé e comentários ficam de fora — o mesmo
@@ -71,10 +89,10 @@ que o mesmo cofre abra nos dois.
 | O que | Por quê |
 |---|---|
 | **Plugins / sistema de extensões** | O app de origem é Electron: o "plugin" era código JS rodando no renderer. Aqui não há renderer, nem JS, nem carregador dinâmico — é binário Rust. Não é pendência; é divergência estrutural. |
-| **Visualizador de PDF/EPUB/DOCX na árvore** | Binários ficam fora da árvore (decisão do port). Um `.docx`/`.odt` entra por **importação**, que vira nota editável — o que um cofre de Markdown quer. PDF/EPUB continuam sendo trabalho do leitor do sistema. |
+| **Visualizador de PDF/EPUB/DOCX dentro do app** | Os documentos aparecem na árvore e abrem no leitor do sistema — um PDF não é uma nota e o app não tenta renderizá-lo. Um `.docx`/`.odt` que precisa virar texto entra por **importação**, que gera nota editável. |
 | **Import de `.apkg` (Anki)** | Ler o pacote exige um motor SQLite. A única opção 100% Rust madura hoje (`turso`/`limbo`) ainda é pré-release e traz uma árvore grande; `rusqlite` compila C, o que o port não aceita. O import de **texto** do Anki (`Arquivo → Importar cartões do Anki (texto)...`) cobre o uso real, e o `.apkg` fica anotado com esse caminho. |
 | **Math renderizado** | Continua em unidade própria (precisa de fontes matemáticas + pintor). Hoje o TeX aparece limpo em monoespaçado, sem virar sopa de símbolos. |
-| **IA / chat** | Sem IA local, por decisão: nada sai da máquina, e não há provedor embutido. A janela de chat do app de origem não tem equivalente. |
+| **Modelo de IA embutido** | O app é cliente: fala com o endpoint compatível com a API da OpenAI que o usuário configurar (Ollama, llama-server, provedor remoto). Não embarca pesos nem roda inferência — isso é trabalho do `local-ai`, que é só o cliente compartilhado da suíte. |
 | **Fonte de emoji** | Decisão do João: não se embarca fonte de emoji. **Emoji nunca é desenhado** na leitura (um pictograma monocromático no meio do texto lê como erro), e as faixas de símbolo — setas, operadores matemáticos — aparecem quando as fontes da suíte têm o glifo. O texto-fonte da nota não muda e o editor mostra o caractere como está. |
 
 ## Roadmap pós-1.0
