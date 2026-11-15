@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Local Obsidian
+GenericName=Notes
+Comment=Notes, wikilinks and attachments in a plain folder, 100% offline
+Exec=localobsidian %F
+Icon=com.localobsidian.app
+Terminal=false
+Categories=Office;TextEditor;
+Keywords=notes;markdown;vault;wikilinks;links;offline;
+StartupWMClass=com.localobsidian.app

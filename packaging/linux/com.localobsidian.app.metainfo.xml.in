@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (software centres). package.sh substitutes @VERSION@ and @DATE@ from
+     Cargo.toml and the build date. -->
+<component type="desktop-application">
+  <id>com.localobsidian.app</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>Local Obsidian</name>
+  <summary>Notes, wikilinks and attachments in a plain folder</summary>
+  <developer id="com.localobsidian">
+    <name>Local Obsidian contributors</name>
+  </developer>
+  <description>
+    <p>
+      Local Obsidian opens a folder of Markdown notes - the vault - and edits it in place: a file
+      tree with a name/tag/alias filter, an editor with safe writes, frontmatter as the metadata
+      format every Markdown tool shares, and wikilinks ([[Note]], [[Note|alias]], ![[embed]]) that
+      resolve and navigate.
+    </p>
+    <p>
+      It is a Rust + egui desktop app of the Local suite: no account, no telemetry, no third-party
+      servers. The vault stays plain files: .md, _attachments/ and .openobsidian/ (only the shared
+      spaced-repetition state lives there).
+    </p>
+  </description>
+  <launchable type="desktop-id">com.localobsidian.app.desktop</launchable>
+  <icon type="stock">com.localobsidian.app</icon>
+  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
+  <url type="homepage">https://github.com/Anon5T4R/Local-Obsidian</url>
+  <url type="bugtracker">https://github.com/Anon5T4R/Local-Obsidian/issues</url>
+  <categories>
+    <category>Office</category>
+    <category>TextEditor</category>
+  </categories>
+  <keywords>
+    <keyword>notes</keyword>
+    <keyword>markdown</keyword>
+    <keyword>vault</keyword>
+    <keyword>wikilinks</keyword>
+  </keywords>
+  <requires>
+    <display_length compare="ge">720</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <provides>
+    <binary>localobsidian</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>
