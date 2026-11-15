@@ -120,16 +120,23 @@ pub struct SearchState {
     pub results: Vec<SearchHit>,
     /// Notes whose every matching line is shown (the panel shows a few first).
     pub expanded: std::collections::HashSet<PathBuf>,
-    /// What the results belong to, and when that input last changed (the panel waits a moment
-    /// after the last keystroke before walking the vault).
-    last_run: Option<(String, bool, Instant)>,
+    /// What the results belong to (the box and the `.*` switch), so a frame that changes nothing
+    /// does not walk the vault again.
+    results_for: Option<(String, bool)>,
+    /// Input waiting for the typing to settle, and since when.
+    pending: Option<((String, bool), Instant)>,
 }
 
 impl SearchState {
-    /// Forgets the last run, so the next [`VaultState::refresh_search`] walks the vault at once
-    /// (used when the box or the `.*` switch changes, or when the panel is closed).
+    /// Forgets the results, so the next [`VaultState::refresh_search`] walks the vault again (used
+    /// when the box or the `.*` switch changes, or when the panel is closed).
     pub fn invalidate(&mut self) {
-        self.last_run = None;
+        self.clear();
+    }
+
+    fn clear(&mut self) {
+        self.results_for = None;
+        self.pending = None;
         self.results.clear();
     }
 }
@@ -173,6 +180,8 @@ impl VaultState {
         }
         self.index = vault::index::build(&self.files, &self.contents);
         self.tree_generation = self.tree_generation.wrapping_add(1);
+        // The notes changed under the results: the next frame that draws the panel searches again.
+        self.search.invalidate();
 
         // A note that disappeared from disk (renamed elsewhere) closes; edits in flight survive
         // until the user picks a note again.
@@ -432,7 +441,7 @@ impl VaultState {
     }
 
     /// Re-runs the search when the box changed and the typing settled. The panel calls this every
-    /// frame; it is a no-op between keystrokes.
+    /// frame; it is a no-op once the results match the box.
     pub fn refresh_search(&mut self) {
         if !self.search.open {
             return;
@@ -440,29 +449,32 @@ impl VaultState {
         let query = self.search.query.trim().to_string();
         self.search.invalid = false;
         if query.is_empty() {
-            self.search.results.clear();
-            self.search.last_run = None;
+            self.search.clear();
+            return;
+        }
+        let key = (query, self.search.regex);
+        // Nothing to do: the results already belong to what the box says.
+        if self.search.results_for.as_ref() == Some(&key) {
             return;
         }
 
         // Wait for a pause in the typing: walking every note on each keystroke would make the box
         // feel heavy in a big vault.
         const SETTLE: Duration = Duration::from_millis(200);
-        let now = Instant::now();
-        match &self.search.last_run {
-            Some((last_query, last_regex, since)) if last_query == &query && *last_regex == self.search.regex => {
+        match &self.search.pending {
+            Some((pending, since)) if *pending == key => {
                 if since.elapsed() < SETTLE {
                     return;
                 }
             }
-            Some((last_query, last_regex, _)) if last_query == &query && *last_regex == self.search.regex => {}
             _ => {
-                self.search.last_run = Some((query.clone(), self.search.regex, now));
+                self.search.pending = Some((key, Instant::now()));
                 return;
             }
         }
-
-        self.search.last_run = Some((query.clone(), self.search.regex, now));
+        self.search.pending = None;
+        self.search.results_for = Some(key);
+        let query = self.search.query.trim().to_string();
         self.run_search(&query);
     }
 
@@ -471,7 +483,8 @@ impl VaultState {
     pub fn run_search_now(&mut self) {
         let query = self.search.query.trim().to_string();
         self.search.invalid = false;
-        self.search.last_run = Some((query.clone(), self.search.regex, Instant::now()));
+        self.search.pending = None;
+        self.search.results_for = Some((query.clone(), self.search.regex));
         if query.is_empty() {
             self.search.results.clear();
             return;
