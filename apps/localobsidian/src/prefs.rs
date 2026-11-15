@@ -12,6 +12,11 @@ use localobsidian_vault::Sort;
 
 use crate::vault_state::ViewMode;
 
+/// The divider between the source and the reading view can be dragged, but not past these: a pane
+/// narrower than this is a pane one cannot read.
+pub const SPLIT_MIN: f32 = 0.2;
+pub const SPLIT_MAX: f32 = 0.8;
+
 /// What the app remembers. Every field has a default that is safe to start from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Prefs {
@@ -21,6 +26,11 @@ pub struct Prefs {
     pub sidebar_open: bool,
     /// Whether the outline panel was on screen.
     pub outline_open: bool,
+    /// Whether the tag section of the sidebar was unfolded. Collapsed by default: a vault of 148
+    /// tags would otherwise bury the tree, which is the way one navigates.
+    pub tags_open: bool,
+    /// Where the divider between the source and the reading view sits, as a share of the width.
+    pub split: f32,
     /// [`crate::i18n::AUTO`] or a language code.
     pub language: String,
 }
@@ -33,6 +43,8 @@ impl Default for Prefs {
             view: ViewMode::Edit,
             sidebar_open: true,
             outline_open: false,
+            tags_open: false,
+            split: 0.5,
             language: crate::i18n::AUTO.to_string(),
         }
     }
@@ -78,6 +90,10 @@ impl Prefs {
         };
         prefs.sidebar_open = value.get("sidebar_open").and_then(|v| v.as_bool()).unwrap_or(prefs.sidebar_open);
         prefs.outline_open = value.get("outline_open").and_then(|v| v.as_bool()).unwrap_or(prefs.outline_open);
+        prefs.tags_open = value.get("tags_open").and_then(|v| v.as_bool()).unwrap_or(prefs.tags_open);
+        if let Some(split) = value.get("split").and_then(|v| v.as_f64()) {
+            prefs.split = (split as f32).clamp(SPLIT_MIN, SPLIT_MAX);
+        }
         if let Some(language) = value.get("language").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
             prefs.language = language.to_string();
         }
@@ -95,6 +111,8 @@ impl Prefs {
             "view": self.view.key(),
             "sidebar_open": self.sidebar_open,
             "outline_open": self.outline_open,
+            "tags_open": self.tags_open,
+            "split": self.split,
             "language": self.language,
         })
     }
@@ -145,10 +163,29 @@ mod tests {
             view: ViewMode::Split,
             sidebar_open: false,
             outline_open: true,
+            tags_open: true,
+            split: 0.62,
             language: "pt-br".to_string(),
         };
         let again = Prefs::from_json(&prefs.to_json());
         assert_eq!(again, prefs);
+    }
+
+    #[test]
+    fn the_tags_start_collapsed_and_the_divider_in_the_middle() {
+        let prefs = Prefs::default();
+        assert!(!prefs.tags_open, "a vault of tags must not bury the tree");
+        assert_eq!(prefs.split, 0.5);
+        let again = Prefs::from_json(&serde_json::json!({}));
+        assert!(!again.tags_open);
+        assert_eq!(again.split, 0.5);
+    }
+
+    #[test]
+    fn a_divider_off_the_rails_is_pulled_back() {
+        // A hand-edited file (or a window that was very wide) cannot leave a pane of zero width.
+        assert_eq!(Prefs::from_json(&serde_json::json!({ "split": 0.02 })).split, SPLIT_MIN);
+        assert_eq!(Prefs::from_json(&serde_json::json!({ "split": 3.0 })).split, SPLIT_MAX);
     }
 
     #[test]

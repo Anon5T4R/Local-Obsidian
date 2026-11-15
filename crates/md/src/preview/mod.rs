@@ -82,6 +82,8 @@ pub enum Span {
     Strong(Vec<Span>),
     Emphasis(Vec<Span>),
     Strike(Vec<Span>),
+    /// A `#tag` written in the note: the reading view draws it as a tag, not as prose.
+    Tag(String),
     /// `destination` is a URL or this app's `#wikilink:<target>` form (see [`links::from_url`]).
     Link {
         spans: Vec<Span>,
@@ -94,6 +96,7 @@ impl Span {
     pub fn plain(&self) -> String {
         match self {
             Span::Text(text) | Span::Code(text) => text.clone(),
+            Span::Tag(tag) => format!("#{tag}"),
             Span::Strong(spans) | Span::Emphasis(spans) | Span::Strike(spans) => spans.iter().map(Span::plain).collect(),
             Span::Link { spans, .. } => spans.iter().map(Span::plain).collect(),
         }

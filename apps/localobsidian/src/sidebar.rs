@@ -20,6 +20,11 @@ pub enum SidebarAction {
 }
 
 /// Draws the sidebar. Returns the note the user clicked, if any.
+///
+/// One panel, three blocks, each with the height it was given: the tree takes what is left after the
+/// tag section and the backlinks claimed theirs. Nested side panels were the bug behind the tree and
+/// the backlinks drawing in the same rectangle - a panel inside a `Ui` reserves space for itself but
+/// not for what comes after it, so every block started again at the top.
 pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
     let mut action = SidebarAction::None;
 
@@ -30,7 +35,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
             state.filter.clear();
         }
     });
-    panels::tags(ui, state);
     if !state.filter.trim().is_empty() || state.tag_filter.is_some() {
         let kept = state.filtered_count();
         ui.horizontal(|ui| {
@@ -44,17 +48,17 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
     }
     ui.separator();
 
-    // The tree scrolls; the backlinks stay pinned under it.
-    egui::Panel::bottom("backlinks").resizable(true).default_size(120.0).show(ui, |ui| {
-        if let Some(path) = panels::backlinks(ui, state) {
-            action = SidebarAction::OpenNote(path);
-        }
-    });
+    // The three blocks, sized from what the panel actually has. The backlinks take whatever is left
+    // after the tree and the tags: a share computed up front was 10 px off and clipped the last row.
+    let total = ui.available_height();
+    let content_bottom = ui.max_rect().bottom();
+    let tags_height = if state.tags_open { (total * 0.28).clamp(96.0, 220.0) } else { HEADER_HEIGHT };
+    let tree_height = (total - tags_height - 200.0).max(120.0);
 
     state.rebuild_filtered_tree();
     let tree = state.filtered_tree();
     let empty = tree.is_empty();
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+    egui::ScrollArea::vertical().id_salt("tree-scroll").max_height(tree_height).auto_shrink([false, false]).show(ui, |ui| {
         if empty {
             ui.label(egui::RichText::new(tl!("no note matches the filter")).weak());
             return;
@@ -64,8 +68,24 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
             other => action = other,
         }
     });
+
+    if panels::tags(ui, state, tags_height) {
+        state.tags_open = !state.tags_open;
+    }
+    ui.separator();
+    // Whatever is left *of the panel* is the backlinks', up to a point: measured from the bottom of
+    // the sidebar, not from `available_height` - the tree shrinks to its content, and the difference
+    // is space that is not really there.
+    let backlinks_height = (content_bottom - ui.cursor().top() - 8.0).clamp(60.0, 180.0);
+    let backlinks = ui.allocate_ui(egui::vec2(ui.available_width(), backlinks_height), |ui| panels::backlinks(ui, state, backlinks_height));
+    if let Some(path) = backlinks.inner {
+        action = SidebarAction::OpenNote(path);
+    }
     action
 }
+
+/// The row a folded section occupies: its header and nothing else.
+const HEADER_HEIGHT: f32 = 24.0;
 
 fn show_nodes(ui: &mut egui::Ui, nodes: &[vault::Node], state: &VaultState) -> SidebarAction {
     let mut action = SidebarAction::None;

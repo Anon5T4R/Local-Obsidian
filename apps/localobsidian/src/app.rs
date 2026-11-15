@@ -29,6 +29,16 @@ enum Dialog {
     Rename { name: String },
 }
 
+/// The dev-only window capture (`LOCALOBSIDIAN_QA_SHOT="<png>" LOCALOBSIDIAN_QA_VAULT="<folder>"
+/// LOCALOBSIDIAN_QA_NOTE="<name>" LOCALOBSIDIAN_QA_FRAMES=40`): wait for the layout to settle, write
+/// one PNG of the real window and close. It is what the visual QA of a whole window looks at, and it
+/// does nothing unless the variable is set.
+struct QaShot {
+    path: PathBuf,
+    frames: u32,
+    taken: bool,
+}
+
 pub struct LocalApp {
     updater: Updater,
     pickers: Pickers,
@@ -61,11 +71,21 @@ pub struct LocalApp {
     /// The last vault is opened on the first frame, not in the constructor: building the window
     /// must not wait for a scan of a large folder.
     restore_pending: bool,
+    /// The window capture of a QA run, if one was asked for.
+    qa_shot: Option<QaShot>,
 }
 
 impl LocalApp {
     pub fn new(cc: &eframe::CreationContext<'_>, frame: craft_window::Frame) -> Self {
         crate::fonts::install(&cc.egui_ctx);
+        // The one colour the note itself carries (links, tags, quotes): the icon's violet, darkened
+        // for a light background and lightened for a dark one so it stays readable either way.
+        cc.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {
+            style.visuals.hyperlink_color = crate::theme::ACCENT_DARK;
+        });
+        cc.egui_ctx.style_mut_of(egui::Theme::Light, |style| {
+            style.visuals.hyperlink_color = crate::theme::ACCENT_LIGHT;
+        });
         let prefs = Prefs::load();
         i18n::set_language(&prefs.language);
 
@@ -73,8 +93,10 @@ impl LocalApp {
         vault.sort = prefs.sort;
         vault.view = prefs.view;
         vault.outline_open = prefs.outline_open;
+        vault.tags_open = prefs.tags_open;
+        vault.split = prefs.split;
 
-        Self {
+        let mut app = Self {
             updater: Updater::new(&APP, env!("CARGO_PKG_VERSION")),
             pickers: Pickers::default(),
             frame,
@@ -94,7 +116,61 @@ impl LocalApp {
             fs_change: None,
             saved_at: None,
             dialog: None,
+            qa_shot: std::env::var_os("LOCALOBSIDIAN_QA_SHOT").map(|path| QaShot {
+                path: PathBuf::from(path),
+                frames: std::env::var("LOCALOBSIDIAN_QA_FRAMES").ok().and_then(|frames| frames.parse().ok()).unwrap_or(40),
+                taken: false,
+            }),
+        };
+
+        // `LOCALOBSIDIAN_QA_VAULT` opens a vault before the first frame - the capture has no hands to
+        // click with - and `LOCALOBSIDIAN_QA_NOTE` opens a note by name inside it.
+        if let Ok(view) = std::env::var("LOCALOBSIDIAN_QA_VIEW") {
+            app.vault.view = ViewMode::from_key(&view);
         }
+        if std::env::var_os("LOCALOBSIDIAN_QA_TAGS_OPEN").is_some() {
+            app.vault.tags_open = true;
+        }
+        if let Some(vault) = std::env::var_os("LOCALOBSIDIAN_QA_VAULT") {
+            app.restore_pending = false;
+            app.open_vault(PathBuf::from(vault));
+            if let Some(name) = std::env::var_os("LOCALOBSIDIAN_QA_NOTE") {
+                let wanted = name.to_string_lossy().to_string();
+                if let Some(note) = app.vault.files.iter().find(|note| note.name.eq_ignore_ascii_case(&wanted)) {
+                    let path = note.path.clone();
+                    app.vault.open_note(&path);
+                }
+            }
+        }
+        app
+    }
+
+    /// One picture of the real window, for the visual QA run (see [`QaShot`]).
+    fn qa_capture(&mut self, ctx: &egui::Context) {
+        let Some(plan) = &mut self.qa_shot else { return };
+        if plan.taken {
+            return;
+        }
+        if plan.frames > 0 {
+            plan.frames -= 1;
+            ctx.request_repaint();
+            return;
+        }
+        plan.taken = true;
+        let path = plan.path.clone();
+        let close_ctx = ctx.clone();
+        ctx.request_screenshot(move |image| {
+            let [width, height] = [image.size[0] as u32, image.size[1] as u32];
+            let bytes: Vec<u8> = image.pixels.iter().flat_map(|pixel| pixel.to_array()).collect();
+            if let Some(folder) = path.parent() {
+                let _ = std::fs::create_dir_all(folder);
+            }
+            match image::save_buffer(&path, &bytes, width, height, image::ExtendedColorType::Rgba8) {
+                Ok(()) => log::info!("qa: wrote {} ({width}x{height})", path.display()),
+                Err(error) => log::warn!("qa: cannot write {}: {error}", path.display()),
+            }
+            close_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        });
     }
 
     fn remember(&self) {
@@ -102,6 +178,8 @@ impl LocalApp {
         prefs.sort = self.vault.sort;
         prefs.view = self.vault.view;
         prefs.outline_open = self.vault.outline_open;
+        prefs.tags_open = self.vault.tags_open;
+        prefs.split = self.vault.split;
         prefs.sidebar_open = self.sidebar_open;
         prefs.language = self.language.clone();
         prefs.save();
@@ -323,6 +401,9 @@ impl LocalApp {
             EditorAction::Navigate(target) => self.navigate(&target),
             EditorAction::ToggleTask(index) => {
                 self.vault.toggle_task(index);
+            }
+            EditorAction::FilterTag(tag) => {
+                self.vault.tag_filter = Some(tag);
             }
         });
     }
@@ -1026,6 +1107,13 @@ impl eframe::App for LocalApp {
             }
             wake = true;
         }
+        // The divider and the panes are the user's; remember them once the hand lets go, not on
+        // every frame of a drag (the settings file would be rewritten sixty times a second).
+        let dragging = ctx.input(|input| input.pointer.primary_down());
+        if !dragging && (self.vault.split != self.prefs.split || self.vault.view != self.prefs.view || self.vault.tags_open != self.prefs.tags_open) {
+            self.remember();
+        }
+        self.qa_capture(ctx);
         if wake {
             ctx.request_repaint();
         }

@@ -240,7 +240,13 @@ impl Builder {
             buffer.push_str(text);
             return;
         }
-        self.span(Span::Text(text.to_string()));
+        // A `#tag` in the body is drawn as a tag, by the same rules the index uses.
+        for piece in crate::tags::pieces(text) {
+            match piece {
+                crate::tags::Piece::Text(plain) => self.span(Span::Text(plain.to_string())),
+                crate::tags::Piece::Tag(tag) => self.span(Span::Tag(tag.to_string())),
+            }
+        }
     }
 
     fn span(&mut self, span: Span) {

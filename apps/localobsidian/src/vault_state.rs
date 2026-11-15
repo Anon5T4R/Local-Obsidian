@@ -45,15 +45,6 @@ impl ViewMode {
         }
     }
 
-    /// The mode the toggle button cycles into.
-    pub fn next(self) -> Self {
-        match self {
-            ViewMode::Edit => ViewMode::Read,
-            ViewMode::Read => ViewMode::Split,
-            ViewMode::Split => ViewMode::Edit,
-        }
-    }
-
     /// Whether the reading view is on screen (alone or beside the editor).
     pub fn shows_reading(self) -> bool {
         matches!(self, ViewMode::Read | ViewMode::Split)
@@ -61,7 +52,9 @@ impl ViewMode {
 }
 
 /// The vault and the note in front of the user.
-#[derive(Default)]
+///
+/// Hand-written `Default` rather than derived, because the divider starts in the middle (a derived
+/// one would start a drag away from zero).
 pub struct VaultState {
     /// The vault folder, `None` before one is opened.
     pub root: Option<PathBuf>,
@@ -91,6 +84,11 @@ pub struct VaultState {
     pub search: SearchState,
     /// Whether the outline panel is on screen.
     pub outline_open: bool,
+    /// Whether the sidebar's tag section is unfolded. Collapsed by default: the tree is the way one
+    /// navigates, and a vault can carry hundreds of tags.
+    pub tags_open: bool,
+    /// Where the divider between the source and the reading view sits, as a share of the width.
+    pub split: f32,
     /// The section a link asked for: the reading view scrolls to it, then clears it.
     pub pending_section: Option<String>,
     /// The line a search result asked for: the editor puts the caret there, then clears it.
@@ -111,6 +109,41 @@ pub struct VaultState {
     tree_generation: u64,
     contents: BTreeMap<PathBuf, String>,
     last_edit: Option<Instant>,
+}
+
+impl Default for VaultState {
+    fn default() -> Self {
+        Self {
+            root: None,
+            tree: Vec::new(),
+            files: Vec::new(),
+            index: vault::Index::default(),
+            active: None,
+            buffer: String::new(),
+            dirty: false,
+            filter: String::new(),
+            sort: vault::Sort::default(),
+            view: ViewMode::default(),
+            message: None,
+            revision: 0,
+            tag_filter: None,
+            search: SearchState::default(),
+            outline_open: false,
+            tags_open: false,
+            split: 0.5,
+            pending_section: None,
+            pending_line: None,
+            completion: None,
+            srs: review::SrsFile::default(),
+            srs_dirty: false,
+            preview_cache: None,
+            outline_cache: None,
+            filtered_cache: None,
+            tree_generation: 0,
+            contents: BTreeMap::new(),
+            last_edit: None,
+        }
+    }
 }
 
 /// The search panel's state: the box, its switches, and the results of the last run.

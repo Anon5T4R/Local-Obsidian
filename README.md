@@ -9,11 +9,13 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v1.0.0)
+## O que funciona hoje (v1.1.0)
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
   das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
-  tag** com contagem e **backlinks** da nota aberta.
+  tag** com contagem e **backlinks** da nota aberta. A barra lateral é uma só, com três blocos que
+  têm altura própria: a árvore, a seção de tags (fechada por padrão, com rolagem própria) e os
+  backlinks — nenhum deles empurra nem cobre os outros.
 - **Nota**: frontmatter YAML lido e preservado, `#tags` (inclusive aninhadas) e `[[wikilinks]]` com
   resolução "a nota mais próxima vence" e navegação por clique (inclusive até a seção); `![[Nota#Seção]]`
   transclui; **autocomplete de `[[`** enquanto digita.
@@ -25,8 +27,11 @@ que o mesmo cofre abra nos dois.
   `Tab`/`Shift+Tab`, `Ctrl+Enter` (checkbox), lista que continua no Enter, autosave de 800 ms e
   `Ctrl+S`; escrita atômica (arquivo temporário + rename), nunca meio arquivo.
 - **Leitura**: títulos, listas, citação, callouts (`> [!warning]`), tabelas alinhadas, blocos de
-  código, imagens de `_attachments/` e links clicáveis; **Edit | Read | Split**. Um `- [ ]` na
-  leitura é uma caixa de verdade: clicar nela alterna a linha no arquivo.
+  código, imagens de `_attachments/` e links clicáveis; **Edit | Split | Read** num seletor sempre
+  visível no cabeçalho da nota (o Split tem divisor arrastável, guardado nas preferências). Um
+  `- [ ]` na leitura é uma caixa de verdade: clicar nela alterna a linha no arquivo. `#tag` no corpo
+  vira chip e clicar nele filtra a barra lateral. As tabelas usam a largura da página, com faixa de
+  cabeçalho, linhas alternadas e quebra por palavra.
 - **Importar documento** (`Arquivo → Importar um arquivo Word ou OpenDocument...`): um `.docx` ou
   `.odt` vira uma nota na pasta da nota aberta, com títulos, listas (numeradas inclusive), negrito,
   itálico, links e tabelas. Imagens, gráficos, notas de rodapé e comentários ficam de fora — o mesmo
@@ -70,6 +75,7 @@ que o mesmo cofre abra nos dois.
 | **Import de `.apkg` (Anki)** | Ler o pacote exige um motor SQLite. A única opção 100% Rust madura hoje (`turso`/`limbo`) ainda é pré-release e traz uma árvore grande; `rusqlite` compila C, o que o port não aceita. O import de **texto** do Anki (`Arquivo → Importar cartões do Anki (texto)...`) cobre o uso real, e o `.apkg` fica anotado com esse caminho. |
 | **Math renderizado** | Continua em unidade própria (precisa de fontes matemáticas + pintor). Hoje o TeX aparece limpo em monoespaçado, sem virar sopa de símbolos. |
 | **IA / chat** | Sem IA local, por decisão: nada sai da máquina, e não há provedor embutido. A janela de chat do app de origem não tem equivalente. |
+| **Fonte de emoji** | Decisão do João: não se embarca fonte de emoji. As fontes da suíte cobrem alguns pictogramas (que aparecem em monocromático) e não outros; na leitura, um pictograma sem glifo simplesmente **não é desenhado** — um retângulo vazio no meio de um título é pior que um título mais curto. O texto-fonte da nota não muda, e o editor mostra o caractere como está. |
 
 ## Roadmap pós-1.0
 

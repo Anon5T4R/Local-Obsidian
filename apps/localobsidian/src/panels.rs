@@ -150,14 +150,17 @@ pub fn outline(ui: &mut egui::Ui, state: &mut VaultState) -> PanelAction {
 }
 
 /// The backlinks of the open note, for the bottom of the sidebar.
-pub fn backlinks(ui: &mut egui::Ui, state: &VaultState) -> Option<PathBuf> {
+/// The backlinks of the open note, in a block of its own: a header that folds it and a list that
+/// scrolls inside `height`, so the sidebar gives it a real amount of space and the tree keeps the
+/// rest. Returns the note the user clicked.
+pub fn backlinks(ui: &mut egui::Ui, state: &VaultState, height: f32) -> Option<PathBuf> {
     let mut opened = None;
     let links = state.backlinks_of_active();
     let title = match links.len() {
         0 => tl!("Backlinks").to_string(),
         count => i18n::tr_fmt("Backlinks ({count})", &[("count", &count.to_string())]),
     };
-    egui::CollapsingHeader::new(egui::RichText::new(title)).id_salt("backlinks").default_open(true).show(ui, |ui| {
+    egui::CollapsingHeader::new(egui::RichText::new(title).small().strong()).id_salt("backlinks").default_open(true).show(ui, |ui| {
         if state.active.is_none() {
             ui.label(egui::RichText::new(tl!("No note is open")).weak());
             return;
@@ -166,33 +169,42 @@ pub fn backlinks(ui: &mut egui::Ui, state: &VaultState) -> Option<PathBuf> {
             ui.label(egui::RichText::new(tl!("no note links this one")).weak());
             return;
         }
-        for name in links {
-            if ui.selectable_label(false, name.clone()).clicked()
-                && let Some(note) = state.resolve(&name)
-            {
-                opened = Some(note.path.clone());
-            }
-        }
-    });
-    opened
-}
-
-/// The tag chips, for the top of the sidebar: most used first, one click filters the tree.
-pub fn tags(ui: &mut egui::Ui, state: &mut VaultState) {
-    let tags = state.tag_counts();
-    if tags.is_empty() {
-        return;
-    }
-    let title = i18n::tr_fmt("Tags ({count})", &[("count", &tags.len().to_string())]);
-    egui::CollapsingHeader::new(egui::RichText::new(title)).id_salt("tags").default_open(true).show(ui, |ui| {
-        ui.horizontal_wrapped(|ui| {
-            for (tag, count) in &tags {
-                let active = state.tag_filter.as_deref() == Some(tag.as_str());
-                let label = format!("{tag} {count}");
-                if ui.selectable_label(active, egui::RichText::new(label).small()).clicked() {
-                    state.tag_filter = if active { None } else { Some(tag.clone()) };
+        egui::ScrollArea::vertical().id_salt("backlink-list").max_height((height - 36.0).max(40.0)).auto_shrink([false, false]).show(ui, |ui| {
+            for name in links {
+                if ui.selectable_label(false, name.clone()).clicked()
+                    && let Some(note) = state.resolve(&name)
+                {
+                    opened = Some(note.path.clone());
                 }
             }
         });
     });
+    opened
+}
+
+/// The tag section of the sidebar: one header that folds it, and the chips inside a scroll of their
+/// own - so a vault with hundreds of tags keeps them where they belong and never pushes the tree out.
+/// `height` is the space the sidebar reserved for it.
+/// Returns `true` when the user asked for the section to fold or unfold.
+pub fn tags(ui: &mut egui::Ui, state: &mut VaultState, height: f32) -> bool {
+    let tags = state.tag_counts();
+    if tags.is_empty() {
+        return false;
+    }
+    let title = i18n::tr_fmt("Tags ({count})", &[("count", &tags.len().to_string())]);
+    let response =
+        egui::CollapsingHeader::new(egui::RichText::new(title).small().strong()).id_salt("tags").open(Some(state.tags_open)).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("tag-chips").max_height((height - 26.0).max(40.0)).auto_shrink([false, false]).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (tag, count) in &tags {
+                        let active = state.tag_filter.as_deref() == Some(tag.as_str());
+                        let label = format!("{tag} {count}");
+                        if ui.selectable_label(active, egui::RichText::new(label).small()).clicked() {
+                            state.tag_filter = if active { None } else { Some(tag.clone()) };
+                        }
+                    }
+                });
+            });
+        });
+    response.header_response.clicked()
 }

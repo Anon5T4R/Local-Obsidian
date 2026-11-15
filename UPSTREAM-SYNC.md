@@ -47,6 +47,12 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Wikilink no HTML | fica texto literal (`[[Nota]]`) | vira `Nota.html` (+ `#seção` do título) | exportar as notas para a mesma pasta faz o link funcionar; literal não leva a lugar nenhum |
 | Imagens no HTML | aponta para o caminho do vault | copiadas para `_attachments/` ao lado da página | o arquivo sai do cofre; sem a cópia a página abre com imagens quebradas |
 | Export PDF | `printToPDF` do Electron | **roadmap pós-1.0** (pipeline de impressão próprio) | não é divergência estrutural, é unidade de trabalho que não cabia na porta |
+| Barra lateral | explorer + "TAGS 150" fechada + "BACKLINKS 1" no rodapé | uma barra, três blocos com altura própria: árvore (rola), tags (fechada por padrão, rolagem própria) e backlinks (rolagem própria) | impedir que 148 tags ou 137 backlinks cubram a árvore: o conteúdo de cada bloco é limitado ao espaço dele |
+| Tabelas na leitura | tabela HTML do remark | renderer próprio: colunas medidas pelo conteúdo e distribuídas na largura, faixa de cabeçalho, linhas alternadas, grade e quebra por palavra | `egui::Grid` mede a célula como quase nada dentro de um `with_layout` e cai no mínimo de coluna: a tabela virava torre de palavras partidas |
+| Modo de leitura | abas Editor/Dividir/Visualizar | seletor segmentado com as três opções sempre visíveis; o divisor do Split é arrastável e persistido | um botão que cicla esconde o estado: parecia que a leitura não renderizava |
+| Espaçamento inline | CSS | espaçamento zero entre spans da mesma linha | o espaçamento padrão do egui abria um vão visível em volta de cada link |
+| Tags no corpo (leitura) | texto | `#tag` vira chip na cor de acento; clicar filtra a barra lateral | é a mesma tag que o índice conhece (mesmas regras de caractere) |
+| Emoji | fonte colorida do sistema | sem fonte de emoji embarcada; pictograma sem glifo não é desenhado na leitura | decisão do João; ver o README |
 
 ### Math: avaliação do RaTeX (pendente, unidade própria)
 

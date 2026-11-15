@@ -155,6 +155,7 @@ fn spans_html(spans: &[Span]) -> String {
     for span in spans {
         match span {
             Span::Text(text) => out.push_str(&escape(text)),
+            Span::Tag(tag) => out.push_str(&format!("<span class=\"tag\">#{}</span>", escape(tag))),
             Span::Code(text) => out.push_str(&format!("<code>{}</code>", escape(text))),
             Span::Strong(inner) => out.push_str(&format!("<strong>{}</strong>", spans_html(inner))),
             Span::Emphasis(inner) => out.push_str(&format!("<em>{}</em>", spans_html(inner))),
@@ -287,6 +288,7 @@ img { max-width: 100%; height: auto; border-radius: 6px; }
 .callout-example, .callout-quote, .callout-abstract, .callout-summary, .callout-tldr { --c: #0d9488; --cb: rgba(13, 148, 136, .09); }
 .callout-embed { --c: var(--accent); --cb: rgba(116, 106, 240, .1); }
 .callout-card, .callout-flashcard, .callout-mnemonic, .callout-pergunta { --c: #db2777; --cb: rgba(219, 39, 119, .09); }
+.tag { background: rgba(116, 106, 240, .14); color: var(--accent); border-radius: 10px; padding: .05em .5em; font-size: .92em; white-space: nowrap; }
 "#;
 
 #[cfg(test)]

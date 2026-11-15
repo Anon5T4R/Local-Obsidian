@@ -150,7 +150,7 @@ fn the_backlinks_panel_lists_the_notes_that_link_the_open_one() {
     let sink = opened.clone();
     let mut harness = Harness::builder().with_size(egui::vec2(400.0, 400.0)).build_ui_state(
         move |ui, state: &mut VaultState| {
-            let opened = panels::backlinks(ui, state);
+            let opened = panels::backlinks(ui, state, 220.0);
             if opened.is_some() {
                 *sink.borrow_mut() = opened;
             }
@@ -201,15 +201,102 @@ fn the_review_panel_shows_a_due_card_reveals_it_and_grades_it() {
 
 #[test]
 fn the_tag_chips_filter_the_tree() {
-    let (_scratch, state) = demo_vault("tags");
-    let mut harness =
-        Harness::builder().with_size(egui::vec2(400.0, 300.0)).build_ui_state(|ui, state: &mut VaultState| panels::tags(ui, state), state);
+    let (_scratch, mut state) = demo_vault("tags");
+    // The section starts folded; the chips are one click away.
+    state.tags_open = true;
+    let mut harness = Harness::builder().with_size(egui::vec2(400.0, 500.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let _ = panels::tags(ui, state, 200.0);
+        },
+        state,
+    );
     harness.run_steps(3);
     shot(&mut harness, "ui-tags");
 
     harness.get_by_label("uti 1").click();
     harness.run_steps(2);
     assert_eq!(harness.state().tag_filter.as_deref(), Some("uti"), "the chip filters the tree by that tag");
+}
+
+#[test]
+fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
+    // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
+    // themselves and not for what comes after, so the tree and the backlinks overlapped.
+    let (scratch, mut state) = demo_vault("side");
+    state.open_note(&scratch.0.join("Sepse.md"));
+    state.tags_open = true;
+    state.rebuild_filtered_tree();
+    let mut harness = Harness::builder().with_size(egui::vec2(340.0, 620.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let _ = crate::sidebar::show(ui, state);
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-sidebar");
+
+    let note = harness.get_by_label("Protocolo").rect();
+    let tags = harness.get_by_label_contains("Tags (").rect();
+    let backlinks = harness.get_by_label_contains("Backlinks").rect();
+    assert!(note.bottom() <= tags.top() + 1.0, "the tags are drawn over the tree: {note:?} vs {tags:?}");
+    assert!(tags.bottom() <= backlinks.top() + 1.0, "the backlinks are drawn over the tags: {tags:?} vs {backlinks:?}");
+    assert!(backlinks.bottom() <= 620.0, "the backlinks end outside the sidebar: {backlinks:?}");
+}
+
+#[test]
+fn a_table_spreads_its_columns_across_the_page() {
+    let scratch = Scratch::new(
+        "table",
+        &[("Tabela.md", "# Tabela\n\n| Quero | Vá para |\n|:--|:--|\n| Aprender do zero, na ordem certa | Trilha de Aprendizado |\n")],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tabela.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 520.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-table");
+
+    let first = harness.get_by_label("Quero").rect();
+    let second = harness.get_by_label("Vá para").rect();
+    assert!((first.top() - second.top()).abs() < 2.0, "the header cells are not on one row: {first:?} vs {second:?}");
+    assert!(second.left() - first.left() > 300.0, "the columns did not share the width: {first:?} vs {second:?}");
+
+    // The long label stays on one line and inside a column of its own.
+    let cell = harness.get_by_label("Aprender do zero, na ordem certa").rect();
+    assert!(cell.height() < 40.0, "the cell wrapped into a tower: {cell:?}");
+    assert!(cell.width() > 180.0, "the cell is a sliver: {cell:?}");
+}
+
+#[test]
+fn the_reading_view_draws_a_tag_as_a_tag() {
+    let scratch = Scratch::new("tagchip", &[("Nota.md", "# Nota\n\n#tipo-indice e mais texto\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 320.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            if let crate::editor::EditorAction::FilterTag(tag) = crate::editor::show(ui, state, images) {
+                state.tag_filter = Some(tag);
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-tagchip");
+
+    // Clicking the chip filters the sidebar by that tag.
+    harness.get_by_label("#tipo-indice").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().0.tag_filter.as_deref(), Some("tipo-indice"), "the chip filters the sidebar");
 }
 
 #[test]

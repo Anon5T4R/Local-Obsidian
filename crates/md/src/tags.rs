@@ -40,6 +40,45 @@ pub fn expand_hierarchy(tags: &[String]) -> Vec<String> {
     out
 }
 
+/// A run of note text cut where a tag starts or ends, so the reading view can draw a tag as a tag
+/// with exactly the rules the index uses (same characters, same exclusions).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Piece<'a> {
+    Text(&'a str),
+    /// The tag without its `#`.
+    Tag(&'a str),
+}
+
+/// Splits `text` at the tags it carries. Text with no tag comes back as one [`Piece::Text`].
+pub fn pieces(text: &str) -> Vec<Piece<'_>> {
+    let mut out = Vec::new();
+    let mut from = 0; // start of the text not handed out yet
+    let mut cursor = 0; // where the next `#` is looked for
+    while let Some(offset) = text[cursor..].find('#') {
+        let hash = cursor + offset;
+        let after = &text[hash + 1..];
+        let end = after.find(|c: char| !is_tag_char(c)).unwrap_or(after.len());
+        let raw = &after[..end];
+        // Trailing separators belong to the prose ("veja #cardio/"), not to the tag.
+        let tag = raw.trim_end_matches(['/', '-']);
+        if tag.is_empty() || is_numeric(tag) || is_hex_colour(tag) {
+            // Not a tag: the `#` stays text and the scan moves past it.
+            cursor = hash + 1;
+            continue;
+        }
+        if hash > from {
+            out.push(Piece::Text(&text[from..hash]));
+        }
+        out.push(Piece::Tag(tag));
+        from = hash + 1 + tag.len();
+        cursor = from;
+    }
+    if from < text.len() {
+        out.push(Piece::Text(&text[from..]));
+    }
+    out
+}
+
 fn scan(chunk: &str, out: &mut Vec<String>) {
     let mut rest = chunk;
     while let Some(hash) = rest.find('#') {
@@ -130,5 +169,22 @@ mod tests {
     fn hierarchy_adds_every_parent_once() {
         assert_eq!(expand_hierarchy(&["sistema/cardio/isquemia".to_string()]), vec!["sistema", "sistema/cardio", "sistema/cardio/isquemia"]);
         assert_eq!(expand_hierarchy(&["uti".to_string(), "uti".to_string()]), vec!["uti"]);
+    }
+
+    #[test]
+    fn pieces_split_the_text_at_its_tags() {
+        assert_eq!(pieces("veja #cardio hoje"), [Piece::Text("veja "), Piece::Tag("cardio"), Piece::Text(" hoje")]);
+        assert_eq!(pieces("#sistema/cardio"), [Piece::Tag("sistema/cardio")], "a nested tag keeps its slash");
+        assert_eq!(pieces("#a/#b"), [Piece::Tag("a"), Piece::Text("/"), Piece::Tag("b")], "a trailing slash is prose");
+        assert_eq!(pieces("#tipo-índice #tipo-hub"), [Piece::Tag("tipo-índice"), Piece::Text(" "), Piece::Tag("tipo-hub")]);
+    }
+
+    #[test]
+    fn pieces_agree_with_the_index_about_what_a_tag_is() {
+        // Text without tags is one piece, and the exclusions are the index's own.
+        assert_eq!(pieces("nada aqui"), [Piece::Text("nada aqui")]);
+        assert_eq!(pieces("cor #3b82f6 e #2025"), [Piece::Text("cor #3b82f6 e #2025")]);
+        assert_eq!(pieces("veja #cardio/"), [Piece::Text("veja "), Piece::Tag("cardio"), Piece::Text("/")]);
+        assert_eq!(pieces(""), []);
     }
 }

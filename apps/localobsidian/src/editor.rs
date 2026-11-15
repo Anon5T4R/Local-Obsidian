@@ -24,6 +24,8 @@ pub enum EditorAction {
     Save,
     /// Open the note a wikilink names.
     Navigate(String),
+    /// Filter the sidebar by a `#tag` the reading view clicked.
+    FilterTag(String),
     /// Flip the `n`-th `- [ ]` of the note (the reading view clicked its box).
     ToggleTask(usize),
 }
@@ -97,20 +99,30 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
         ViewMode::Edit => action = editor_pane(ui, state),
         ViewMode::Read => action = reading_pane(ui, state, images),
         ViewMode::Split => {
-            ui.columns(2, |columns| {
-                let from_editor = editor_pane(&mut columns[0], state);
-                if from_editor != EditorAction::None {
-                    action = from_editor;
-                }
-                let from_reading = reading_pane(&mut columns[1], state, images);
-                if from_reading != EditorAction::None {
-                    action = from_reading;
-                }
-            });
+            // A draggable divider, the width the user left it at. `default_size` only sizes the
+            // first frame; after that egui remembers what the drag chose, so the panel is asked what
+            // it used and the share is kept for the next run.
+            let total = ui.available_width();
+            let requested = (total * state.split).clamp(MIN_PANE, (total - MIN_PANE).max(MIN_PANE));
+            let source =
+                egui::Panel::left("split-source").resizable(true).default_size(requested).min_size(MIN_PANE).show(ui, |ui| editor_pane(ui, state));
+            if total > 1.0 {
+                state.split = (source.response.rect.width() / total).clamp(0.15, 0.85);
+            }
+            if source.inner != EditorAction::None {
+                action = source.inner;
+            }
+            let from_reading = reading_pane(ui, state, images);
+            if from_reading != EditorAction::None {
+                action = from_reading;
+            }
         }
     }
     action
 }
+
+/// The narrowest a pane of the split may be dragged: below this the note cannot be read.
+const MIN_PANE: f32 = 180.0;
 
 /// The source, with the Markdown keys and the wikilink popup wired.
 fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
@@ -161,12 +173,16 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     }
 
     let mut caret_rect = None;
+    // The source fills the pane: a box sized by `desired_rows` alone stopped a third of the way
+    // down the window, and the rest was empty background.
+    let row_height = ui.text_style_height(&TextStyle::Monospace).max(1.0);
+    let rows = ((ui.available_height() / row_height).floor() as usize).saturating_sub(1).max(8);
     egui::ScrollArea::vertical().id_salt("editor-scroll").auto_shrink([false, false]).show(ui, |ui| {
         let output = egui::TextEdit::multiline(&mut state.buffer)
             .id(editor_id)
             .font(TextStyle::Monospace)
             .desired_width(f32::INFINITY)
-            .desired_rows(24)
+            .desired_rows(rows)
             .code_editor()
             .show(ui);
         changed |= output.response.changed();
@@ -233,6 +249,7 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
         if let Some(hit) = show_blocks(ui, blocks, vault, images, &mut target) {
             action = match hit {
                 Hit::Link(target) => EditorAction::Navigate(target),
+                Hit::Tag(tag) => EditorAction::FilterTag(tag),
                 Hit::Task(index) => EditorAction::ToggleTask(index),
             };
         }
@@ -254,24 +271,35 @@ fn header(ui: &mut egui::Ui, state: &mut VaultState, active: &std::path::Path, a
             ui.label(RichText::new(relative).small().weak());
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add_enabled(state.dirty, egui::Button::new(tl!("Save"))).clicked() {
+            // Save belongs to the panes that can edit; in the reading view there is nothing to save
+            // and the button only asks a question nobody asked.
+            if state.view != ViewMode::Read && ui.add_enabled(state.dirty, egui::Button::new(tl!("Save"))).clicked() {
                 *action = EditorAction::Save;
             }
-            let label = match state.view {
-                ViewMode::Edit => tl!("Edit"),
-                ViewMode::Read => tl!("Read"),
-                ViewMode::Split => tl!("Split"),
-            };
-            if ui.selectable_label(false, label).on_hover_text(tl!("Switch between the editor, the reading view and both")).clicked() {
-                state.view = state.view.next();
-            }
+            // The three panes, all visible: a single button that cycled left the modes hidden, and
+            // the reading view looked like it was not rendering at all.
+            let modes = egui::Frame::new().fill(ui.visuals().extreme_bg_color).corner_radius(6).inner_margin(egui::Margin::same(2)).show(ui, |ui| {
+                // The frame inherits the right-to-left layout of the header; the modes inside it
+                // read left to right, in the order they escalate.
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    for (mode, label) in [(ViewMode::Edit, tl!("Edit")), (ViewMode::Split, tl!("Split")), (ViewMode::Read, tl!("Read"))] {
+                        if ui.selectable_label(state.view == mode, RichText::new(label).small()).clicked() {
+                            state.view = mode;
+                        }
+                    }
+                });
+            });
+            modes.response.on_hover_text(tl!("Switch between the editor, the reading view and both"));
         });
     });
 }
 
-/// What the reading view hit: a link to a note (its section is part of the target).
+/// What the reading view hit: a link to a note (its section is part of the target), a tag, or a
+/// checkbox.
 enum Hit {
     Link(String),
+    /// A `#tag` of the note: the sidebar filters by it.
+    Tag(String),
     /// A task checkbox of the reading view: the ordinal of the checkbox in the note.
     Task(usize),
 }
@@ -357,15 +385,14 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             let rect = quoted.response.rect;
             if rect.height() > 0.0 {
                 let bar = egui::Rect::from_min_size(egui::pos2(rect.left() - 10.0, rect.top()), egui::vec2(3.0, rect.height()));
-                ui.painter().rect_filled(bar, 1.0, weak);
+                // The one place the note's own colour shows without a callout type: a quote is the
+                // author's voice, and the accent marks it without shouting.
+                ui.painter().rect_filled(bar, 1.0, crate::theme::accent(ui.visuals().dark_mode).gamma_multiply(0.8));
             }
             quoted.inner
         }
         Block::Callout { kind, title, body } => show_callout(ui, kind, title, body, state, images, target),
-        Block::Table { headers, rows, aligns } => {
-            show_table(ui, headers, rows, aligns, state);
-            None
-        }
+        Block::Table { headers, rows, aligns } => show_table(ui, headers, rows, aligns, state),
         Block::Image { destination, alt } => {
             show_image(ui, destination, alt, state, images);
             None
@@ -419,26 +446,155 @@ fn callout_color(kind: &str) -> Color32 {
     }
 }
 
-/// A table: header row in bold, one line per row, columns aligned as the source asked.
-fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>], aligns: &[Align], state: &VaultState) {
-    egui::Grid::new(ui.next_auto_id()).striped(true).min_col_width(60.0).show(ui, |ui| {
-        for (column, cell) in headers.iter().enumerate() {
-            let style = Style::new(14.0).strong();
-            ui.with_layout(cell_layout(aligns.get(column).copied()), |ui| {
-                let _ = show_spans(ui, cell, state, style);
-            });
-        }
-        ui.end_row();
-        for row in rows {
-            for (column, cell) in row.iter().enumerate() {
-                ui.with_layout(cell_layout(aligns.get(column).copied()), |ui| {
-                    let _ = show_spans(ui, cell, state, Style::new(14.0));
-                });
+/// Room around a cell's text.
+const TABLE_PAD: f32 = 8.0;
+/// No column is squeezed below this: a word still fits, so a line never breaks inside one.
+const TABLE_MIN_COL: f32 = 72.0;
+/// The tallest a single row may get; a table is a table, not a page.
+const TABLE_MAX_ROW: f32 = 240.0;
+
+/// A table: header band, alternating rows, gridlines and columns sized to their content and to the
+/// page.
+///
+/// `egui::Grid` sizes its columns from what the cells *measure* while laying them out, and a cell
+/// laid out inside a `with_layout` measures as almost nothing: the grid fell back to its minimum and
+/// the table turned into a column of tall slivers. Measuring the text here first, then painting the
+/// bands and drawing the cells into rects of the width that came out, is what fixes both.
+fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>], aligns: &[Align], state: &VaultState) -> Option<Hit> {
+    let columns = headers.len().max(rows.iter().map(Vec::len).max().unwrap_or(0));
+    if columns == 0 {
+        return None;
+    }
+    let body = Style::new(14.0);
+    let head = Style::new(14.0).strong();
+    let available = ui.available_width().max(TABLE_MIN_COL * columns as f32);
+
+    // What each column would like: its widest cell, measured without wrapping.
+    let mut natural = vec![TABLE_MIN_COL; columns];
+    for (column, cell) in headers.iter().enumerate() {
+        natural[column] = natural[column].max(text_width(ui, cell, head) + 2.0 * TABLE_PAD);
+    }
+    for row in rows {
+        for (column, cell) in row.iter().enumerate() {
+            if let Some(slot) = natural.get_mut(column) {
+                *slot = (*slot).max(text_width(ui, cell, body) + 2.0 * TABLE_PAD);
             }
-            ui.end_row();
         }
-    });
+    }
+    let widths = column_widths(available, &natural);
+
+    // Each row's height, from the tallest cell wrapped at the width it will get.
+    let heights: Vec<f32> = std::iter::once(headers)
+        .chain(rows.iter().map(|row| row.as_slice()))
+        .enumerate()
+        .map(|(index, cells)| {
+            let style = if index == 0 { head } else { body };
+            row_height(ui, cells, &widths, style, TABLE_PAD).min(TABLE_MAX_ROW)
+        })
+        .collect();
+    let total_width: f32 = widths.iter().sum();
+    let total_height: f32 = heights.iter().sum();
+    let table = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(total_width, total_height));
+    ui.allocate_rect(table, egui::Sense::hover());
+
+    // The bands and the lines first, so the text sits on top of them.
+    let line = ui.visuals().weak_text_color().gamma_multiply(0.4);
+    let painter = ui.painter();
+    let mut y = table.top();
+    for (index, height) in heights.iter().enumerate() {
+        // The header band, then every other row a shade lighter.
+        if index == 0 {
+            painter.rect_filled(
+                egui::Rect::from_min_size(egui::pos2(table.left(), y), egui::vec2(total_width, *height)),
+                0.0,
+                ui.visuals().faint_bg_color,
+            );
+        } else if index % 2 == 0 {
+            painter.rect_filled(
+                egui::Rect::from_min_size(egui::pos2(table.left(), y), egui::vec2(total_width, *height)),
+                0.0,
+                ui.visuals().faint_bg_color.gamma_multiply(0.55),
+            );
+        }
+        y += height;
+        painter.line_segment([egui::pos2(table.left(), y), egui::pos2(table.right(), y)], egui::Stroke::new(1.0, line));
+    }
+    let mut x = table.left();
+    for width in &widths {
+        x += width;
+        painter.line_segment([egui::pos2(x, table.top()), egui::pos2(x, table.bottom())], egui::Stroke::new(1.0, line));
+    }
+    painter.rect_stroke(table, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);
+
+    // The content, cell by cell, into the rect that was measured for it.
+    let mut hit = None;
+    let mut y = table.top();
+    for (index, cells) in std::iter::once(headers).chain(rows.iter().map(|row| row.as_slice())).enumerate() {
+        let style = if index == 0 { head } else { body };
+        let height = heights[index];
+        let mut x = table.left();
+        for (column, cell) in cells.iter().enumerate() {
+            let width = widths.get(column).copied().unwrap_or(TABLE_MIN_COL);
+            let rect = egui::Rect::from_min_size(
+                egui::pos2(x + TABLE_PAD, y + TABLE_PAD),
+                egui::vec2((width - 2.0 * TABLE_PAD).max(8.0), (height - 2.0 * TABLE_PAD).max(8.0)),
+            );
+            let align = aligns.get(column).copied().unwrap_or_default();
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(cell_layout(Some(align))), |ui| {
+                if let Some(found) = show_spans(ui, cell, state, style) {
+                    hit = Some(found);
+                }
+            });
+            x += width;
+        }
+        y += height;
+    }
     ui.add_space(6.0);
+    hit
+}
+
+/// The width of a cell's text as one line.
+fn text_width(ui: &egui::Ui, spans: &[Span], style: Style) -> f32 {
+    let text: String = spans.iter().map(Span::plain).collect();
+    let font = egui::FontId::proportional(style.size);
+    ui.painter().layout_no_wrap(text, font, egui::Color32::WHITE).size().x
+}
+
+/// The height a cell needs when wrapped at `width`, plus the padding above and below.
+fn row_height(ui: &egui::Ui, cells: &[Vec<Span>], widths: &[f32], style: Style, pad: f32) -> f32 {
+    let font = egui::FontId::proportional(style.size);
+    let mut tallest: f32 = ui.text_style_height(&egui::TextStyle::Body);
+    for (column, cell) in cells.iter().enumerate() {
+        let width = widths.get(column).copied().unwrap_or(TABLE_MIN_COL).max(8.0) - 2.0 * pad;
+        let text: String = cell.iter().map(Span::plain).collect();
+        let height = ui.painter().layout(text, font.clone(), egui::Color32::WHITE, width).size().y;
+        tallest = tallest.max(height);
+    }
+    tallest + 2.0 * pad
+}
+
+/// How wide each column is: what it asked for, grown to fill the page when there is room, shrunk
+/// but never below [`MIN_COL`] when there is not.
+fn column_widths(available: f32, natural: &[f32]) -> Vec<f32> {
+    let asked: f32 = natural.iter().sum();
+    if asked <= available && asked > 0.0 {
+        let slack = available - asked;
+        return natural.iter().map(|width| width + slack * (width / asked)).collect();
+    }
+    let mut widths = natural.to_vec();
+    // Shrink proportionally in a few passes: one pass overshoots, because taking the same share from
+    // a column that already hit the floor would make the others too narrow.
+    for _ in 0..6 {
+        let total: f32 = widths.iter().sum();
+        if total <= available {
+            break;
+        }
+        let scale = (available / total).min(1.0);
+        for width in &mut widths {
+            *width = (*width * scale).max(TABLE_MIN_COL);
+        }
+    }
+    widths
 }
 
 fn cell_layout(align: Option<Align>) -> egui::Layout {
@@ -488,6 +644,9 @@ fn heading_size(level: u8) -> f32 {
 fn show_spans(ui: &mut egui::Ui, spans: &[Span], state: &VaultState, style: Style) -> Option<Hit> {
     let mut hit = None;
     ui.horizontal_wrapped(|ui| {
+        // Spans sit next to each other the way words do: the default item spacing would open a
+        // visible gap around every link and every tag.
+        ui.spacing_mut().item_spacing.x = 0.0;
         for span in spans {
             if let Some(found) = show_span(ui, span, state, style) {
                 hit = Some(found);
@@ -500,7 +659,7 @@ fn show_spans(ui: &mut egui::Ui, spans: &[Span], state: &VaultState, style: Styl
 fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -> Option<Hit> {
     match span {
         Span::Text(text) => {
-            ui.label(style.rich(text.clone()));
+            ui.label(style.rich(drawable(ui, text, style.size)));
             None
         }
         Span::Code(text) => {
@@ -510,8 +669,44 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
         Span::Strong(inner) => nested(ui, inner, state, style.strong()),
         Span::Emphasis(inner) => nested(ui, inner, state, style.italic()),
         Span::Strike(inner) => nested(ui, inner, state, style.struck()),
+        Span::Tag(tag) => {
+            let accent = crate::theme::accent(ui.visuals().dark_mode);
+            let pill = egui::Frame::new()
+                .fill(accent.gamma_multiply(0.18))
+                .corner_radius(9)
+                .inner_margin(egui::Margin { left: 6, right: 6, top: 1, bottom: 1 })
+                .show(ui, |ui| ui.label(style.rich(format!("#{tag}")).color(accent)));
+            let response = pill.response.interact(egui::Sense::click());
+            if response.clicked() {
+                return Some(Hit::Tag(tag.clone()));
+            }
+            None
+        }
         Span::Link { spans, destination } => show_link(ui, spans, destination, state, style),
     }
+}
+
+/// The text as the font can actually draw it.
+///
+/// The app ships no emoji font (a decision, not an oversight): the fonts it does ship cover some
+/// pictographs and not others, so a note written with emojis would show some and draw a hollow box
+/// for the rest. A box in the middle of a title is worse than a shorter title, so a pictograph the
+/// font has no glyph for is left out of the *drawn* text - the note keeps it, the editor shows it,
+/// the reading view simply does not draw a box.
+fn drawable(ui: &egui::Ui, text: &str, size: f32) -> String {
+    if !text.chars().any(is_pictograph) {
+        return text.to_string();
+    }
+    let font = egui::FontId::proportional(size);
+    ui.ctx().fonts_mut(|fonts| text.chars().filter(|c| !is_pictograph(*c) || fonts.has_glyph(&font, *c)).collect())
+}
+
+/// The ranges a note uses for pictographs: arrows, symbols and the emoji planes.
+fn is_pictograph(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0x200D | 0x20E3 | 0xFE0F | 0x2190..=0x21FF | 0x2300..=0x23FF | 0x2600..=0x27BF | 0x2B00..=0x2BFF | 0x1F000..=0x1FAFF
+    )
 }
 
 /// A nested run (bold inside italic), drawn into the run already open.
