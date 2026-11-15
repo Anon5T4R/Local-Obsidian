@@ -20,8 +20,11 @@ repository = "https://github.com/Anon5T4R/Local-Obsidian"
 craft-i18n = { path = "libs/craft-libs/crates/i18n/" }
 craft-update = { version = "=0.1.0", path = "libs/craft-libs/crates/update/", features = ["egui", "icons"] }
 craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
+# BYOK AI: the suite's shared client (libs/local-ai), the same one local-office and local-pdf vendor.
+local-ai = { path = "libs/local-ai" }
 
 # the app's own layers (crates/localobsidian-*)
+localobsidian-ai = { path = "crates/ai" }
 localobsidian-convert = { path = "crates/convert" }
 localobsidian-editor = { path = "crates/editor" }
 localobsidian-md = { path = "crates/md" }

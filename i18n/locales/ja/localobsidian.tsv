@@ -136,6 +136,29 @@
 	Minimize	最小化
 	Maximize	最大化
 	Close	閉じる
+	AI	AI
+	AI connection	AI 接続
+	Chat about the note	ノートについて話す
+	Connection...	接続...
+	not configured	未設定
+	Settings	設定
+	Clear	消去
+	Ask about this note, or about anything.	このノートについて、あるいは何でも聞いてください。
+	the note goes as context: {count} characters	ノートが文脈として送られます: {count} 文字
+	Ask about this note...	このノートについて聞く...
+	configure the connection first	先に接続を設定してください
+	Send	送信
+	Stop	停止
+	Insert into the note	ノートに挿入
+	Provider	プロバイダー
+	Base URL	ベース URL
+	Ollama and llama-server are a base URL and a model.	Ollama と llama-server はベース URL とモデルだけです。
+	Model	モデル
+	List models	モデル一覧
+	API key	API キー
+	Stored in the system keychain, never in a file.	システムのキーチェーンに保存され、ファイルには残りません。
+	choose a model first	先にモデルを選んでください
+	You	あなた
 	Export the note as HTML...	ノートを HTML として書き出す...
 	Export as HTML	HTML として書き出す
 	HTML page	HTML ページ

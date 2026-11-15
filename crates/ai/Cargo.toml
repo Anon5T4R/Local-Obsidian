@@ -1,0 +1,18 @@
+[package]
+name = "localobsidian-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's BYOK AI: the shared local-ai client with this app's identity, and a chat that streams"
+
+[lints]
+workspace = true
+
+[dependencies]
+# The suite's shared client (vendored in libs/local-ai): one OpenAI-compatible wire format, the
+# user's own key in the OS keychain, and no server of ours.
+local-ai = { workspace = true }
+log = { workspace = true }

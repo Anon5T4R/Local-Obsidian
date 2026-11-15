@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use craft_update::updater::{Action, Status, Updater};
 
+use crate::ai_ui::Chat;
 use crate::calendar;
 use crate::editor::{self, EditorAction};
 use crate::graph;
@@ -73,6 +74,8 @@ pub struct LocalApp {
     restore_pending: bool,
     /// The window capture of a QA run, if one was asked for.
     qa_shot: Option<QaShot>,
+    /// The chat panel and its connection.
+    chat: Chat,
 }
 
 impl LocalApp {
@@ -116,6 +119,11 @@ impl LocalApp {
             fs_change: None,
             saved_at: None,
             dialog: None,
+            chat: {
+                let mut chat = Chat::default();
+                chat.load();
+                chat
+            },
             qa_shot: std::env::var_os("LOCALOBSIDIAN_QA_SHOT").map(|path| QaShot {
                 path: PathBuf::from(path),
                 frames: std::env::var("LOCALOBSIDIAN_QA_FRAMES").ok().and_then(|frames| frames.parse().ok()).unwrap_or(40),
@@ -319,6 +327,15 @@ impl LocalApp {
                     ui.close();
                 }
             });
+            ui.menu_button(tl!("AI"), |ui| {
+                if ui.checkbox(&mut self.chat.open, tl!("Chat about the note")).clicked() {
+                    ui.close();
+                }
+                if ui.button(tl!("Connection...")).clicked() {
+                    self.chat.settings_open = true;
+                    ui.close();
+                }
+            });
             ui.menu_button(tl!("Help"), |ui| {
                 if ui.button(tl!("Keyboard shortcuts and help")).clicked() {
                     self.help_open = true;
@@ -371,6 +388,11 @@ impl LocalApp {
         if self.review.open {
             egui::Panel::right("review").resizable(true).default_size(320.0).show(ui, |ui| {
                 self.review.ui(ui, &mut self.vault);
+            });
+        }
+        if self.chat.open {
+            egui::Panel::right("ai-chat").resizable(true).default_size(340.0).show(ui, |ui| {
+                self.chat.ui(ui, &mut self.vault);
             });
         }
         if self.review.stats_open {
@@ -1107,6 +1129,7 @@ impl eframe::App for LocalApp {
             }
             wake = true;
         }
+        self.chat.poll();
         // The divider and the panes are the user's; remember them once the hand lets go, not on
         // every frame of a drag (the settings file would be rewritten sixty times a second).
         let dragging = ctx.input(|input| input.pointer.primary_down());
@@ -1134,6 +1157,7 @@ impl eframe::App for LocalApp {
             self.about(ui);
         }
         self.dialogs(ui);
+        self.chat.settings(ui);
         self.graph(ui);
         self.calendar(ui);
         self.help(ui);

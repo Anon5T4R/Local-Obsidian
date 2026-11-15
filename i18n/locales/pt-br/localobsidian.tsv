@@ -136,6 +136,29 @@
 	Minimize	Minimizar
 	Maximize	Maximizar
 	Close	Fechar
+	AI	IA
+	AI connection	Conexão de IA
+	Chat about the note	Conversar sobre a nota
+	Connection...	Conexão...
+	not configured	não configurada
+	Settings	Configurações
+	Clear	Limpar
+	Ask about this note, or about anything.	Pergunte sobre esta nota, ou sobre qualquer coisa.
+	the note goes as context: {count} characters	a nota vai como contexto: {count} caracteres
+	Ask about this note...	Pergunte sobre esta nota...
+	configure the connection first	configure a conexão primeiro
+	Send	Enviar
+	Stop	Parar
+	Insert into the note	Inserir na nota
+	Provider	Provedor
+	Base URL	URL base
+	Ollama and llama-server are a base URL and a model.	Ollama e llama-server são uma URL base e um modelo.
+	Model	Modelo
+	List models	Listar modelos
+	API key	Chave de API
+	Stored in the system keychain, never in a file.	Guardada no keychain do sistema, nunca num arquivo.
+	choose a model first	escolha um modelo primeiro
+	You	Você
 	Export the note as HTML...	Exportar a nota como HTML...
 	Export as HTML	Exportar como HTML
 	HTML page	Página HTML
