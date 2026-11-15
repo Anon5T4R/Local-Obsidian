@@ -2386,7 +2386,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "localobsidian"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "craft-i18n",
@@ -2410,11 +2410,11 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-editor"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "localobsidian-md"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "pulldown-cmark",
  "saphyr",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-review"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "log",
@@ -2431,7 +2431,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-vault"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "localobsidian-md",
  "log",
@@ -5624,7 +5624,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde_json",
 ]
