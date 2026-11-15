@@ -277,3 +277,187 @@ fn count_notes(node: &vault::Node) -> usize {
         vault::Kind::Directory => node.children.iter().map(count_notes).sum(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A vault of this test on disk, removed when the guard drops.
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        /// Writes `(relative path, text)` as the vault's notes.
+        fn new(tag: &str, notes: &[(&str, &str)]) -> Self {
+            let root = std::env::temp_dir().join(format!("localobsidian-flow-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(&root).expect("scratch dir");
+            for (relative, text) in notes {
+                let path = root.join(relative);
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).expect("parent");
+                }
+                std::fs::write(path, text).expect("write note");
+            }
+            Self(root)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn opened(scratch: &Scratch) -> VaultState {
+        let mut state = VaultState::default();
+        state.open(scratch.0.clone()).expect("open the vault");
+        state
+    }
+
+    #[test]
+    fn opening_a_vault_reads_the_tree_skips_dotfiles_and_builds_the_index() {
+        let scratch = Scratch::new(
+            "tree",
+            &[
+                ("Sepse.md", "#cardio e [[Choque]]"),
+                ("Pasta/Choque.md", "---\ntags: [uti]\naliases: [choque septico]\n---\ncorpo"),
+                (".oculto/Escondida.md", "#nada"),
+                (".rascunho.md", "#nada"),
+                ("Pasta/imagem.png", "binario"),
+            ],
+        );
+        let state = opened(&scratch);
+        assert_eq!(state.files.len(), 2, "{:?}", state.files.iter().map(|f| &f.name).collect::<Vec<_>>());
+        assert_eq!(state.index.tag_count("cardio"), 1);
+        assert_eq!(state.index.tag_count("uti"), 1);
+        assert_eq!(state.index.aliases.get("choque septico"), Some(&scratch.0.join("Pasta/Choque.md")));
+    }
+
+    #[test]
+    fn the_sidebar_lists_notes_before_folders() {
+        let scratch = Scratch::new("order", &[("Zebra.md", ""), ("Alfa/Nota.md", "")]);
+        let state = opened(&scratch);
+        let names: Vec<&str> = state.tree.iter().map(|node| node.name.as_str()).collect();
+        assert_eq!(names, ["Zebra", "Alfa"]);
+    }
+
+    #[test]
+    fn a_wikilink_resolves_to_the_note_it_names() {
+        let scratch = Scratch::new("resolve", &[("Sepse.md", "[[Choque]]"), ("Pasta/Choque.md", "x")]);
+        let state = opened(&scratch);
+        assert_eq!(state.resolve("Choque").map(|file| file.relative_path.as_str()), Some("Pasta/Choque.md"));
+        assert!(state.resolve("Nada").is_none());
+    }
+
+    #[test]
+    fn an_alias_resolves_when_no_file_has_that_name() {
+        let scratch = Scratch::new("alias", &[("Choque.md", "---\naliases: [choque septico]\n---\n")]);
+        let state = opened(&scratch);
+        assert_eq!(state.resolve("Choque Septico").map(|file| file.name.as_str()), Some("Choque"));
+    }
+
+    #[test]
+    fn editing_then_saving_writes_the_buffer_and_clears_the_dirty_flag() {
+        let scratch = Scratch::new("save", &[("Nota.md", "antes")]);
+        let mut state = opened(&scratch);
+        state.open_note(&scratch.0.join("Nota.md"));
+        state.edit("depois".to_string());
+        assert!(state.dirty);
+        state.save().expect("save");
+        assert!(!state.dirty);
+        assert_eq!(std::fs::read_to_string(scratch.0.join("Nota.md")).expect("read"), "depois");
+        assert!(!vault::fs::temp_path_for(&scratch.0.join("Nota.md")).exists());
+    }
+
+    #[test]
+    fn leaving_a_dirty_note_saves_it_first() {
+        let scratch = Scratch::new("switch", &[("A.md", "a"), ("B.md", "b")]);
+        let mut state = opened(&scratch);
+        state.open_note(&scratch.0.join("A.md"));
+        state.edit("editado".to_string());
+        state.open_note(&scratch.0.join("B.md"));
+        assert_eq!(std::fs::read_to_string(scratch.0.join("A.md")).expect("read"), "editado");
+    }
+
+    #[test]
+    fn a_new_note_starts_with_its_title_and_opens() {
+        let scratch = Scratch::new("create", &[]);
+        let mut state = opened(&scratch);
+        let path = state.create_note("Receita").expect("create");
+        assert_eq!(state.active.as_deref(), Some(path.as_path()));
+        assert_eq!(state.buffer, "# Receita\n\n");
+    }
+
+    #[test]
+    fn renaming_rewrites_the_links_that_pointed_at_the_note() {
+        let scratch =
+            Scratch::new("rename", &[("Nota.md", "# Nota"), ("Outra.md", "veja [[Nota]] e [[Nota#Seção|a seção]]"), ("Terceira.md", "[[Outra]]")]);
+        let mut state = opened(&scratch);
+        state.open_note(&scratch.0.join("Nota.md"));
+        let count = state.rename_active("Nova").expect("rename");
+        assert_eq!(count, 2, "two links changed");
+        let other = std::fs::read_to_string(scratch.0.join("Outra.md")).expect("read");
+        assert_eq!(other, "veja [[Nova]] e [[Nova#Seção|a seção]]");
+        assert!(!scratch.0.join("Nota.md").exists());
+        assert!(scratch.0.join("Nova.md").exists());
+        assert_eq!(state.active, Some(scratch.0.join("Nova.md")));
+    }
+
+    #[test]
+    fn the_filter_narrows_by_tag_and_alias_and_keeps_the_folders() {
+        let scratch =
+            Scratch::new("filter", &[("Pasta/Cardio.md", "#sistema/cardio"), ("Pasta/Outra.md", "#uti"), ("Raiz.md", "---\naliases: [SCA]\n---\n")]);
+        let mut state = opened(&scratch);
+        state.filter = "#cardio".to_string();
+        let kept = state.filtered_tree();
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert_eq!(kept[0].children.len(), 1);
+        state.filter = "sca".to_string();
+        assert_eq!(state.filtered_count(), 1);
+    }
+
+    #[test]
+    fn the_preview_expands_an_embed_and_links_its_target() {
+        let scratch = Scratch::new("preview", &[("Alvo.md", "# Um\n\ntexto alvo"), ("Nota.md", "antes ![[Alvo#Um]] depois [[Fim]]")]);
+        let mut state = opened(&scratch);
+        state.open_note(&scratch.0.join("Nota.md"));
+        state.refresh_preview();
+        let blocks = state.preview();
+
+        let mut text = String::new();
+        let mut links = Vec::new();
+        fn walk(blocks: &[localobsidian_md::preview::Block], text: &mut String, links: &mut Vec<String>) {
+            use localobsidian_md::preview::{Block, Span};
+            for block in blocks {
+                match block {
+                    Block::Heading { spans, .. } | Block::Paragraph(spans) => {
+                        for span in spans {
+                            text.push_str(&span.plain());
+                            if let Span::Link { destination, .. } = span
+                                && let Some(target) = localobsidian_md::links::from_url(destination)
+                            {
+                                links.push(target);
+                            }
+                        }
+                        text.push('\n');
+                    }
+                    Block::Quote(inner) => walk(inner, text, links),
+                    Block::List { items, .. } => {
+                        for item in items {
+                            for span in item {
+                                text.push_str(&span.plain());
+                            }
+                            text.push('\n');
+                        }
+                    }
+                    Block::Code { text: code, .. } => text.push_str(code),
+                    Block::Rule => {}
+                }
+            }
+        }
+        walk(blocks, &mut text, &mut links);
+        assert!(text.contains("texto alvo"), "{text}");
+        assert!(text.contains("[!embed] Alvo › Um"), "{text}");
+        assert_eq!(links, ["Fim"]);
+    }
+}
