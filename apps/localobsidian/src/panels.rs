@@ -34,8 +34,10 @@ pub fn search(ui: &mut egui::Ui, state: &mut VaultState) -> PanelAction {
 
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        let response =
-            ui.add(egui::TextEdit::singleline(&mut state.search.query).hint_text(tl!("Search the vault")).desired_width(f32::INFINITY - 30.0));
+        // The field takes the row minus the regex toggle. `f32::INFINITY` here asked for the whole
+        // window: a widget that wants the row also widens the panel that holds it.
+        let room = (ui.available_width() - 40.0).max(80.0);
+        let response = ui.add(egui::TextEdit::singleline(&mut state.search.query).hint_text(tl!("Search the vault")).desired_width(room));
         response.request_focus();
         // Enter searches at once instead of waiting for the typing to settle.
         if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {

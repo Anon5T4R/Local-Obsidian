@@ -34,7 +34,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
 
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(tl!("Filter notes")).desired_width(f32::INFINITY - 60.0));
+        // The row minus the clear button, never the window: a field that wants infinity widens the
+        // panel that holds it.
+        let room = (ui.available_width() - 60.0).max(80.0);
+        ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(tl!("Filter notes")).desired_width(room));
         if !state.filter.is_empty() && ui.small_button("x").on_hover_text(tl!("Clear the filter")).clicked() {
             state.filter.clear();
         }

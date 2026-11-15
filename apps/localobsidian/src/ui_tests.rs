@@ -7,7 +7,7 @@
 //! trips an access violation, so the QA run is `-- --test-threads=1`; the default run never renders
 //! and is safe to parallelize.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -258,6 +258,16 @@ fn the_kitchen_sink_lays_out_at_every_window_size() {
         let cell = harness.get_by_label("texto médio na célula").rect();
         assert!(cell.height() < 60.0, "{width}x{height}: the cell became a tower ({:?})", cell.height());
 
+        // Two blocks in a row keep the rhythm of the page (the query boxes used to touch each
+        // other), and the line under a callout is a paragraph of the note, not the callout's body.
+        let first_block = harness.get_by_label_contains("tag: #qa").rect();
+        let second_block = harness.get_by_label_contains("tag: #tag-depois-do-callout").rect();
+        let gap = second_block.top() - first_block.bottom();
+        assert!(gap >= 28.0, "{width}x{height}: two blocks touch ({gap:.0} px of gap)");
+
+        // `%%comentário%%` is a note to the author: it stays in the file and never reaches the page.
+        assert!(harness.query_by_label_contains("um comentário do autor").is_none(), "{width}x{height}: the author's comment is on the page");
+
         // No two labels share a rectangle: that is what "two lists drawn in the same place" looks
         // like in the tree, and it is the cheapest way to catch it on any screen.
         let labels: Vec<egui::Rect> = harness.get_all_by_role(egui::accesskit::Role::Label).map(|node| node.rect()).collect();
@@ -362,6 +372,227 @@ fn a_document_in_the_vault_is_listed_and_clicked_into_the_system_handler() {
         crate::sidebar::SidebarAction::OpenBinary(scratch.0.join("protocolo.pdf")),
         "a click hands the document to the desktop"
     );
+}
+
+#[test]
+fn the_search_panel_is_a_sidebar_and_never_the_window() {
+    // A text field asking for `f32::INFINITY` made the panel grow to the whole window: the input
+    // stretched to the edge, the results column was squeezed and the note disappeared under it.
+    let (_scratch, mut state) = demo_vault("search-width");
+    state.search.open = true;
+    state.search.query = "lactato".to_string();
+    state.run_search_now();
+
+    let width = Rc::new(Cell::new(0.0f32));
+    let sink = width.clone();
+    let mut harness = Harness::builder().with_size(egui::vec2(1920.0, 1080.0)).build_ui_state(
+        move |ui, state: &mut VaultState| {
+            let panel = egui::Panel::right("search").resizable(true).default_size(320.0).show(ui, |ui| {
+                let _ = panels::search(ui, state);
+            });
+            sink.set(panel.response.rect.width());
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-search-panel-1920");
+
+    let measured = width.get();
+    assert!(measured <= 520.0, "the search panel is a sidebar, not the window: {measured:.0} px");
+    assert!(measured >= 240.0, "and it is wide enough to read a result: {measured:.0} px");
+}
+
+#[test]
+fn the_reading_column_is_centred_in_its_pane() {
+    // The measure is what keeps the text readable; the margin on its left has to be the margin on
+    // its right, or the column reads as if it were glued to the sidebar.
+    let paragraph = "Parágrafo largo de teste que precisa quebrar em várias linhas para ocupar a coluna inteira, \
+                     porque só um texto que enche a medida mostra onde a medida começa e onde ela termina.";
+    let scratch = Scratch::new("reading-column", &[("Largo.md", &format!("# Título\n\n{paragraph}\n"))]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Largo.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let pane = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let pane_sink = pane.clone();
+    let mut harness = Harness::builder().with_size(egui::vec2(1920.0, 1080.0)).build_ui_state(
+        move |ui, state: &mut VaultState| {
+            pane_sink.set(ui.max_rect());
+            let mut images = crate::images::Images::default();
+            let _ = crate::editor::show(ui, state, &mut images);
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-reading-column-1920");
+
+    let column = harness.get_by_label_contains("Parágrafo largo").rect();
+    let pane = pane.get();
+    let left = column.left() - pane.left();
+    let right = pane.right() - column.right();
+    assert!(left >= 380.0, "the column has a left margin: {left:.0} px");
+    assert!(right >= 380.0, "and a right one: {right:.0} px");
+    assert!((left - right).abs() < 40.0, "the two margins are the same: left {left:.0}, right {right:.0}");
+    assert!(column.width() <= 900.0, "the measure is a column, not the window: {:.0} px", column.width());
+}
+
+#[test]
+fn blocks_of_the_reading_view_keep_the_rhythm_between_them() {
+    // Two consecutive query boxes looked glued: the gap between blocks is what keeps a note
+    // readable, and a fence is a block like any other.
+    let note = "# T\n\n```query\ntag: #qa\nsort: titulo\n```\n\n```query\ntag: #outra\nsort: titulo\n```\n";
+    let scratch = Scratch::new("block-rhythm", &[("Ritmo.md", note)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Ritmo.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 700.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let mut images = crate::images::Images::default();
+            let _ = crate::editor::show(ui, state, &mut images);
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-block-rhythm");
+
+    let first = harness.get_by_label_contains("tag: #qa").rect();
+    let second = harness.get_by_label_contains("tag: #outra").rect();
+    let gap = second.top() - first.bottom();
+    assert!(gap >= 30.0, "the two blocks keep a gap of their own: {gap:.0} px");
+    assert!(gap <= 64.0, "and it is a rhythm, not a hole: {gap:.0} px");
+}
+
+#[test]
+fn the_reading_column_fills_the_pane_when_the_pane_is_narrow() {
+    // In Split the pane is narrower than the measure: the text uses the pane instead of leaving a
+    // dead margin on the right, which is what makes a split look misaligned.
+    let paragraph = "Parágrafo largo de teste que precisa quebrar em várias linhas para ocupar a coluna inteira, \
+                     porque só um texto que enche a medida mostra onde a medida começa e onde ela termina.";
+    let scratch = Scratch::new("split-column", &[("Largo.md", &format!("# Título\n\n{paragraph}\n"))]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Largo.md"));
+    state.view = crate::vault_state::ViewMode::Split;
+    let pane = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let pane_sink = pane.clone();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1366.0, 768.0))
+        // The source pane is a plain text box with no accessible name; the check is about labels,
+        // and this test is about geometry.
+        .with_accessibility_check(false)
+        .build_ui_state(
+            move |ui, state: &mut VaultState| {
+                pane_sink.set(ui.max_rect());
+                let mut images = crate::images::Images::default();
+                let _ = crate::editor::show(ui, state, &mut images);
+            },
+            state,
+        );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-split-column-1366");
+
+    let column = harness.get_by_label_contains("Parágrafo largo").rect();
+    let pane = pane.get();
+    let right = pane.right() - column.right();
+    assert!(right <= 60.0, "the text reaches the edge of its pane: {right:.0} px of dead margin");
+    assert!(column.width() >= 300.0, "the pane is used: {:.0} px", column.width());
+}
+
+#[test]
+fn the_ai_connection_is_a_centred_dialog_of_measured_width() {
+    // The dialog used to take the window: the fields asked for `f32::INFINITY` and the window grew
+    // to the screen - inputs 1900 px long, `Save` on the left, `x` a screen away, the note covered.
+    for (width, height) in [(1920.0f32, 1080.0f32), (800.0, 600.0)] {
+        let mut chat = crate::ai_ui::Chat::default();
+        chat.settings_open = true;
+        let dialog = Rc::new(Cell::new(egui::Rect::NOTHING));
+        let dialog_sink = dialog.clone();
+        let pane = Rc::new(Cell::new(egui::Rect::NOTHING));
+        let pane_sink = pane.clone();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(width, height))
+            // The fields are named by the label above them, not by an accessible name of their own.
+            .with_accessibility_check(false)
+            .build_ui_state(
+                move |ui, chat: &mut crate::ai_ui::Chat| {
+                    pane_sink.set(ui.max_rect());
+                    if let Some(rect) = chat.settings(ui) {
+                        dialog_sink.set(rect);
+                    }
+                },
+                chat,
+            );
+        harness.run_steps(3);
+        shot(&mut harness, &format!("ui-ai-dialog-{}x{}", width as u32, height as u32));
+
+        let rect = dialog.get();
+        assert!(rect.width() <= 560.0, "the dialog is a dialog, not the window: {:.0} px at {width:.0}", rect.width());
+        assert!(rect.width() >= 460.0, "and it is wide enough for a base URL: {:.0} px", rect.width());
+        assert!(rect.right() <= width, "it fits the window: right edge {:.0} of {width:.0}", rect.right());
+        let off_centre = (rect.center().x - pane.get().center().x).abs();
+        assert!(off_centre < 24.0, "it is centred: {off_centre:.0} px off at {width:.0}");
+    }
+}
+
+#[test]
+fn the_side_panels_keep_their_width_at_every_window_size() {
+    // The bug family: a panel grows to fit its content, so one `f32::INFINITY` inside it turned a
+    // sidebar into the page. Each panel is drawn here exactly as `app.rs::page` draws it - same
+    // default, same share, same absolute ceiling.
+    for (width, height) in [(1920.0f32, 1080.0f32), (800.0, 600.0)] {
+        for (name, left, default, share, absolute) in [
+            ("sidebar", true, 240.0f32, 0.34f32, 380.0f32),
+            ("search", false, 320.0, 0.5, 520.0),
+            ("outline", false, 220.0, 0.5, 400.0),
+            ("ai-chat", false, 340.0, 0.5, 560.0),
+            ("review", false, 320.0, 0.5, 520.0),
+            ("review-stats", false, 300.0, 0.5, 460.0),
+        ] {
+            let (scratch, mut state) = demo_vault(&format!("panel-{name}-{}", width as u32));
+            state.open_note(&scratch.0.join("Sepse.md"));
+            state.search.open = true;
+            state.search.query = "lactato".to_string();
+            state.run_search_now();
+            state.outline_open = true;
+            let mut chat = crate::ai_ui::Chat::default();
+            chat.open = true;
+            let mut review = crate::review_ui::Review::default();
+            review.open = true;
+            review.stats_open = true;
+
+            let measured = Rc::new(Cell::new(0.0f32));
+            let sink = measured.clone();
+            let mut harness = Harness::builder().with_size(egui::vec2(width, height)).with_accessibility_check(false).build_ui_state(
+                move |ui, (state, chat, review): &mut (VaultState, crate::ai_ui::Chat, crate::review_ui::Review)| {
+                    let ceiling = (ui.available_width() * share).clamp(160.0, absolute);
+                    let panel = if left { egui::Panel::left(name) } else { egui::Panel::right(name) };
+                    let drawn = panel.resizable(true).default_size(default).max_size(ceiling).show(ui, |ui| match name {
+                        "sidebar" => {
+                            let _ = crate::sidebar::show(ui, state);
+                        }
+                        "search" => {
+                            let _ = panels::search(ui, state);
+                        }
+                        "outline" => {
+                            let _ = panels::outline(ui, state);
+                        }
+                        "ai-chat" => chat.ui(ui, state),
+                        "review" => review.ui(ui, state),
+                        _ => review.stats_ui(ui, state),
+                    });
+                    sink.set(drawn.response.rect.width());
+                },
+                (state, chat, review),
+            );
+            harness.run_steps(3);
+
+            let measured = measured.get();
+            assert!(measured <= absolute + 1.0, "{name} at {width:.0}: {measured:.0} px is more than its ceiling of {absolute:.0}");
+            assert!(measured >= 160.0, "{name} at {width:.0}: {measured:.0} px is too narrow to use");
+            assert!(measured < width * 0.6, "{name} at {width:.0}: {measured:.0} px left no room for the note");
+        }
+    }
 }
 
 #[test]

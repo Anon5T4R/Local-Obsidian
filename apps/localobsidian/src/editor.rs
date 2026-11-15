@@ -104,8 +104,14 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
             // it used and the share is kept for the next run.
             let total = ui.available_width();
             let requested = (total * state.split).clamp(MIN_PANE, (total - MIN_PANE).max(MIN_PANE));
-            let source =
-                egui::Panel::left("split-source").resizable(true).default_size(requested).min_size(MIN_PANE).show(ui, |ui| editor_pane(ui, state));
+            let source = egui::Panel::left("split-source")
+                .resizable(true)
+                .default_size(requested)
+                .min_size(MIN_PANE)
+                // The reading pane keeps its own room even when the divider is dragged all the way:
+                // a split with one pane at 100% is not a split.
+                .max_size((total - MIN_PANE).max(MIN_PANE))
+                .show(ui, |ui| editor_pane(ui, state));
             if total > 1.0 {
                 state.split = (source.response.rect.width() / total).clamp(0.15, 0.85);
             }
@@ -248,7 +254,9 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
         let output = egui::TextEdit::multiline(&mut state.buffer)
             .id(editor_id)
             .font(TextStyle::Monospace)
-            .desired_width(f32::INFINITY)
+            // The width of the pane, not of the window: a widget that asks for `f32::INFINITY`
+            // also widens the panel that holds it, and the split's source would grow over the note.
+            .desired_width(ui.available_width())
             .desired_rows(rows)
             .code_editor()
             .layouter(&mut layouter)
@@ -492,6 +500,7 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             hit
         }
         Block::Code { language, text } => {
+            ui.add_space(4.0);
             if !language.is_empty() {
                 ui.label(RichText::new(language).small().weak());
             }
@@ -499,7 +508,9 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
                 ui.set_min_width(ui.available_width());
                 ui.label(RichText::new(text).monospace().size(13.0 * zoom));
             });
-            ui.add_space(12.0);
+            // A fence is a block: two of them in a row keep the rhythm of any other pair of blocks
+            // (they used to sit a few pixels apart, which read as one broken block).
+            ui.add_space(16.0);
             None
         }
         Block::Quote(inner) => {

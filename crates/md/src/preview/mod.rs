@@ -138,8 +138,47 @@ pub fn prepare(markdown: &str) -> String {
     // The `---` block is metadata: the reading view must not show it as body text.
     let body = crate::frontmatter::body(markdown);
     let without_comments = strip_comments(body);
-    let with_breaks = code::map_outside_code(&without_comments, separate_callout_headers);
+    // A quote ends at the first line that is not quoted, before the header pass looks at the next
+    // line: CommonMark would read `#ta` under `> texto` as a lazy continuation of the paragraph.
+    // Whole-text, not chunk-by-chunk: an inline `` `code` `` splits the text, and the state of
+    // "inside a quote" has to survive that split.
+    let terminated = end_quotes_at_unquoted_lines(&without_comments);
+    let with_breaks = code::map_outside_code(&terminated, separate_callout_headers);
     code::map_outside_code(&with_breaks, wikilinks_to_links)
+}
+
+/// A line that is not quoted closes the quote above it.
+///
+/// CommonMark continues a blockquote through a line without the marker (a "lazy continuation"), so
+/// `> um aviso.` followed by `#ta` put the tag inside the callout. In a vault written in Obsidian the
+/// last `>` line is the last line of the quote, and the reader expects exactly that: a blank line is
+/// inserted between them so the parser ends the quote where the author did.
+///
+/// Fenced code is left alone: a `>` inside a sample is a character, not a quote.
+fn end_quotes_at_unquoted_lines(markdown: &str) -> String {
+    let lines: Vec<&str> = markdown.split('\n').collect();
+    let mut out = String::with_capacity(markdown.len() + 8);
+    let mut fenced = false;
+    let mut quoted = false;
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        let fence = trimmed.starts_with("```") || trimmed.starts_with("~~~");
+        if fence {
+            fenced = !fenced;
+        }
+        let is_quote = !fenced && trimmed.starts_with('>');
+        let blank = trimmed.is_empty();
+        if index > 0 {
+            out.push('\n');
+            // Blank lines already end the quote; only a line with content needs the separator.
+            if quoted && !is_quote && !blank {
+                out.push('\n');
+            }
+        }
+        out.push_str(line);
+        quoted = is_quote;
+    }
+    out
 }
 
 /// `> [!note]` followed by the note's body on the next line is one paragraph to CommonMark, so the
@@ -353,6 +392,58 @@ mod tests {
             }
         }
         assert_eq!(indexes, [(0, false), (1, true)]);
+    }
+
+    #[test]
+    fn a_line_without_the_quote_marker_ends_the_callout() {
+        // The last quoted line is the last line of the callout: the line under it (`#ta`, no `>`)
+        // is a paragraph of the note, not the callout's body. CommonMark reads it as a lazy
+        // continuation line; a vault written in Obsidian reads it as the end of the quote.
+        let blocks = blocks(&prepare("> [!danger] Perigo\n> Um aviso.\n#ta e o texto que vem depois\n"));
+        let Block::Callout { kind, title, body } = &blocks[0] else { panic!("not a callout: {blocks:?}") };
+        assert_eq!(kind, "danger");
+        assert_eq!(title, "Perigo");
+        assert_eq!(body.iter().map(Block::plain).collect::<String>(), "Um aviso.");
+        assert_eq!(blocks.len(), 2, "the tag line is a block of its own: {blocks:?}");
+        assert_eq!(blocks[1].plain(), "#ta e o texto que vem depois");
+    }
+
+    #[test]
+    fn an_inline_span_inside_the_quote_does_not_lose_the_end_of_it() {
+        // The regression: the pass over quotes ran chunk by chunk, and a `` `code` `` on the last
+        // quoted line split the text in two - the line under it never saw the quote above.
+        let blocks = blocks(&prepare("> [!danger] Perigo\n> O aviso cita `>` no texto.\n#ta fora da caixa\n"));
+        let Block::Callout { body, .. } = &blocks[0] else { panic!("not a callout: {blocks:?}") };
+        assert_eq!(body.iter().map(Block::plain).collect::<String>(), "O aviso cita > no texto.");
+        assert_eq!(blocks.len(), 2, "{blocks:?}");
+        assert_eq!(blocks[1].plain(), "#ta fora da caixa");
+    }
+
+    #[test]
+    fn a_quoted_line_inside_a_fence_is_code() {
+        let blocks = blocks(&prepare("```\n> [!note] nao e callout\n> texto\n```\n\nfora\n"));
+        assert!(matches!(blocks[0], Block::Code { .. }), "{blocks:?}");
+        assert_eq!(blocks.len(), 2, "{blocks:?}");
+    }
+
+    #[test]
+    fn a_quote_ends_at_the_first_line_that_is_not_quoted() {
+        let parsed = blocks(&prepare("> citado\nfora da citação\n"));
+        assert_eq!(parsed.len(), 2, "{parsed:?}");
+        assert_eq!(parsed[0].plain(), "citado");
+        assert_eq!(parsed[1].plain(), "fora da citação");
+
+        // With the blank line the note always wrote, the result must not change.
+        let again = blocks(&prepare("> citado\n\nfora da citação\n"));
+        assert_eq!(again.len(), 2, "{again:?}");
+    }
+
+    #[test]
+    fn a_callout_keeps_its_own_quoted_paragraphs() {
+        let blocks = blocks(&prepare("> [!note] Nota\n>\n> primeiro\n> segundo\n"));
+        let Block::Callout { body, .. } = &blocks[0] else { panic!("not a callout: {blocks:?}") };
+        assert_eq!(body.len(), 1, "{body:?}");
+        assert_eq!(body[0].plain(), "primeiro segundo");
     }
 
     #[test]

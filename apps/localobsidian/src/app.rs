@@ -382,39 +382,53 @@ impl LocalApp {
             return;
         }
         if self.sidebar_open {
-            egui::Panel::left("sidebar").resizable(true).default_size(240.0).show(ui, |ui| match sidebar::show(ui, &mut self.vault) {
-                SidebarAction::None => {}
-                SidebarAction::OpenNote(path) => self.vault.open_note(&path),
-                SidebarAction::OpenBinary(path) => self.open_with_system(&path),
-                SidebarAction::RevealFolder(path) => self.reveal_folder(&path),
+            // Panels push the page; they never take it. The ceiling is a share of what is left, so
+            // a long note name or a wide result cannot stretch a sidebar into the window.
+            let ceiling = panel_ceiling(ui.available_width(), 0.34, 380.0);
+            egui::Panel::left("sidebar").resizable(true).default_size(240.0).max_size(ceiling).show(ui, |ui| {
+                match sidebar::show(ui, &mut self.vault) {
+                    SidebarAction::None => {}
+                    SidebarAction::OpenNote(path) => self.vault.open_note(&path),
+                    SidebarAction::OpenBinary(path) => self.open_with_system(&path),
+                    SidebarAction::RevealFolder(path) => self.reveal_folder(&path),
+                }
             });
         }
         if self.vault.search.open {
-            egui::Panel::right("search").resizable(true).default_size(320.0).show(ui, |ui| match panels::search(ui, &mut self.vault) {
-                PanelAction::None => {}
-                PanelAction::Open { path, line } => self.vault.show_result(&path, line),
-                PanelAction::GoToSection(section) => self.goto_section(&section),
+            let ceiling = panel_ceiling(ui.available_width(), 0.5, 520.0);
+            egui::Panel::right("search").resizable(true).default_size(320.0).max_size(ceiling).show(ui, |ui| {
+                match panels::search(ui, &mut self.vault) {
+                    PanelAction::None => {}
+                    PanelAction::Open { path, line } => self.vault.show_result(&path, line),
+                    PanelAction::GoToSection(section) => self.goto_section(&section),
+                }
             });
         }
         if self.vault.outline_open {
-            egui::Panel::right("outline").resizable(true).default_size(220.0).show(ui, |ui| match panels::outline(ui, &mut self.vault) {
-                PanelAction::None => {}
-                PanelAction::Open { path, line } => self.vault.show_result(&path, line),
-                PanelAction::GoToSection(section) => self.goto_section(&section),
+            let ceiling = panel_ceiling(ui.available_width(), 0.5, 400.0);
+            egui::Panel::right("outline").resizable(true).default_size(220.0).max_size(ceiling).show(ui, |ui| {
+                match panels::outline(ui, &mut self.vault) {
+                    PanelAction::None => {}
+                    PanelAction::Open { path, line } => self.vault.show_result(&path, line),
+                    PanelAction::GoToSection(section) => self.goto_section(&section),
+                }
             });
         }
         if self.review.open {
-            egui::Panel::right("review").resizable(true).default_size(320.0).show(ui, |ui| {
+            let ceiling = panel_ceiling(ui.available_width(), 0.5, 520.0);
+            egui::Panel::right("review").resizable(true).default_size(320.0).max_size(ceiling).show(ui, |ui| {
                 self.review.ui(ui, &mut self.vault);
             });
         }
         if self.chat.open {
-            egui::Panel::right("ai-chat").resizable(true).default_size(340.0).show(ui, |ui| {
+            let ceiling = panel_ceiling(ui.available_width(), 0.5, 560.0);
+            egui::Panel::right("ai-chat").resizable(true).default_size(340.0).max_size(ceiling).show(ui, |ui| {
                 self.chat.ui(ui, &mut self.vault);
             });
         }
         if self.review.stats_open {
-            egui::Panel::right("review-stats").resizable(true).default_size(300.0).show(ui, |ui| {
+            let ceiling = panel_ceiling(ui.available_width(), 0.5, 460.0);
+            egui::Panel::right("review-stats").resizable(true).default_size(300.0).max_size(ceiling).show(ui, |ui| {
                 self.review.stats_ui(ui, &mut self.vault);
             });
         }
@@ -581,11 +595,14 @@ impl LocalApp {
             return;
         }
         let mut open = true;
-        egui::Window::new(tl!("Graph")).open(&mut open).default_size([720.0, 620.0]).show(ui.ctx(), |ui| {
-            if let Some(path) = graph::show(ui, &self.vault) {
-                self.vault.open_note(&path);
-            }
-        });
+        egui::Window::new(tl!("Graph")).open(&mut open).default_size([720.0, 620.0]).default_pos(centred(ui.ctx(), egui::vec2(720.0, 620.0))).show(
+            ui.ctx(),
+            |ui| {
+                if let Some(path) = graph::show(ui, &self.vault) {
+                    self.vault.open_note(&path);
+                }
+            },
+        );
         self.graph_open = open;
     }
 
@@ -595,13 +612,18 @@ impl LocalApp {
             return;
         }
         let mut open = true;
-        egui::Window::new(tl!("Calendar")).open(&mut open).default_size([330.0, 340.0]).resizable(false).show(ui.ctx(), |ui| {
-            let marked = |iso: &str| self.vault.files.iter().any(|note| note.name == iso);
-            if let Some(iso) = calendar::show(ui, &mut self.calendar_month, &marked, i18n::code()) {
-                self.open_daily_note(&iso);
-                self.calendar_open = false;
-            }
-        });
+        egui::Window::new(tl!("Calendar"))
+            .open(&mut open)
+            .default_size([330.0, 340.0])
+            .default_pos(centred(ui.ctx(), egui::vec2(330.0, 340.0)))
+            .resizable(false)
+            .show(ui.ctx(), |ui| {
+                let marked = |iso: &str| self.vault.files.iter().any(|note| note.name == iso);
+                if let Some(iso) = calendar::show(ui, &mut self.calendar_month, &marked, i18n::code()) {
+                    self.open_daily_note(&iso);
+                    self.calendar_open = false;
+                }
+            });
         self.calendar_open = open;
     }
 
@@ -810,9 +832,12 @@ impl LocalApp {
             return;
         }
         let mut open = true;
-        egui::Window::new(tl!("Help")).open(&mut open).default_size([560.0, 540.0]).show(ui.ctx(), |ui| {
-            egui::ScrollArea::vertical().id_salt("help-body").auto_shrink([false, false]).show(ui, help_body);
-        });
+        egui::Window::new(tl!("Help")).open(&mut open).default_size([560.0, 540.0]).default_pos(centred(ui.ctx(), egui::vec2(560.0, 540.0))).show(
+            ui.ctx(),
+            |ui| {
+                egui::ScrollArea::vertical().id_salt("help-body").auto_shrink([false, false]).show(ui, help_body);
+            },
+        );
         self.help_open = open;
     }
 
@@ -1064,6 +1089,24 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
     });
 }
 
+/// The widest a side panel may get: a share of the room left, never more than `absolute`.
+///
+/// A resizable panel grows to fit its content, and content that asks for `f32::INFINITY` (a text
+/// field that wants the row, a row of results) made the panel the page: the note disappeared under
+/// it and the input stretched to the edge. The ceiling is what keeps a sidebar a sidebar.
+fn panel_ceiling(available: f32, share: f32, absolute: f32) -> f32 {
+    (available * share).clamp(160.0, absolute)
+}
+
+/// Where a window of `size` starts so that it sits in the middle of the app.
+///
+/// The tool windows (graph, calendar, help) are movable, so this is only the first position: it
+/// keeps them from opening over the corner the user is reading.
+fn centred(ctx: &egui::Context, size: egui::Vec2) -> egui::Pos2 {
+    let middle = ctx.content_rect().center();
+    egui::pos2(middle.x - size.x / 2.0, middle.y - size.y / 2.0)
+}
+
 /// A section heading in the help window.
 fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(8.0);
@@ -1213,7 +1256,7 @@ impl eframe::App for LocalApp {
             self.about(ui);
         }
         self.dialogs(ui);
-        self.chat.settings(ui);
+        let _ = self.chat.settings(ui);
         self.graph(ui);
         self.calendar(ui);
         self.help(ui);

@@ -110,7 +110,18 @@ tag: #qa
 sort: titulo
 ```
 
+```query
+tag: #tag-depois-do-callout
+sort: titulo
+```
+
+> [!danger] Perigo seguido de uma linha sem `>`
+> O callout acaba na última linha com o marcador.
+#tag-depois-do-callout e o texto que vem depois, fora da caixa.
+
 Linha com emoji 🏥 🧭 ⏱ 👀 🔍 💊 e texto depois, para o caso de o glifo não existir.
+
+Texto com %%um comentário do autor que não aparece na leitura%% e o resto da frase.
 
 Uma palavra absurdamente longa para testar a quebra: pneumoultramicroscopicossilicovulcanoconiose.
 

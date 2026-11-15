@@ -19,6 +19,9 @@ use crate::vault_state::VaultState;
 /// the tail is what the user is usually looking at.
 const CONTEXT_LIMIT: usize = 12_000;
 
+/// The width of the connection dialog: one form, one measure, centred.
+pub const DIALOG_WIDTH: f32 = 520.0;
+
 /// Who said it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Who {
@@ -344,7 +347,7 @@ impl Chat {
 
         let send = {
             let hint = if self.ready() { tl!("Ask about this note...") } else { tl!("configure the connection first") };
-            let box_ui = ui.add(egui::TextEdit::multiline(&mut self.input).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY));
+            let box_ui = ui.add(egui::TextEdit::multiline(&mut self.input).hint_text(hint).desired_rows(3).desired_width(ui.available_width()));
             box_ui.has_focus() && ui.input(|input| input.modifiers.command && input.key_pressed(egui::Key::Enter))
         };
         ui.horizontal(|ui| {
@@ -363,63 +366,80 @@ impl Chat {
     }
 
     /// The connection window: base URL, model and key. One connection, the one this app uses.
-    pub fn settings(&mut self, ui: &mut egui::Ui) {
+    ///
+    /// A dialog of one measured width, centred: a settings form that spans the screen is both
+    /// unreadable (fields 1900 px long) and a lie about what it belongs to. Returns the window's
+    /// rect, which is what the sizing test asserts on.
+    pub fn settings(&mut self, ui: &mut egui::Ui) -> Option<egui::Rect> {
         if !self.settings_open {
-            return;
+            return None;
         }
         let mut open = true;
         let mut save = false;
-        egui::Window::new(tl!("AI connection")).open(&mut open).collapsible(false).resizable(false).default_width(420.0).show(ui.ctx(), |ui| {
-            ui.label(egui::RichText::new(tl!("Provider")).small().weak());
-            let current = ai::provider(&self.draft_provider).map(|preset| preset.label).unwrap_or("Custom (OpenAI-compatible)");
-            egui::ComboBox::from_id_salt("ai-provider").selected_text(current).show_ui(ui, |ui| {
-                for preset in ai::PROVIDERS {
-                    if ui.selectable_label(preset.id == self.draft_provider, preset.label).clicked() {
-                        self.draft_provider = preset.id.to_string();
-                        // A preset is a starting point: the URL stays editable after choosing one.
-                        if !preset.base_url.is_empty() {
-                            self.draft_base = preset.base_url.to_string();
-                        }
-                    }
-                }
-            });
-            ui.add_space(4.0);
-            ui.label(egui::RichText::new(tl!("Base URL")).small().weak());
-            ui.add(egui::TextEdit::singleline(&mut self.draft_base).hint_text("http://localhost:11434/v1").desired_width(f32::INFINITY));
-            ui.label(egui::RichText::new(tl!("Ollama and llama-server are a base URL and a model.")).small().weak());
-            ui.add_space(4.0);
-            ui.label(egui::RichText::new(tl!("Model")).small().weak());
-            ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.draft_model).desired_width(f32::INFINITY - 90.0));
-                if ui.button(tl!("List models")).clicked() {
-                    self.fetch_models();
-                }
-            });
-            if !self.models.is_empty() {
-                egui::ScrollArea::vertical().max_height(120.0).id_salt("ai-models").show(ui, |ui| {
-                    for model in self.models.clone() {
-                        if ui.selectable_label(self.draft_model == model, &model).clicked() {
-                            self.draft_model = model.clone();
+        let window = egui::Window::new(tl!("AI connection"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .min_width(DIALOG_WIDTH)
+            .max_width(DIALOG_WIDTH)
+            .show(ui.ctx(), |ui| {
+                // One width for the whole form: the field asks for the dialog, not for the screen.
+                let field = ui.available_width();
+                ui.label(egui::RichText::new(tl!("Provider")).small().weak());
+                let current = ai::provider(&self.draft_provider).map(|preset| preset.label).unwrap_or("Custom (OpenAI-compatible)");
+                egui::ComboBox::from_id_salt("ai-provider").selected_text(current).width(field).show_ui(ui, |ui| {
+                    for preset in ai::PROVIDERS {
+                        if ui.selectable_label(preset.id == self.draft_provider, preset.label).clicked() {
+                            self.draft_provider = preset.id.to_string();
+                            // A preset is a starting point: the URL stays editable after choosing one.
+                            if !preset.base_url.is_empty() {
+                                self.draft_base = preset.base_url.to_string();
+                            }
                         }
                     }
                 });
-            }
-            ui.add_space(4.0);
-            ui.label(egui::RichText::new(tl!("API key")).small().weak());
-            ui.add(egui::TextEdit::singleline(&mut self.draft_key).password(true).desired_width(f32::INFINITY));
-            ui.label(egui::RichText::new(tl!("Stored in the system keychain, never in a file.")).small().weak());
-            if let Some(error) = &self.error {
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new(error).small().color(ui.visuals().warn_fg_color));
-            }
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                save = ui.button(tl!("Save")).clicked();
-                if ui.button(tl!("Cancel")).clicked() {
-                    self.settings_open = false;
+                ui.label(egui::RichText::new(tl!("Base URL")).small().weak());
+                ui.add(egui::TextEdit::singleline(&mut self.draft_base).hint_text("http://localhost:11434/v1").desired_width(field));
+                ui.label(egui::RichText::new(tl!("Ollama and llama-server are a base URL and a model.")).small().weak());
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(tl!("Model")).small().weak());
+                ui.horizontal(|ui| {
+                    // The row minus the button that sits beside it.
+                    let list = 96.0;
+                    ui.add(egui::TextEdit::singleline(&mut self.draft_model).desired_width((field - list).max(120.0)));
+                    if ui.button(tl!("List models")).clicked() {
+                        self.fetch_models();
+                    }
+                });
+                if !self.models.is_empty() {
+                    egui::ScrollArea::vertical().max_height(120.0).id_salt("ai-models").show(ui, |ui| {
+                        for model in self.models.clone() {
+                            if ui.selectable_label(self.draft_model == model, &model).clicked() {
+                                self.draft_model = model.clone();
+                            }
+                        }
+                    });
                 }
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(tl!("API key")).small().weak());
+                ui.add(egui::TextEdit::singleline(&mut self.draft_key).password(true).desired_width(field));
+                ui.label(egui::RichText::new(tl!("Stored in the system keychain, never in a file.")).small().weak());
+                if let Some(error) = &self.error {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(error).small().color(ui.visuals().warn_fg_color));
+                }
+                ui.add_space(10.0);
+                // Align::Min, not Center: a row centred in the space that is left grows the dialog
+                // to the height of the screen and floats the buttons in the middle of nothing.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    save = ui.button(tl!("Save")).clicked();
+                    if ui.button(tl!("Cancel")).clicked() {
+                        self.settings_open = false;
+                    }
+                });
             });
-        });
         if save {
             self.save_settings();
             if self.error.is_none() {
@@ -428,6 +448,7 @@ impl Chat {
         } else if !open {
             self.settings_open = false;
         }
+        window.map(|window| window.response.rect)
     }
 }
 
