@@ -399,23 +399,35 @@ impl eframe::App for LocalApp {
     /// Work that is not drawing: restoring the last vault, the update check, the pickers' answers,
     /// the autosave, and the shortcuts.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Anything done here shows up on the *next* frame, and egui only redraws when asked to
+        // (a static window waits for input). Opening the vault or a picked folder therefore has to
+        // wake the window, or the welcome page would stay on screen until the mouse moves.
+        let mut wake = false;
+
         if std::mem::take(&mut self.restore_pending)
             && let Some(path) = self.prefs.last_vault.clone()
         {
             self.open_vault(path);
+            wake = true;
         }
         self.updater.check_at_start(ctx);
         self.updater.tick(ctx);
 
         for path in self.pickers.take() {
             self.open_vault(path);
+            wake = true;
         }
 
         let save_shortcut = ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S));
         if save_shortcut && self.vault.dirty {
             self.save();
         }
-        self.vault.autosave();
+        if self.vault.autosave() {
+            wake = true;
+        }
+        if wake {
+            ctx.request_repaint();
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

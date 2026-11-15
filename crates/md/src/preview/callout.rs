@@ -5,9 +5,9 @@
 //! kept as written (lowercase), the title falls back to the type's name, and a `+`/`-` right after
 //! the type is the fold marker of the syntax - the reading view shows the body either way.
 //!
-//! The header line is only taken when it is plain text. A title with emphasis in it stays a plain
-//! quote, because dropping the inline formatting to gain a coloured box would lose what the author
-//! wrote.
+//! The header and the body may arrive in the same paragraph (the `prepare` pass separates them with
+//! a hard break), and the body may carry links or emphasis: the header is cut out of the first text
+//! run and the rest stays as the callout's first paragraph.
 
 use super::{Block, Span};
 
@@ -36,18 +36,21 @@ pub(super) fn promote(blocks: Vec<Block>) -> Vec<Block> {
 }
 
 /// `(kind, title)` when the first block is a callout header; that line is then removed from `inner`.
+///
+/// The header and the body of the callout may share one paragraph (`prepare` puts a hard break
+/// between them), and the body may carry links and emphasis - so the header is taken out of the
+/// first text run, and whatever follows it stays as the callout's first paragraph.
 fn take_header(inner: &mut Vec<Block>) -> Option<(String, String)> {
     let Block::Paragraph(spans) = inner.first()? else { return None };
-    // One plain run: a header with emphasis stays a quote (see the module note).
-    let [Span::Text(text)] = spans.as_slice() else { return None };
+    let (first, rest_spans) = spans.split_first()?;
+    let Span::Text(first_text) = first else { return None };
 
-    // `prepare` put a hard break after the header, so the body of the callout may follow it in the
-    // same paragraph: `[!note]\ncorpo`.
-    let (head, rest) = match text.split_once('\n') {
+    // The header is the first line: the text run that opens it, plus whatever inline runs follow
+    // until the line break that `prepare` inserted.
+    let (head, after_break) = match first_text.split_once('\n') {
         Some((head, rest)) => (head, Some(rest)),
-        None => (text.as_str(), None),
+        None => (first_text.as_str(), None),
     };
-
     let head = head.trim_start().strip_prefix("[!")?;
     let close = head.find(']')?;
     let kind = head[..close].trim().to_lowercase();
@@ -55,17 +58,45 @@ fn take_header(inner: &mut Vec<Block>) -> Option<(String, String)> {
         return None;
     }
 
-    let mut title = head[close + 1..].trim().trim_end_matches('\\').trim();
-    if let Some(unfolded) = title.strip_prefix(['+', '-']) {
-        title = unfolded.trim();
+    let mut title_parts: Vec<String> = Vec::new();
+    let mut body_spans: Vec<Span> = Vec::new();
+    let head_tail = head[close + 1..].trim().trim_end_matches('\\').trim();
+    // A `+`/`-` right after the type is the fold marker of the syntax, not a title.
+    let head_tail = head_tail.strip_prefix(['+', '-']).unwrap_or(head_tail).trim();
+    if !head_tail.is_empty() {
+        title_parts.push(head_tail.to_string());
     }
-    let title = if title.is_empty() { title_case(&kind) } else { title.to_string() };
-
-    match rest.map(str::trim).filter(|rest| !rest.is_empty()) {
-        Some(body) => inner[0] = Block::Paragraph(vec![Span::Text(body.to_string())]),
-        None => {
-            inner.remove(0);
+    let mut in_body = after_break.is_some();
+    if let Some(after_break) = after_break.map(str::trim_start).filter(|rest| !rest.is_empty()) {
+        body_spans.push(Span::Text(after_break.to_string()));
+    }
+    for span in rest_spans {
+        if in_body {
+            body_spans.push(span.clone());
+            continue;
         }
+        match span {
+            Span::Text(text) => match text.split_once('\n') {
+                Some((head, rest)) => {
+                    title_parts.push(head.trim().to_string());
+                    if !rest.trim().is_empty() {
+                        body_spans.push(Span::Text(rest.trim_start().to_string()));
+                    }
+                    in_body = true;
+                }
+                None => title_parts.push(text.trim().to_string()),
+            },
+            other => title_parts.push(other.plain()),
+        }
+    }
+
+    let title: String = title_parts.join(" ").trim().to_string();
+    let title = if title.is_empty() { title_case(&kind) } else { title };
+
+    if body_spans.is_empty() {
+        inner.remove(0);
+    } else {
+        inner[0] = Block::Paragraph(body_spans);
     }
     Some((kind, title))
 }
@@ -124,8 +155,21 @@ mod tests {
     }
 
     #[test]
-    fn a_header_with_emphasis_stays_a_quote() {
-        assert!(matches!(callout("> [!warning] **Cuidado**"), Block::Quote(_)));
+    fn a_header_with_emphasis_in_the_body_keeps_the_emphasis() {
+        let blocks = super::super::blocks(&super::super::prepare("> [!warning] **Cuidado**\n> e mais"));
+        let Block::Callout { title, body, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        // The title is plain text even when the source wraps it in markers.
+        assert_eq!(title, "Cuidado");
+        assert_eq!(body[0].plain(), "e mais");
+    }
+
+    #[test]
+    fn a_body_with_a_link_stays_a_callout() {
+        let blocks = super::super::blocks(&super::super::prepare("> [!warning] Cuidado\n> veja [[Nota]]"));
+        let Block::Callout { title, body, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        assert_eq!(title, "Cuidado");
+        let Block::Paragraph(spans) = &body[0] else { panic!("{body:?}") };
+        assert!(spans.iter().any(|span| matches!(span, Span::Link { .. })), "{spans:?}");
     }
 
     #[test]

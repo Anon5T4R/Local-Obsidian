@@ -114,10 +114,12 @@ impl Block {
     }
 }
 
-/// The note's markdown as it reaches [`blocks`]: comments gone, wikilinks turned into links, and a
-/// callout header separated from the line under it.
+/// The note's markdown as it reaches [`blocks`]: frontmatter and comments gone, wikilinks turned
+/// into links, and a callout header separated from the line under it.
 pub fn prepare(markdown: &str) -> String {
-    let without_comments = strip_comments(markdown);
+    // The `---` block is metadata: the reading view must not show it as body text.
+    let body = crate::frontmatter::body(markdown);
+    let without_comments = strip_comments(body);
     let with_breaks = code::map_outside_code(&without_comments, separate_callout_headers);
     code::map_outside_code(&with_breaks, wikilinks_to_links)
 }
@@ -295,6 +297,14 @@ mod tests {
         assert_eq!(headers[0].iter().map(Span::plain).collect::<String>(), "a");
         assert_eq!(rows[0][2].iter().map(Span::plain).collect::<String>(), "3");
         assert_eq!(aligns, &vec![Align::Left, Align::Center, Align::Right]);
+    }
+
+    #[test]
+    fn the_frontmatter_never_reaches_the_reading_view() {
+        let blocks = blocks(&prepare("---\ntags: [cardio]\naliases: [SCA]\n---\n# Sepse\n\ntexto"));
+        assert!(!blocks[0].plain().contains("cardio"), "{blocks:?}");
+        assert!(matches!(&blocks[0], Block::Heading { level: 1, .. }), "{blocks:?}");
+        assert_eq!(blocks.len(), 2, "{blocks:?}");
     }
 
     #[test]
