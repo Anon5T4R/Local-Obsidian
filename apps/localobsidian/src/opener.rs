@@ -82,14 +82,53 @@ mod tests {
     }
 
     #[test]
-    fn revealing_a_folder_selected_its_path() {
-        let (program, args) = reveal_command(Path::new("/v/2. Medicina"));
-        assert!(args.iter().any(|arg| arg.contains("2. Medicina")), "{program} {args:?}");
+    fn revealing_a_folder_shows_that_folder() {
+        // A real folder: the shape of the command depends on whether the path is a folder, and a
+        // made-up path would only test the branch `false`.
+        let root = std::env::temp_dir().join(format!("localobsidian-reveal-{}", std::process::id()));
+        let folder = root.join("2. Medicina");
+        std::fs::create_dir_all(&folder).expect("scratch dir");
+
+        let (program, args) = reveal_command(&folder);
+        let asked = folder.to_string_lossy().to_string();
+        assert!(args.iter().any(|arg| arg.contains(&asked)), "{program} {args:?}");
         #[cfg(windows)]
         assert_eq!(program, "explorer");
         #[cfg(target_os = "macos")]
         assert_eq!(args.first().map(String::as_str), Some("-R"));
         #[cfg(all(unix, not(target_os = "macos")))]
         assert_eq!(program, "xdg-open");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn revealing_a_file_selects_it_where_the_desktop_can_and_opens_its_folder_where_it_cannot() {
+        let root = std::env::temp_dir().join(format!("localobsidian-reveal-file-{}", std::process::id()));
+        let file = root.join("protocolo.pdf");
+        std::fs::create_dir_all(&root).expect("scratch dir");
+        std::fs::write(&file, "%PDF-1.4").expect("write");
+
+        let (program, args) = reveal_command(&file);
+        #[cfg(windows)]
+        {
+            assert_eq!(program, "explorer");
+            assert!(args.first().is_some_and(|arg| arg.starts_with("/select,")), "explorer selects the file: {args:?}");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(program, "open");
+            assert_eq!(args.first().map(String::as_str), Some("-R"));
+        }
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            // No portable "select" on Linux: the folder is what every file manager opens.
+            assert_eq!(program, "xdg-open");
+            let asked = root.to_string_lossy().to_string();
+            assert!(args.iter().any(|arg| arg.contains(&asked)), "the folder is what opens: {args:?}");
+        }
+        let _ = (program, args);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
