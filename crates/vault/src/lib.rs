@@ -12,6 +12,7 @@ pub mod filter;
 pub mod fs;
 pub mod index;
 pub mod resolve;
+pub mod search;
 pub mod tree;
 
 pub use filter::{Filterable, matches_filter};

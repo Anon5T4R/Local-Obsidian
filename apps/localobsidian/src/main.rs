@@ -11,16 +11,21 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod app;
+mod completions;
 mod editor;
 mod editor_keys;
 mod fonts;
 mod i18n;
 mod images;
+mod panels;
 mod pickers;
 mod prefs;
 mod sidebar;
 mod suite_entry;
 mod vault_state;
+
+#[cfg(test)]
+mod ui_tests;
 
 use app::LocalApp;
 use suite_entry::APP;

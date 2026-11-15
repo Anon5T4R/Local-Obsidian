@@ -110,9 +110,19 @@ pub fn post(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> bool {
     true
 }
 
-/// Whether `key` was pressed with exactly these modifiers.
+/// Runs *before* the text widget draws.
 fn pressed(ui: &egui::Ui, key: Key, command: bool, shift: bool) -> bool {
     ui.input(|input| input.key_pressed(key) && input.modifiers.command == command && input.modifiers.shift == shift && !input.modifiers.alt)
+}
+
+/// Puts the caret at a byte offset (the popup and a search result both need it).
+pub fn place_caret(ui: &egui::Ui, buffer: &str, id: egui::Id, byte: usize) {
+    set_selection(ui, buffer, id, Selection::caret(byte));
+}
+
+/// The caret's byte offset.
+pub fn caret_byte(ui: &egui::Ui, buffer: &str, id: egui::Id) -> usize {
+    selection_of(ui, buffer, id).end
 }
 
 /// Writes the edit into the buffer and restores the caret.

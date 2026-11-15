@@ -110,51 +110,125 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
     action
 }
 
-/// The source, with the Markdown keys wired.
+/// The source, with the Markdown keys and the wikilink popup wired.
 fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     let mut action = EditorAction::None;
     let mut changed = false;
     let editor_id = ui.make_persistent_id("note-editor");
 
     // The command keys first: they are consumed before the widget draws, so a `Tab` cannot both
-    // indent and insert a tab.
+    // indent and insert a tab - and the completion popup's keys cannot reach the note.
     if let Some(key) = crate::editor_keys::pre(ui, &mut state.buffer, editor_id) {
         match key {
             crate::editor_keys::EditorKey::Changed => changed = true,
             crate::editor_keys::EditorKey::Save => action = EditorAction::Save,
         }
     }
+    if let Some(popup) = crate::completions::take_keys(ui)
+        && let Some(completion) = state.completion.clone()
+    {
+        match popup {
+            crate::completions::PopupKey::Up => {
+                let mut completion = completion;
+                crate::completions::move_by(&mut completion, -1);
+                state.completion = Some(completion);
+            }
+            crate::completions::PopupKey::Down => {
+                let mut completion = completion;
+                crate::completions::move_by(&mut completion, 1);
+                state.completion = Some(completion);
+            }
+            crate::completions::PopupKey::Accept => {
+                if let Some(name) = completion.selected() {
+                    let (text, caret) = crate::completions::accept(&state.buffer, &completion, name);
+                    state.buffer = text;
+                    crate::editor_keys::place_caret(ui, &state.buffer, editor_id, caret);
+                    changed = true;
+                }
+                state.completion = None;
+            }
+            crate::completions::PopupKey::Dismiss => state.completion = None,
+        }
+    }
 
+    // A search result asked for a line: the caret goes there before the widget reads the state.
+    if let Some(line) = state.pending_line.take() {
+        let at = line_start_byte(&state.buffer, line);
+        crate::editor_keys::place_caret(ui, &state.buffer, editor_id, at);
+        state.view = ViewMode::Edit;
+    }
+
+    let mut caret_rect = None;
     egui::ScrollArea::vertical().id_salt("editor-scroll").auto_shrink([false, false]).show(ui, |ui| {
-        let response = ui.add(
-            egui::TextEdit::multiline(&mut state.buffer)
-                .id(editor_id)
-                .font(TextStyle::Monospace)
-                .desired_width(f32::INFINITY)
-                .desired_rows(24)
-                .code_editor(),
-        );
-        changed |= response.changed();
+        let output = egui::TextEdit::multiline(&mut state.buffer)
+            .id(editor_id)
+            .font(TextStyle::Monospace)
+            .desired_width(f32::INFINITY)
+            .desired_rows(24)
+            .code_editor()
+            .show(ui);
+        changed |= output.response.changed();
         // List continuation reads the newline the widget has just inserted.
         changed |= crate::editor_keys::post(ui, &mut state.buffer, editor_id);
+
+        // The caret's rect, for the completion popup.
+        if let Some(range) = output.cursor_range {
+            let relative = output.galley.pos_from_cursor(range.primary);
+            caret_rect = Some(relative.translate(output.galley_pos.to_vec2()));
+        }
     });
+
     if changed {
         state.touch();
+    }
+
+    // The popup: what the caret is typing now, drawn under it.
+    let caret = crate::editor_keys::caret_byte(ui, &state.buffer, editor_id);
+    state.completion = crate::completions::for_caret(state, &state.buffer, caret);
+    if let (Some(completion), Some(rect)) = (&state.completion, caret_rect) {
+        let at = egui::pos2(rect.left(), rect.bottom() + 2.0);
+        if let Some(index) = crate::completions::show(ui, completion, at) {
+            let name = completion.candidates[index].clone();
+            let (text, caret) = crate::completions::accept(&state.buffer, completion, &name);
+            state.buffer = text;
+            crate::editor_keys::place_caret(ui, &state.buffer, editor_id, caret);
+            state.completion = None;
+            state.touch();
+        }
     }
     action
 }
 
-/// The reading view.
+/// The byte offset where a 1-based line starts.
+fn line_start_byte(text: &str, line: usize) -> usize {
+    if line <= 1 {
+        return 0;
+    }
+    let mut at = 0;
+    for (index, byte) in text.bytes().enumerate() {
+        if byte == b'\n' {
+            at = index + 1;
+            if text[..at].matches('\n').count() == line - 1 {
+                break;
+            }
+        }
+    }
+    at
+}
+
+/// The reading view, scrolling to the section a link asked for.
 fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> EditorAction {
     if !state.view.shows_reading() {
         return EditorAction::None;
     }
     state.refresh_preview();
+    let section = state.pending_section.take();
     let vault: &VaultState = state;
     let blocks = vault.preview();
     let mut action = EditorAction::None;
+    let mut target = section.as_deref();
     egui::ScrollArea::vertical().id_salt("reading-scroll").auto_shrink([false, false]).show(ui, |ui| {
-        if let Some(hit) = show_blocks(ui, blocks, vault, images) {
+        if let Some(hit) = show_blocks(ui, blocks, vault, images, &mut target) {
             action = match hit {
                 Hit::Link(target) => EditorAction::Navigate(target),
             };
@@ -197,11 +271,12 @@ enum Hit {
     Link(String),
 }
 
-/// Draws blocks, returning what the user clicked.
-fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: &mut Images) -> Option<Hit> {
+/// Draws blocks, returning what the user clicked. `target` is the section a link asked for: the
+/// first heading that matches it is scrolled to and the target is cleared.
+fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: &mut Images, target: &mut Option<&str>) -> Option<Hit> {
     let mut hit = None;
     for block in blocks {
-        let found = show_block(ui, block, state, images);
+        let found = show_block(ui, block, state, images, target);
         if found.is_some() {
             hit = found;
         }
@@ -209,15 +284,22 @@ fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: 
     hit
 }
 
-fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut Images) -> Option<Hit> {
+fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut Images, target: &mut Option<&str>) -> Option<Hit> {
     match block {
         Block::Heading { level, spans } => {
             ui.add_space(6.0);
             let mut style = Style::new(heading_size(*level));
             style.strong = true;
-            let hit = show_spans(ui, spans, state, style);
+            let text: String = spans.iter().map(Span::plain).collect();
+            let drawn = ui.vertical(|ui| show_spans(ui, spans, state, style));
+            if let Some(section) = *target
+                && localobsidian_md::outline::section_matches(section, &text)
+            {
+                ui.scroll_to_rect(drawn.response.rect, Some(egui::Align::TOP));
+                *target = None;
+            }
             ui.add_space(2.0);
-            hit
+            drawn.inner
         }
         Block::Paragraph(spans) => {
             let hit = show_spans(ui, spans, state, Style::new(14.5));
@@ -254,7 +336,7 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             let weak = ui.visuals().weak_text_color();
             let quoted = ui.indent(ui.scope_id().with("quote"), |ui| {
                 ui.visuals_mut().override_text_color = Some(weak);
-                show_blocks(ui, inner, state, images)
+                show_blocks(ui, inner, state, images, target)
             });
             let rect = quoted.response.rect;
             if rect.height() > 0.0 {
@@ -263,7 +345,7 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             }
             quoted.inner
         }
-        Block::Callout { kind, title, body } => show_callout(ui, kind, title, body, state, images),
+        Block::Callout { kind, title, body } => show_callout(ui, kind, title, body, state, images, target),
         Block::Table { headers, rows, aligns } => {
             show_table(ui, headers, rows, aligns, state);
             None
@@ -280,7 +362,15 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
 }
 
 /// `> [!kind] Título`: a coloured box, the title in bold, the body drawn as blocks.
-fn show_callout(ui: &mut egui::Ui, kind: &str, title: &str, body: &[Block], state: &VaultState, images: &mut Images) -> Option<Hit> {
+fn show_callout(
+    ui: &mut egui::Ui,
+    kind: &str,
+    title: &str,
+    body: &[Block],
+    state: &VaultState,
+    images: &mut Images,
+    target: &mut Option<&str>,
+) -> Option<Hit> {
     let color = callout_color(kind);
     let mut hit = None;
     egui::Frame::new()
@@ -291,7 +381,7 @@ fn show_callout(ui: &mut egui::Ui, kind: &str, title: &str, body: &[Block], stat
         .show(ui, |ui| {
             ui.label(RichText::new(title).strong().color(color));
             ui.add_space(2.0);
-            if let Some(found) = show_blocks(ui, body, state, images) {
+            if let Some(found) = show_blocks(ui, body, state, images, target) {
                 hit = Some(found);
             }
         });

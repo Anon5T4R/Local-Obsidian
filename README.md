@@ -9,12 +9,18 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v0.2.0)
+## O que funciona hoje (v0.3.0)
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
-  das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias.
+  das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
+  tag** com contagem e **backlinks** da nota aberta.
 - **Nota**: frontmatter YAML lido e preservado, `#tags` (inclusive aninhadas) e `[[wikilinks]]` com
-  resolução "a nota mais próxima vence" e navegação por clique; `![[Nota#Seção]]` transclui.
+  resolução "a nota mais próxima vence" e navegação por clique (inclusive até a seção); `![[Nota#Seção]]`
+  transclui; **autocomplete de `[[`** enquanto digita.
+- **Busca** (`Ctrl+Shift+F`): painel com `tag:`/`path:`/`file:`, `"frases"`, `-exclusões` e modo `.*`,
+  resultados por nota (mais relevante primeiro) com as linhas e o número delas; clicar abre a nota na
+  linha.
+- **Outline** (`Ctrl+Shift+O`): títulos da nota aberta, clique rola até a seção.
 - **Editor**: texto puro com `Ctrl+B`/`I`/`E` (negrito/itálico/código), `Ctrl+Shift+E` (destaque),
   `Tab`/`Shift+Tab`, `Ctrl+Enter` (checkbox), lista que continua no Enter, autosave de 800 ms e
   `Ctrl+S`; escrita atômica (arquivo temporário + rename), nunca meio arquivo.

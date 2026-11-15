@@ -14,3 +14,5 @@ workspace = true
 [dependencies]
 localobsidian-md = { workspace = true }
 log = { workspace = true }
+# The search panel's `.*` mode. Pure Rust, no C.
+regex = { workspace = true }

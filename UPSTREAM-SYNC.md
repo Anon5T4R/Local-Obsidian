@@ -13,6 +13,37 @@ O **comportamento** portado vem do **OpenObsidian** (`C:\Dev\OpenObsidian\deskto
 + TS, v1.2.1): o TypeScript é spec, não estrutura. O que já foi portado e as divergências
 conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 
+## Divergências conscientes (port vs. Electron)
+
+| O que | Electron | Aqui | Por quê |
+|---|---|---|---|
+| Frontmatter na leitura | `remark-frontmatter` tira o bloco | `preview::prepare` descarta o bloco antes de parsear | mesmo resultado sem HTML no meio |
+| Backlinks com âncora | só `backlinks[nomeDaNota]` (um `[[Nota#Seção]]` não aparece) | conta também (`parse_target` compara a nota) | menção é menção; era um buraco do upstream, não uma decisão |
+| Âncoras de heading | `slugify` ASCII (`\w`), ids persistidos no HTML | slug Unicode (mantém acentos), id só para casar `[[Nota#Seção]]` | id não vai a arquivo; manter a letra evita `seção`→`seco` |
+| Callout com formatação no título | HTML com ênfase | título em texto puro, corpo preserva ênfase | o modelo de blocos não tem spans no título |
+| Checkbox na leitura | clique alterna a caixa | `Ctrl+Enter` no editor | o índice do checkbox por fonte não mapeia 1:1 com a leitura (embeds/listas aninhadas) |
+| Escrita | autosave 800 ms + `safe-write` | igual (temp + rename, retry no Windows) | — |
+| Busca | `toLowerCase` + `includes` (limitação #1 Keep) | igual, **sem** folding de acento e **sem** stemming | decisão do upstream mantida |
+| Regex na busca | `new RegExp` do JS | crate `regex` (mesmo `.*`), sintaxe do Rust | JS tem backreference/lookahead; Rust não (diferença anotada) |
+| Embed | injeta `<div class="embed">` no HTML | vira callout `> [!embed] Nota › Seção` | sem pipeline HTML |
+| Watcher de arquivos | chokidar | ainda não (refresh manual no menu) | autosave + watcher precisam ignorar as escritas do próprio app; unidade própria |
+| Math | KaTeX | TeX em monoespaçado (pendente) | ver nota abaixo |
+| Binários (PDF/DOCX/EPUB/ODT) na árvore | aparecem | fora da árvore | listar o que não abre é pior que não listar |
+
+### Math: avaliação do RaTeX (pendente, unidade própria)
+
+O `ratex` do local-sheets (`crates/math`, 489 linhas) roda LaTeX → `MathList` (glifos, réguas,
+caminhos) com teto de entrada e `catch_unwind`, e plugaria como crate. **Não entrou** porque o
+pintor precisa de *fontes matemáticas* (o `MathList` traz `Face::MainRegular/Bold/Fraktur…`, não os
+contornos) - são MBs de assets com licença própria para registrar em `ATTRIBUTION`, mais um pintor
+egui. Fica como unidade separada (com o João), junto dos pins `ratex-* =0.1.14` (4 crates).
+
+### Pendências herdadas do escopo
+
+- Autocomplete do `[[` existe e é testado; falta só o fuzzy por alias (hoje é `contains`).
+- O painel de busca não tem histórico de queries (o upstream tampouco).
+- Sem grafo, sem SRS/flashcards, sem IA (o port é files-only, por contrato).
+
 ## Spec funcional (somente leitura)
 
 | O que | Onde | Regra |

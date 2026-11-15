@@ -35,3 +35,8 @@ serde_json = { workspace = true }
 [build-dependencies]
 # Icon + VERSIONINFO for localobsidian.exe; build.rs only uses it when targeting Windows.
 winresource = "0.1"
+
+[dev-dependencies]
+# The panels are drawn headlessly by the tests (accessibility tree for the assertions, a PNG of the
+# screen when `LOCALOBSIDIAN_QA_RENDER=1`).
+egui_kittest = { workspace = true, features = ["wgpu"] }

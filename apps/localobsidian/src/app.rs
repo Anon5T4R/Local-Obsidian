@@ -11,6 +11,7 @@ use craft_update::updater::{Action, Status, Updater};
 use crate::editor::{self, EditorAction};
 use crate::i18n;
 use crate::images::Images;
+use crate::panels::{self, PanelAction};
 use crate::pickers::Pickers;
 use crate::prefs::Prefs;
 use crate::sidebar::{self, SidebarAction};
@@ -141,6 +142,14 @@ impl LocalApp {
                     }
                 });
                 ui.separator();
+                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Search the vault"))).clicked() {
+                    self.toggle_search();
+                    ui.close();
+                }
+                if ui.checkbox(&mut self.vault.outline_open, tl!("Show the outline")).clicked() {
+                    ui.close();
+                }
+                ui.separator();
                 if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Refresh the vault"))).clicked() {
                     self.reload();
                     ui.close();
@@ -174,6 +183,20 @@ impl LocalApp {
             egui::Panel::left("sidebar").resizable(true).default_size(240.0).show(ui, |ui| match sidebar::show(ui, &mut self.vault) {
                 SidebarAction::None => {}
                 SidebarAction::OpenNote(path) => self.vault.open_note(&path),
+            });
+        }
+        if self.vault.search.open {
+            egui::Panel::right("search").resizable(true).default_size(320.0).show(ui, |ui| match panels::search(ui, &mut self.vault) {
+                PanelAction::None => {}
+                PanelAction::Open { path, line } => self.vault.show_result(&path, line),
+                PanelAction::GoToSection(section) => self.goto_section(&section),
+            });
+        }
+        if self.vault.outline_open {
+            egui::Panel::right("outline").resizable(true).default_size(220.0).show(ui, |ui| match panels::outline(ui, &mut self.vault) {
+                PanelAction::None => {}
+                PanelAction::Open { path, line } => self.vault.show_result(&path, line),
+                PanelAction::GoToSection(section) => self.goto_section(&section),
             });
         }
         egui::Panel::bottom("status").show(ui, |ui| {
@@ -378,19 +401,34 @@ impl LocalApp {
         }
     }
 
-    /// Follows a `[[wikilink]]`: opens the note it names.
+    /// Follows a `[[wikilink]]`: opens the note it names, at the section when it names one.
     fn navigate(&mut self, target: &str) {
         let parsed = localobsidian_md::parse_target(target);
         if let Some(note) = self.vault.resolve(parsed.note) {
             let path = note.path.clone();
             self.vault.open_note(&path);
-            if parsed.hash.is_some() {
-                // The reading view shows the whole note; scrolling to the section is a later step.
-                self.vault.view = ViewMode::Read;
-                self.remember();
+            if let Some(section) = parsed.hash {
+                self.goto_section(section);
             }
         } else {
             self.vault.message = Some(i18n::tr_fmt("no note is called {name}", &[("name", parsed.note)]));
+        }
+    }
+
+    /// Shows the reading view scrolled to `section` of the open note.
+    fn goto_section(&mut self, section: &str) {
+        self.vault.pending_section = Some(section.to_string());
+        self.vault.view = ViewMode::Read;
+        self.remember();
+    }
+
+    /// Opens or closes the search panel. Opening it puts the caret in the box.
+    fn toggle_search(&mut self) {
+        self.vault.search.open = !self.vault.search.open;
+        if !self.vault.search.open {
+            self.vault.search.query.clear();
+            self.vault.search.results.clear();
+            self.vault.search.invalidate();
         }
     }
 }
@@ -422,6 +460,29 @@ impl eframe::App for LocalApp {
         if save_shortcut && self.vault.dirty {
             self.save();
         }
+        let search_shortcut = ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::F));
+        if search_shortcut && self.vault.root.is_some() {
+            self.toggle_search();
+            wake = true;
+        }
+        let outline_shortcut = ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::O));
+        if outline_shortcut && self.vault.root.is_some() {
+            self.vault.outline_open = !self.vault.outline_open;
+            wake = true;
+        }
+        let escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
+        if escape && self.vault.search.open && !self.vault.search.query.is_empty() {
+            // Escape clears the box first, closes the panel second: losing the query to a stray key
+            // press is worse than one more key.
+            self.vault.search.query.clear();
+            self.vault.search.results.clear();
+            self.vault.search.invalidate();
+            wake = true;
+        } else if escape && self.vault.search.open {
+            self.vault.search.open = false;
+            wake = true;
+        }
+        self.vault.refresh_search();
         if self.vault.autosave() {
             wake = true;
         }

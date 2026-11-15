@@ -1,13 +1,14 @@
-//! The sidebar: the filter box and the vault's tree.
+//! The sidebar: the filter box, the tag chips, the vault's tree and the backlinks of the open note.
 //!
 //! The tree is the vault as read from disk, ordered files-first (see `localobsidian_vault::sorted`);
 //! the filter narrows it while you type and never reads note text - a filter on a tree has to stay
-//! instant, and full-text search is a different feature.
+//! instant, and full-text search is a different feature (Ctrl+Shift+F).
 
 use std::path::PathBuf;
 
 use localobsidian_vault as vault;
 
+use crate::panels;
 use crate::tl;
 use crate::vault_state::VaultState;
 
@@ -29,11 +30,26 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
             state.filter.clear();
         }
     });
-    if !state.filter.trim().is_empty() {
+    panels::tags(ui, state);
+    if !state.filter.trim().is_empty() || state.tag_filter.is_some() {
         let kept = state.filtered_count();
-        ui.label(egui::RichText::new(crate::i18n::tr_fmt("{count} notes", &[("count", &kept.to_string())])).small().weak());
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(crate::i18n::tr_fmt("{count} notes", &[("count", &kept.to_string())])).small().weak());
+            if let Some(tag) = state.tag_filter.clone()
+                && ui.small_button(format!("#{tag} x")).on_hover_text(tl!("Clear the tag")).clicked()
+            {
+                state.tag_filter = None;
+            }
+        });
     }
     ui.separator();
+
+    // The tree scrolls; the backlinks stay pinned under it.
+    egui::Panel::bottom("backlinks").resizable(true).default_size(120.0).show(ui, |ui| {
+        if let Some(path) = panels::backlinks(ui, state) {
+            action = SidebarAction::OpenNote(path);
+        }
+    });
 
     state.rebuild_filtered_tree();
     let tree = state.filtered_tree();
@@ -43,7 +59,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
             ui.label(egui::RichText::new(tl!("no note matches the filter")).weak());
             return;
         }
-        action = show_nodes(ui, tree, state);
+        match show_nodes(ui, tree, state) {
+            SidebarAction::None => {}
+            other => action = other,
+        }
     });
     action
 }

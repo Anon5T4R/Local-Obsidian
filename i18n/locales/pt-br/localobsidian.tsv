@@ -38,6 +38,20 @@
 	Create	Criar
 	Cancel	Cancelar
 	Rename	Renomear
+	Outline	Estrutura
+	Show the outline	Mostrar a estrutura
+	Search the vault	Buscar no cofre
+	Match the text as a regular expression	Tratar o texto como expressão regular
+	that pattern is not valid	esse padrão não é válido
+	no note matches	nenhuma nota corresponde
+	{notes} notes, {lines} matching lines	{notes} notas, {lines} linhas encontradas
+	show fewer lines	mostrar menos linhas
+	and {count} more lines	e mais {count} linhas
+	Backlinks	Backlinks
+	Backlinks ({count})	Backlinks ({count})
+	no note links this one	nenhuma nota aponta para esta
+	Tags ({count})	Tags ({count})
+	Clear the tag	Limpar a tag
 	Filter notes	Filtrar notas
 	Clear the filter	Limpar o filtro
 	{count} notes	{count} notas

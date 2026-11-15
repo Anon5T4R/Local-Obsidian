@@ -38,6 +38,20 @@
 	Create	作成
 	Cancel	キャンセル
 	Rename	名前を変更
+	Outline	アウトライン
+	Show the outline	アウトラインを表示
+	Search the vault	保管庫を検索
+	Match the text as a regular expression	テキストを正規表現として扱う
+	that pattern is not valid	そのパターンは正しくありません
+	no note matches	一致するノートはありません
+	{notes} notes, {lines} matching lines	{notes} 件のノート、{lines} 行が一致
+	show fewer lines	表示行を減らす
+	and {count} more lines	他 {count} 行
+	Backlinks	バックリンク
+	Backlinks ({count})	バックリンク ({count})
+	no note links this one	このノートへのリンクはありません
+	Tags ({count})	タグ ({count})
+	Clear the tag	タグを解除
 	Filter notes	ノートを絞り込む
 	Clear the filter	絞り込みを解除
 	{count} notes	{count} 件のノート

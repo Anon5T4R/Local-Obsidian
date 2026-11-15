@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use localobsidian_md::{embeds, links, preview};
+use localobsidian_md::{embeds, links, outline, preview};
 use localobsidian_vault as vault;
 
 /// Autosave waits this long after the last keystroke, so a burst of typing is one write.
@@ -84,14 +84,64 @@ pub struct VaultState {
     pub message: Option<String>,
     /// Bumped on every edit, so the reading view knows when to rebuild.
     pub revision: u64,
+    /// The tag chip that is filtering the tree, if any.
+    pub tag_filter: Option<String>,
+    /// The search panel.
+    pub search: SearchState,
+    /// Whether the outline panel is on screen.
+    pub outline_open: bool,
+    /// The section a link asked for: the reading view scrolls to it, then clears it.
+    pub pending_section: Option<String>,
+    /// The line a search result asked for: the editor puts the caret there, then clears it.
+    pub pending_line: Option<usize>,
+    /// The `[[wikilink` being typed, when the popup is open.
+    pub completion: Option<crate::completions::Completion>,
     /// The cached reading view of [`Self::revision`].
     preview_cache: Option<(u64, Vec<preview::Block>)>,
+    /// The cached outline of [`Self::revision`].
+    outline_cache: Option<(u64, Vec<outline::Heading>)>,
     /// The filtered tree, and the inputs it was built from (the filter and the tree's generation).
-    filtered_cache: Option<(u64, String, Vec<vault::Node>)>,
+    filtered_cache: Option<(u64, String, Option<String>, Vec<vault::Node>)>,
     /// Bumped whenever the tree changes, so the filtered view knows when to rebuild.
     tree_generation: u64,
     contents: BTreeMap<PathBuf, String>,
     last_edit: Option<Instant>,
+}
+
+/// The search panel's state: the box, its switches, and the results of the last run.
+#[derive(Default)]
+pub struct SearchState {
+    pub open: bool,
+    pub query: String,
+    /// Match the free text as a regular expression.
+    pub regex: bool,
+    /// The pattern did not compile: shown under the box instead of searching.
+    pub invalid: bool,
+    pub results: Vec<SearchHit>,
+    /// Notes whose every matching line is shown (the panel shows a few first).
+    pub expanded: std::collections::HashSet<PathBuf>,
+    /// What the results belong to, and when that input last changed (the panel waits a moment
+    /// after the last keystroke before walking the vault).
+    last_run: Option<(String, bool, Instant)>,
+}
+
+impl SearchState {
+    /// Forgets the last run, so the next [`VaultState::refresh_search`] walks the vault at once
+    /// (used when the box or the `.*` switch changes, or when the panel is closed).
+    pub fn invalidate(&mut self) {
+        self.last_run = None;
+        self.results.clear();
+    }
+}
+
+/// One note in the search results.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchHit {
+    pub path: PathBuf,
+    pub name: String,
+    pub relative_path: String,
+    pub matches: Vec<vault::search::LineMatch>,
+    pub score: f32,
 }
 
 impl VaultState {
@@ -169,6 +219,8 @@ impl VaultState {
                 self.active = Some(path.to_path_buf());
                 self.revision = self.revision.wrapping_add(1);
                 self.preview_cache = None;
+                self.outline_cache = None;
+                self.completion = None;
             }
             Err(error) => self.message = Some(format!("{}: {error}", path.display())),
         }
@@ -297,27 +349,165 @@ impl VaultState {
         self.preview_cache.as_ref().map(|(_, blocks)| blocks.as_slice()).unwrap_or_default()
     }
 
-    /// Rebuilds the filtered tree when the filter or the tree changed. The sidebar calls this
-    /// before drawing; [`Self::filtered_tree`] then hands back the cached slice for free.
+    /// Rebuilds the filtered tree when the filter, the tag chip or the tree changed. The sidebar
+    /// calls this before drawing; [`Self::filtered_tree`] then hands back the cached slice for free.
     pub fn rebuild_filtered_tree(&mut self) {
         let filter = self.filter.trim().to_string();
-        let stale =
-            self.filtered_cache.as_ref().is_none_or(|(generation, cached_filter, _)| *generation != self.tree_generation || *cached_filter != filter);
+        let tag = self.tag_filter.clone();
+        let stale = self.filtered_cache.as_ref().is_none_or(|(generation, cached_filter, cached_tag, _)| {
+            *generation != self.tree_generation || *cached_filter != filter || *cached_tag != tag
+        });
         if !stale {
             return;
         }
-        let nodes = if filter.is_empty() { self.tree.clone() } else { filter_tree(&self.tree, &self.index, &filter) };
-        self.filtered_cache = Some((self.tree_generation, filter, nodes));
+        let nodes =
+            if filter.is_empty() && tag.is_none() { self.tree.clone() } else { filter_tree(&self.tree, &self.index, &filter, tag.as_deref()) };
+        self.filtered_cache = Some((self.tree_generation, filter, tag, nodes));
     }
 
     /// The tree as the sidebar shows it: the cache [`Self::rebuild_filtered_tree`] filled.
     pub fn filtered_tree(&self) -> &[vault::Node] {
-        self.filtered_cache.as_ref().map(|(_, _, nodes)| nodes.as_slice()).unwrap_or_default()
+        self.filtered_cache.as_ref().map(|(_, _, _, nodes)| nodes.as_slice()).unwrap_or_default()
     }
 
     /// How many notes the current filter keeps.
     pub fn filtered_count(&self) -> usize {
         self.filtered_tree().iter().map(count_notes).sum()
+    }
+
+    /// Every tag of the vault with how many notes carry it, most used first.
+    pub fn tag_counts(&self) -> Vec<(String, usize)> {
+        let mut tags: Vec<(String, usize)> = self.index.tags.iter().map(|(tag, notes)| (tag.clone(), notes.len())).collect();
+        tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        tags
+    }
+
+    /// The notes that link the open note (a `[[Note#Section]]` counts as a mention of `Note`).
+    pub fn backlinks_of_active(&self) -> Vec<String> {
+        let Some(active) = &self.active else { return Vec::new() };
+        let Some(name) = active.file_stem().and_then(|stem| stem.to_str()) else { return Vec::new() };
+        self.backlinks_of(name)
+    }
+
+    /// The notes that link `name`.
+    pub fn backlinks_of(&self, name: &str) -> Vec<String> {
+        let wanted = name.to_lowercase();
+        let mut sources: Vec<String> = Vec::new();
+        for (target, notes) in &self.index.backlinks {
+            // `[[Nota#Seção]]` and `[[Nota]]` are both mentions of the note.
+            if localobsidian_md::links::parse_target(target).note.to_lowercase() != wanted {
+                continue;
+            }
+            for note in notes {
+                if !sources.iter().any(|known| known.eq_ignore_ascii_case(note)) {
+                    sources.push(note.clone());
+                }
+            }
+        }
+        sources.sort_by_key(|note| note.to_lowercase());
+        sources
+    }
+
+    /// The outline of the open note, rebuilt when its text changed.
+    pub fn refresh_outline(&mut self) {
+        let stale = self.outline_cache.as_ref().is_none_or(|(revision, _)| *revision != self.revision);
+        if stale {
+            self.outline_cache = Some((self.revision, outline::outline(&self.buffer)));
+        }
+    }
+
+    /// The outline as last built by [`Self::refresh_outline`].
+    pub fn outline(&self) -> &[outline::Heading] {
+        self.outline_cache.as_ref().map(|(_, headings)| headings.as_slice()).unwrap_or_default()
+    }
+
+    /// Opens the note a search result points at, with the caret on `line` when the caller wants it.
+    pub fn show_result(&mut self, path: &Path, line: Option<usize>) {
+        self.open_note(path);
+        self.pending_line = line;
+        if line.is_some() {
+            // A line only means something in the source.
+            self.view = ViewMode::Edit;
+        }
+    }
+
+    /// Re-runs the search when the box changed and the typing settled. The panel calls this every
+    /// frame; it is a no-op between keystrokes.
+    pub fn refresh_search(&mut self) {
+        if !self.search.open {
+            return;
+        }
+        let query = self.search.query.trim().to_string();
+        self.search.invalid = false;
+        if query.is_empty() {
+            self.search.results.clear();
+            self.search.last_run = None;
+            return;
+        }
+
+        // Wait for a pause in the typing: walking every note on each keystroke would make the box
+        // feel heavy in a big vault.
+        const SETTLE: Duration = Duration::from_millis(200);
+        let now = Instant::now();
+        match &self.search.last_run {
+            Some((last_query, last_regex, since)) if last_query == &query && *last_regex == self.search.regex => {
+                if since.elapsed() < SETTLE {
+                    return;
+                }
+            }
+            Some((last_query, last_regex, _)) if last_query == &query && *last_regex == self.search.regex => {}
+            _ => {
+                self.search.last_run = Some((query.clone(), self.search.regex, now));
+                return;
+            }
+        }
+
+        self.search.last_run = Some((query.clone(), self.search.regex, now));
+        self.run_search(&query);
+    }
+
+    /// Runs the search now, without waiting for the typing to settle (a test, or an explicit
+    /// Enter in the box).
+    pub fn run_search_now(&mut self) {
+        let query = self.search.query.trim().to_string();
+        self.search.invalid = false;
+        self.search.last_run = Some((query.clone(), self.search.regex, Instant::now()));
+        if query.is_empty() {
+            self.search.results.clear();
+            return;
+        }
+        self.run_search(&query);
+    }
+
+    fn run_search(&mut self, raw: &str) {
+        let query = vault::search::parse_query(raw);
+        if query.is_empty() {
+            self.search.results.clear();
+            return;
+        }
+        let pattern = self.search.regex.then(|| vault::search::compile_pattern(&query.needles().join(" ")));
+        if self.search.regex && pattern.as_ref().is_none_or(Option::is_none) {
+            self.search.invalid = true;
+            self.search.results.clear();
+            return;
+        }
+        let pattern = pattern.flatten();
+
+        let mut hits: Vec<SearchHit> = Vec::new();
+        for file in &self.files {
+            let Some(content) = self.contents.get(&file.path) else { continue };
+            let info = self.index.info_of(&file.path);
+            let searchable =
+                vault::search::Searchable { name: &file.name, relative_path: &file.relative_path, content, tags: &info.tags, aliases: &info.aliases };
+            let Some(matches) = vault::search::search_with(&searchable, &query, pattern.as_ref()) else { continue };
+            let score = vault::search::score(&searchable, &query, &matches);
+            hits.push(SearchHit { path: file.path.clone(), name: file.name.clone(), relative_path: file.relative_path.clone(), matches, score });
+        }
+        // Most relevant first: alphabetical order would bury the note the query is about under
+        // every note that merely mentions the word.
+        hits.sort_by(|a, b| b.score.total_cmp(&a.score).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        self.search.results = hits;
+        self.search.expanded.clear();
     }
 }
 
@@ -325,12 +515,17 @@ fn stem(path: &Path) -> String {
     path.file_stem().and_then(|stem| stem.to_str()).unwrap_or_default().to_string()
 }
 
-fn filter_tree(nodes: &[vault::Node], index: &vault::Index, query: &str) -> Vec<vault::Node> {
+fn filter_tree(nodes: &[vault::Node], index: &vault::Index, query: &str, tag: Option<&str>) -> Vec<vault::Node> {
     let mut out = Vec::new();
     for node in nodes {
         match node.kind {
             vault::Kind::File => {
                 let info = index.info_of(&node.path);
+                if let Some(tag) = tag
+                    && !info.tags.iter().any(|own| own == tag)
+                {
+                    continue;
+                }
                 let view = vault::Filterable { name: &node.name, tags: &info.tags, aliases: &info.aliases };
                 if vault::matches_filter(&view, query) {
                     out.push(node.clone());
@@ -338,7 +533,7 @@ fn filter_tree(nodes: &[vault::Node], index: &vault::Index, query: &str) -> Vec<
             }
             vault::Kind::Directory => {
                 let mut kept = node.clone();
-                kept.children = filter_tree(&node.children, index, query);
+                kept.children = filter_tree(&node.children, index, query, tag);
                 if !kept.children.is_empty() {
                     out.push(kept);
                 }
