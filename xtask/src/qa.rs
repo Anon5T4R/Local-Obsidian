@@ -106,9 +106,9 @@ pub fn vault(dir: Option<&str>) -> Result<(), String> {
         write(&target, &format!("_qa/tags/Tag {index}.md"), &body)?;
     }
 
-    // An image the embeds can point at, and the binaries the tree keeps out.
+    // An image the embeds can point at, and the documents the tree lists but the app does not edit.
     std::fs::write(target.join("figura-qa.png"), PNG).map_err(|error| format!("cannot write the image: {error}"))?;
-    write(&target, "leia-me.txt", "Um arquivo de texto: não é nota, e a árvore não o lista.\n")?;
+    write(&target, "leia-me.txt", "Um arquivo de texto: não é nota, e abre no sistema.\n")?;
     std::fs::write(target.join("protocolo.pdf"), PDF).map_err(|error| format!("cannot write the pdf: {error}"))?;
     write(&target, "_templates/daily.md", "# {{title}}\n\n{{date}}\n")?;
 

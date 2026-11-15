@@ -20,6 +20,7 @@ mod fonts;
 mod graph;
 mod i18n;
 mod images;
+mod opener;
 mod panels;
 mod pickers;
 mod prefs;

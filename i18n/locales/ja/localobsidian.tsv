@@ -125,6 +125,11 @@
 	could not rename the note	ノート名を変更できませんでした
 	could not open the vault	保管庫を開けませんでした
 	could not read the vault	保管庫を読み込めませんでした
+	could not open the file	ファイルを開けませんでした
+	could not open the folder	フォルダーを開けませんでした
+	Open with the system	システムのアプリで開く
+	Show in the file manager	ファイルマネージャーで表示
+	Open the folder in the file manager	ファイルマネージャーでフォルダーを開く
 	vault refreshed	保管庫を再読み込みしました
 	{count} links updated	{count} 件のリンクを更新しました
 	no note is called {name}	{name} というノートはありません

@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 pub enum Kind {
     File,
     Directory,
+    /// A document the app does not edit (PDF, DOCX, ODT, EPUB, TXT): listed so the vault reads as
+    /// the folder it is, opened by the desktop's own handler.
+    Binary,
 }
 
 /// One entry of the sidebar tree, with everything already read that the view needs.
@@ -56,8 +59,9 @@ pub enum Sort {
 /// atomic-write temp files out of the sidebar. A folder that cannot be read yields no children
 /// instead of failing the scan, so one unreadable directory never blanks the vault.
 ///
-/// Only `.md` files are listed. Binaries (PDF, DOCX, EPUB, ODT) stay out until the app can open
-/// them; listing a file that cannot be opened is worse than not listing it.
+/// Notes (`.md`) are the tree's own entries; documents (PDF, DOCX, ODT, EPUB, TXT) are listed as
+/// [`Kind::Binary`] and handed to the desktop's handler when clicked. Nothing else is listed: an
+/// image or a lock file has no business in the note tree.
 pub fn scan(root: &Path) -> std::io::Result<Vec<Node>> {
     let mut nodes = Vec::new();
     let entries = match std::fs::read_dir(root) {
@@ -86,20 +90,28 @@ pub fn scan(root: &Path) -> std::io::Result<Vec<Node>> {
             let mtime_ms = mtime_ms(&path);
             let stem = name.trim_end_matches(".md").to_string();
             nodes.push(Node { name: stem, path, kind: Kind::File, mtime_ms, children: Vec::new() });
+        } else if file_type.is_file() && is_document_name(&name) {
+            // The name keeps its extension: `protocolo.pdf` is a file, not a note called `protocolo`.
+            let mtime_ms = mtime_ms(&path);
+            nodes.push(Node { name, path, kind: Kind::Binary, mtime_ms, children: Vec::new() });
         }
     }
     Ok(nodes)
 }
 
-/// The tree ordered for display: loose notes first, folders last, each group by `sort`.
+/// The tree ordered for display: loose notes first, then documents, folders last, each group by
+/// `sort`.
 ///
 /// Files-first is the upstream decision and it holds up: a folder's indented children never butt
 /// up against a sibling file of the same level.
 pub fn sorted(nodes: &[Node], sort: Sort) -> Vec<Node> {
     let mut level: Vec<Node> = nodes.to_vec();
     level.sort_by(|a, b| {
-        if a.kind != b.kind {
-            return if a.kind == Kind::File { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+        // A rank, not a strict pair of kinds: with `Binary` in the middle, "is it a file?" is no
+        // longer a total order and the sort would be fed a comparison that answers Greater both ways.
+        let order = rank(a.kind).cmp(&rank(b.kind));
+        if order != std::cmp::Ordering::Equal {
+            return order;
         }
         match sort {
             Sort::Name => compare_names(a, b),
@@ -115,6 +127,15 @@ pub fn sorted(nodes: &[Node], sort: Sort) -> Vec<Node> {
     level
 }
 
+/// Where a kind sits in a level: notes, then documents, then folders.
+fn rank(kind: Kind) -> u8 {
+    match kind {
+        Kind::File => 0,
+        Kind::Binary => 1,
+        Kind::Directory => 2,
+    }
+}
+
 /// Every note in the tree, in tree order.
 pub fn flatten(nodes: &[Node]) -> Vec<NoteFile> {
     let mut files = Vec::new();
@@ -125,6 +146,7 @@ pub fn flatten(nodes: &[Node]) -> Vec<NoteFile> {
 fn walk(nodes: &[Node], prefix: &str, files: &mut Vec<NoteFile>) {
     for node in nodes {
         match node.kind {
+            Kind::Binary => {}
             Kind::File => files.push(NoteFile {
                 name: node.name.clone(),
                 path: node.path.clone(),
@@ -139,9 +161,20 @@ fn walk(nodes: &[Node], prefix: &str, files: &mut Vec<NoteFile>) {
     }
 }
 
-/// A file name the tree lists: a Markdown note, and not a dotfile (checked by the caller).
+/// A file name the tree lists as a note: a Markdown note, and not a dotfile (checked by the caller).
 fn is_note_name(name: &str) -> bool {
     name.len() > 3 && name.ends_with(".md")
+}
+
+/// The document extensions the tree lists and the app does not edit.
+const DOCUMENTS: [&str; 5] = ["pdf", "docx", "odt", "epub", "txt"];
+
+/// Whether the file is a document for the desktop to open (not a note, not an image).
+fn is_document_name(name: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_lowercase())
+        .is_some_and(|extension| DOCUMENTS.contains(&extension.as_str()))
 }
 
 fn mtime_ms(path: &Path) -> u64 {
@@ -222,5 +255,48 @@ mod tests {
         assert!(!is_note_name("doc.pdf"));
         assert!(!is_note_name("md"));
         assert!(!is_note_name(".md"));
+    }
+
+    #[test]
+    fn the_documents_the_tree_lists_are_the_ones_the_desktop_opens() {
+        for name in ["protocolo.pdf", "laudo.docx", "nota.odt", "livro.epub", "leia-me.txt", "FOTO.PDF"] {
+            assert!(is_document_name(name), "{name} is a document");
+        }
+        for name in ["nota.md", "foto.png", "arquivo", ".txt", "planilha.csv"] {
+            assert!(!is_document_name(name), "{name} is not a document for the tree");
+        }
+    }
+
+    #[test]
+    fn documents_sit_between_the_notes_and_the_folders() {
+        let tree = vec![
+            folder("Pasta", Vec::new()),
+            Node { name: "protocolo.pdf".into(), path: PathBuf::from("/v/protocolo.pdf"), kind: Kind::Binary, mtime_ms: 50, children: Vec::new() },
+            file("Alfa", 10),
+            file("Beta", 20),
+        ];
+        assert_eq!(names(&sorted(&tree, Sort::Name)), ["Alfa", "Beta", "protocolo.pdf", "Pasta"]);
+    }
+
+    #[test]
+    fn a_scan_lists_notes_and_documents_and_nothing_else() {
+        let root = std::env::temp_dir().join(format!("localobsidian-tree-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("scratch dir");
+        for (name, body) in [("Nota.md", "# Nota"), ("protocolo.pdf", "%PDF-1.4"), ("foto.png", "PNG"), (".oculto.md", "# nope")] {
+            std::fs::write(root.join(name), body).expect("write");
+        }
+
+        let tree = scan(&root).expect("scan");
+        let kinds: Vec<(String, Kind)> = tree.iter().map(|node| (node.name.clone(), node.kind)).collect();
+        assert_eq!(
+            kinds,
+            [("Nota".to_string(), Kind::File), ("protocolo.pdf".to_string(), Kind::Binary)],
+            "the image and the dotfile stay out, and the document keeps its extension"
+        );
+        // A document is not a note: the flat list (links, search, backlinks) never sees it.
+        assert_eq!(flatten(&tree).iter().map(|note| note.name.as_str()).collect::<Vec<_>>(), ["Nota"]);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

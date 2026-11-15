@@ -17,6 +17,10 @@ use crate::vault_state::VaultState;
 pub enum SidebarAction {
     None,
     OpenNote(PathBuf),
+    /// Open a document (PDF, DOCX, ODT, EPUB, TXT) with the desktop's own handler.
+    OpenBinary(PathBuf),
+    /// Show a folder in the file manager.
+    RevealFolder(PathBuf),
 }
 
 /// Draws the sidebar. Returns the note the user clicked, if any.
@@ -92,18 +96,45 @@ fn show_nodes(ui: &mut egui::Ui, nodes: &[vault::Node], state: &VaultState) -> S
     for node in nodes {
         match node.kind {
             vault::Kind::Directory => {
-                egui::CollapsingHeader::new(egui::RichText::new(&node.name)).id_salt(&node.path).default_open(true).show(ui, |ui| {
+                let shown = egui::CollapsingHeader::new(egui::RichText::new(&node.name)).id_salt(&node.path).default_open(true).show(ui, |ui| {
                     let inner = show_nodes(ui, &node.children, state);
                     if inner != SidebarAction::None {
                         action = inner;
                     }
                 });
+                // A folder right-click belongs to the folder: this is where the vault is a folder.
+                let shown = shown.header_response.context_menu(|ui| {
+                    if ui.button(tl!("Open the folder in the file manager")).clicked() {
+                        action = SidebarAction::RevealFolder(node.path.clone());
+                        ui.close();
+                    }
+                });
+                let _ = shown;
             }
             vault::Kind::File => {
                 let selected = state.active.as_deref() == Some(node.path.as_path());
                 if ui.selectable_label(selected, egui::RichText::new(&node.name)).clicked() {
                     action = SidebarAction::OpenNote(node.path.clone());
                 }
+            }
+            vault::Kind::Binary => {
+                // A document the app does not edit: listed, muted, and opened by the desktop.
+                let row = ui.add(egui::Label::new(egui::RichText::new(&node.name).weak()).sense(egui::Sense::click()));
+                let row = row.on_hover_text(tl!("Open with the system"));
+                if row.clicked() {
+                    action = SidebarAction::OpenBinary(node.path.clone());
+                }
+                let row = row.context_menu(|ui| {
+                    if ui.button(tl!("Open with the system")).clicked() {
+                        action = SidebarAction::OpenBinary(node.path.clone());
+                        ui.close();
+                    }
+                    if ui.button(tl!("Show in the file manager")).clicked() {
+                        action = SidebarAction::RevealFolder(node.path.clone());
+                        ui.close();
+                    }
+                });
+                let _ = row;
             }
         }
     }

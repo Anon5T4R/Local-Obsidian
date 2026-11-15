@@ -125,6 +125,11 @@
 	could not rename the note	no se pudo renombrar la nota
 	could not open the vault	no se pudo abrir el cofre
 	could not read the vault	no se pudo leer el cofre
+	could not open the file	no se pudo abrir el archivo
+	could not open the folder	no se pudo abrir la carpeta
+	Open with the system	Abrir con el sistema
+	Show in the file manager	Mostrar en el gestor de archivos
+	Open the folder in the file manager	Abrir la carpeta en el gestor de archivos
 	vault refreshed	cofre actualizado
 	{count} links updated	{count} enlaces actualizados
 	no note is called {name}	no hay ninguna nota llamada {name}

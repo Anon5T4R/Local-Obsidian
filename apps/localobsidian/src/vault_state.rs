@@ -759,6 +759,9 @@ fn filter_tree(nodes: &[vault::Node], index: &vault::Index, query: &str, tag: Op
                     out.push(node.clone());
                 }
             }
+            // A document is not filtered by name or tag: the filter is about notes, and a
+            // PDF that matched a query would look like a note it is not.
+            vault::Kind::Binary => {}
             vault::Kind::Directory => {
                 let mut kept = node.clone();
                 kept.children = filter_tree(&node.children, index, query, tag);
@@ -774,6 +777,7 @@ fn filter_tree(nodes: &[vault::Node], index: &vault::Index, query: &str, tag: Op
 fn count_notes(node: &vault::Node) -> usize {
     match node.kind {
         vault::Kind::File => 1,
+        vault::Kind::Binary => 0,
         vault::Kind::Directory => node.children.iter().map(count_notes).sum(),
     }
 }

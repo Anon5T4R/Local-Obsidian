@@ -385,6 +385,8 @@ impl LocalApp {
             egui::Panel::left("sidebar").resizable(true).default_size(240.0).show(ui, |ui| match sidebar::show(ui, &mut self.vault) {
                 SidebarAction::None => {}
                 SidebarAction::OpenNote(path) => self.vault.open_note(&path),
+                SidebarAction::OpenBinary(path) => self.open_with_system(&path),
+                SidebarAction::RevealFolder(path) => self.reveal_folder(&path),
             });
         }
         if self.vault.search.open {
@@ -915,6 +917,20 @@ impl LocalApp {
         match self.vault.reload() {
             Ok(()) => self.vault.message = Some(tl!("vault refreshed").to_string()),
             Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not read the vault"))),
+        }
+    }
+
+    /// Opens a document with the desktop's own handler (a PDF is not a note).
+    fn open_with_system(&mut self, path: &std::path::Path) {
+        if let Err(error) = crate::opener::open(path) {
+            self.vault.message = Some(format!("{}: {error}", tl!("could not open the file")));
+        }
+    }
+
+    /// Shows a folder in the file manager.
+    fn reveal_folder(&mut self, path: &std::path::Path) {
+        if let Err(error) = crate::opener::reveal(path) {
+            self.vault.message = Some(format!("{}: {error}", tl!("could not open the folder")));
         }
     }
 

@@ -327,20 +327,41 @@ fn the_reading_view_draws_no_emoji_and_keeps_the_arrows() {
     assert!(!crate::editor::is_emoji('\u{00E3}') && !crate::editor::is_symbol('\u{00E3}'), "letters pass through");
 }
 #[test]
-fn the_binaries_of_the_vault_stay_out_of_the_tree() {
-    // The generated vault holds a `.txt`, a `.docx` and a `.pdf` next to the notes: none of them is
-    // listed. When "open with the system" arrives, this test becomes the click on the row.
+fn a_document_in_the_vault_is_listed_and_clicked_into_the_system_handler() {
+    // The generated vault holds a `.txt`, a `.docx` and a `.pdf` next to the notes. They are not
+    // notes - the app does not edit them - but they are files of the vault, and dropping them made
+    // the tree look emptier than the folder. They are listed and handed to the desktop on click.
     let scratch = Scratch::new("binaries", &[("Nota.md", "# Nota\n"), ("leia-me.txt", "texto"), ("protocolo.pdf", "%PDF-1.4"), ("anexo.docx", "PK")]);
     let mut state = VaultState::default();
     state.open(scratch.0.clone()).expect("open the vault");
     assert_eq!(state.files.len(), 1, "only the note is a note: {:?}", state.files.iter().map(|note| &note.name).collect::<Vec<_>>());
+    let action = Rc::new(RefCell::new(crate::sidebar::SidebarAction::None));
+    let sink = action.clone();
     let mut harness = Harness::builder().with_size(egui::vec2(360.0, 320.0)).build_ui_state(
-        |ui, state: &mut VaultState| {
-            let _ = panels::tags(ui, state, 120.0);
+        move |ui, state: &mut VaultState| {
+            let done = crate::sidebar::show(ui, state);
+            if done != crate::sidebar::SidebarAction::None {
+                *sink.borrow_mut() = done;
+            }
         },
         state,
     );
     harness.run_steps(2);
+    shot(&mut harness, "ui-binaries");
+
+    // The three documents are listed, with their extensions; the note keeps its bare name.
+    harness.get_by_label("protocolo.pdf");
+    harness.get_by_label("leia-me.txt");
+    harness.get_by_label("anexo.docx");
+    harness.get_by_label("Nota");
+
+    harness.get_by_label("protocolo.pdf").click();
+    harness.run_steps(2);
+    assert_eq!(
+        *action.borrow(),
+        crate::sidebar::SidebarAction::OpenBinary(scratch.0.join("protocolo.pdf")),
+        "a click hands the document to the desktop"
+    );
 }
 
 #[test]
