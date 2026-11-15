@@ -136,6 +136,14 @@
 	Minimize	Minimizar
 	Maximize	Maximizar
 	Close	Cerrar
+	Export the note as HTML...	Exportar la nota como HTML...
+	Export as HTML	Exportar como HTML
+	HTML page	Página HTML
+	exported to {file}	exportado a {file}
+	{count} images copied	{count} imágenes copiadas
+	could not write the page	no se pudo escribir la página
+	open a note first	abre una nota primero
+	note	nota
 	Import Anki cards (text)...	Importar tarjetas de Anki (texto)...
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Una exportación de texto de Anki (.txt, .tsv, .csv). El paquete .apkg no se lee.
 	Anki text export	Exportación de texto de Anki

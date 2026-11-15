@@ -9,6 +9,7 @@
 pub mod code;
 pub mod embeds;
 pub mod frontmatter;
+pub mod html;
 pub mod links;
 pub mod outline;
 pub mod preview;

@@ -43,6 +43,10 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Import Anki `.apkg` | `sql.js` (SQLite em WASM) + `fzstd` para a mídia | **não** — só a exportação de texto | ver a nota abaixo |
 | Import Anki texto | `srs:anki-pick` → `srs:anki-write`, 100 cartões por nota | igual (mesmo `chunk_cards`, mesma colisão de nome com sufixo numérico); notas soltas, não uma pasta por baralho | o upstream cria uma pasta por baralho quando a exportação passa de 100; aqui as notas ficam na raiz com sufixo |
 | Ajuda | `HelpModal` com 5 abas | janela única: teclas, sintaxe da nota, onde cada coisa mora, link do README | 5 abas para uma janela que se abre raramente é peso, não ajuda |
+| Export HTML | `remark` → HTML com CSS fixo claro, nota ativa | `localobsidian_md::html`: o mesmo modelo de blocos da leitura, CSS embutido com paleta clara/escura por `prefers-color-scheme`, callouts coloridos por tipo, tabela com cabeçalho e alinhamento | exportar o que se vê; o CSS do upstream não conhece callout e obriga o leitor a usar tema claro |
+| Wikilink no HTML | fica texto literal (`[[Nota]]`) | vira `Nota.html` (+ `#seção` do título) | exportar as notas para a mesma pasta faz o link funcionar; literal não leva a lugar nenhum |
+| Imagens no HTML | aponta para o caminho do vault | copiadas para `_attachments/` ao lado da página | o arquivo sai do cofre; sem a cópia a página abre com imagens quebradas |
+| Export PDF | `printToPDF` do Electron | **roadmap pós-1.0** (pipeline de impressão próprio) | não é divergência estrutural, é unidade de trabalho que não cabia na porta |
 
 ### Math: avaliação do RaTeX (pendente, unidade própria)
 
@@ -75,6 +79,7 @@ cliques) e o import dela está implementado. O `.apkg` fica como limitação no 
   renderer, e aqui não há renderer — divergência estrutural, documentada no README.
 - Import de `.apkg` adiado (precisa de SQLite; ver a nota acima).
 - Math/TeX renderizado segue em unidade própria (fontes matemáticas + pintor); hoje é monoespaçado.
+- **Export PDF** no roadmap pós-1.0 (pipeline de impressão; o upstream usa `printToPDF` do Electron).
 
 ### Decisão do arquiteto 2026-11-15: limitações #4 e #5 do upstream
 

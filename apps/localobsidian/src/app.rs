@@ -153,6 +153,10 @@ impl LocalApp {
                     self.save();
                     ui.close();
                 }
+                if ui.add_enabled(has_note && !self.pickers.busy(), egui::Button::new(tl!("Export the note as HTML..."))).clicked() {
+                    self.ask_export(ui.ctx());
+                    ui.close();
+                }
                 ui.separator();
                 if ui.button(tl!("Quit Local Obsidian")).clicked() {
                     quit = true;
@@ -594,6 +598,60 @@ impl LocalApp {
         base.to_string()
     }
 
+    /// Asks where to write the open note's HTML.
+    fn ask_export(&mut self, ctx: &egui::Context) {
+        let Some(active) = self.vault.active.clone() else { return };
+        let name = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+        let name = if name.is_empty() { tl!("note").to_string() } else { name };
+        if !self.pickers.ask_save(ctx, tl!("Export as HTML"), &format!("{name}.html")) {
+            log::debug!("a picker is already open");
+        }
+    }
+
+    /// Writes the open note as one HTML page, and copies the pictures it shows beside it.
+    ///
+    /// The page is what the reading view draws: the same blocks, the same callouts, the stylesheet
+    /// inlined and the palette following the reader's system. A `[[Nota]]` becomes `Nota.html`, so
+    /// exporting the notes it points at into the same folder makes the link work.
+    fn export_html(&mut self, path: std::path::PathBuf) {
+        let Some(active) = self.vault.active.clone() else {
+            self.vault.message = Some(tl!("open a note first").to_string());
+            return;
+        };
+        let name = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+        self.vault.refresh_preview();
+        let html = localobsidian_md::html::document(&name, i18n::code(), self.vault.preview());
+        if let Err(error) = std::fs::write(&path, html) {
+            self.vault.message = Some(format!("{}: {error}", tl!("could not write the page")));
+            return;
+        }
+
+        // The pictures keep the vault's `_attachments/` layout, so the note's own paths stay right.
+        let mut copied = 0;
+        if let Some(folder) = path.parent() {
+            let wanted = localobsidian_md::html::images(self.vault.preview());
+            for destination in wanted {
+                let Some(source) = self.vault.attachment_path(&destination) else { continue };
+                let Some(file_name) = source.file_name().map(|name| name.to_os_string()) else { continue };
+                let target_folder = folder.join("_attachments");
+                if std::fs::create_dir_all(&target_folder).is_err() {
+                    continue;
+                }
+                if std::fs::copy(&source, target_folder.join(file_name)).is_ok() {
+                    copied += 1;
+                }
+            }
+        }
+
+        let file = path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
+        let mut message = i18n::tr_fmt("exported to {file}", &[("file", &file)]);
+        if copied > 0 {
+            message.push_str(" · ");
+            message.push_str(&i18n::tr_fmt("{count} images copied", &[("count", &copied.to_string())]));
+        }
+        self.vault.message = Some(message);
+    }
+
     /// Opens the daily note for `iso`, creating it from `_templates/daily.md` when the user has one.
     fn open_daily_note(&mut self, iso: &str) {
         if !calendar::is_daily_note_name(iso) {
@@ -909,6 +967,7 @@ impl eframe::App for LocalApp {
                 Pick::Folder(path) => self.open_vault(path),
                 Pick::Document(path) => self.import_document(&path),
                 Pick::Anki(path) => self.import_anki(&path),
+                Pick::Save(path) => self.export_html(path),
             }
             wake = true;
         }

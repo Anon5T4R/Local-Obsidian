@@ -136,6 +136,14 @@
 	Minimize	最小化
 	Maximize	最大化
 	Close	閉じる
+	Export the note as HTML...	ノートを HTML として書き出す...
+	Export as HTML	HTML として書き出す
+	HTML page	HTML ページ
+	exported to {file}	{file} に書き出しました
+	{count} images copied	画像 {count} 件をコピーしました
+	could not write the page	ページを書き出せませんでした
+	open a note first	先にノートを開いてください
+	note	ノート
 	Import Anki cards (text)...	Anki のカードを読み込む（テキスト）...
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Anki のテキスト書き出し（.txt・.tsv・.csv）。.apkg パッケージは読みません。
 	Anki text export	Anki のテキスト書き出し
