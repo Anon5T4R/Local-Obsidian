@@ -115,6 +115,16 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     let mut action = EditorAction::None;
     let mut changed = false;
     let editor_id = ui.make_persistent_id("note-editor");
+
+    // The command keys first: they are consumed before the widget draws, so a `Tab` cannot both
+    // indent and insert a tab.
+    if let Some(key) = crate::editor_keys::pre(ui, &mut state.buffer, editor_id) {
+        match key {
+            crate::editor_keys::EditorKey::Changed => changed = true,
+            crate::editor_keys::EditorKey::Save => action = EditorAction::Save,
+        }
+    }
+
     egui::ScrollArea::vertical().id_salt("editor-scroll").auto_shrink([false, false]).show(ui, |ui| {
         let response = ui.add(
             egui::TextEdit::multiline(&mut state.buffer)
@@ -124,13 +134,9 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
                 .desired_rows(24)
                 .code_editor(),
         );
-        changed = response.changed();
-        if let Some(key) = crate::editor_keys::handle(ui, &mut state.buffer, editor_id) {
-            match key {
-                crate::editor_keys::EditorKey::Changed => changed = true,
-                crate::editor_keys::EditorKey::Save => action = EditorAction::Save,
-            }
-        }
+        changed |= response.changed();
+        // List continuation reads the newline the widget has just inserted.
+        changed |= crate::editor_keys::post(ui, &mut state.buffer, editor_id);
     });
     if changed {
         state.touch();

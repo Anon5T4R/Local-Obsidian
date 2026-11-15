@@ -5,9 +5,11 @@
 //! selection in `**`/`*`/`` ` ``/`==`, `Tab`/`Shift+Tab` indent, `Ctrl+Enter` flips the task on the
 //! caret's line, and pressing Enter at the end of a list item starts the next one.
 //!
-//! List continuation is done *after* the newline is inserted, never by eating the Enter key: an IME
-//! uses Enter to confirm a candidate, and stealing it would break Japanese, Korean and Chinese
-//! input - the exact thing the suite's fonts exist for.
+//! Two moments, because order matters: [`pre`] runs *before* the widget is added - the keys it
+//! answers are consumed there, so the widget never sees them and a `Tab` cannot both indent and
+//! insert a tab - and [`post`] runs after, because list continuation reads the newline the widget
+//! has just inserted. Continuation is never done by eating Enter itself: an IME uses Enter to
+//! confirm a candidate, and stealing it would break Japanese, Korean and Chinese input.
 //!
 //! The commands themselves live in `localobsidian_editor`; this module only moves text between the
 //! widget's character offsets and the crate's byte offsets, and puts the caret back.
@@ -28,18 +30,13 @@ pub enum EditorKey {
     Save,
 }
 
-/// Runs the editor's keys for the widget with this `id`. Returns what changed, if anything.
-pub fn handle(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> Option<EditorKey> {
+/// The command keys, run before the text widget draws. Applies the edit to `buffer` and leaves the
+/// caret where the command left it.
+pub fn pre(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> Option<EditorKey> {
     if !ui.memory(|memory| memory.has_focus(id)) {
         return None;
     }
 
-    let mut outcome = None;
-    let pressed = |ui: &egui::Ui, key: Key, command: bool, shift: bool| {
-        ui.input(|input| input.key_pressed(key) && input.modifiers.command == command && input.modifiers.shift == shift && !input.modifiers.alt)
-    };
-
-    // Wraps: Ctrl+B (bold), Ctrl+I (italic), Ctrl+E (code), Ctrl+Shift+E (highlight).
     let wrap = if pressed(ui, Key::B, true, false) {
         Some(Wrap::Bold)
     } else if pressed(ui, Key::I, true, false) {
@@ -51,53 +48,43 @@ pub fn handle(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> Option<Ed
     } else {
         None
     };
-
     if let Some(wrap) = wrap {
-        let selection = selection_of(ui, buffer, id);
-        let edit = editor::toggle_wrap(buffer, selection, wrap);
-        *buffer = edit.text;
-        set_selection(ui, buffer, id, edit.selection);
+        let edit = editor::toggle_wrap(buffer, selection_of(ui, buffer, id), wrap);
+        apply(ui, buffer, id, edit);
         return Some(EditorKey::Changed);
     }
 
-    if pressed(ui, Key::S, true, false) {
-        outcome = Some(EditorKey::Save);
-    }
-
-    // Tab / Shift+Tab indent the touched lines.
+    // Tab / Shift+Tab indent the touched lines. Consumed here so the widget inserts no tab.
     if ui.input(|input| input.key_pressed(Key::Tab)) && !ui.input(|input| input.modifiers.command) {
         let outdent = ui.input(|input| input.modifiers.shift);
-        let selection = selection_of(ui, buffer, id);
-        let edit = editor::indent(buffer, selection, outdent);
-        *buffer = edit.text;
-        set_selection(ui, buffer, id, edit.selection);
-        // Consume it so the widget does not also insert a tab or move the focus.
         ui.input_mut(|input| input.consume_key(input.modifiers, Key::Tab));
+        let edit = editor::indent(buffer, selection_of(ui, buffer, id), outdent);
+        apply(ui, buffer, id, edit);
         return Some(EditorKey::Changed);
     }
 
-    // Ctrl+Enter flips the task checkbox on the caret's line.
+    // Ctrl+Enter flips the task checkbox on the caret's line. Consumed: the widget would otherwise
+    // insert a newline on top of the flip.
     if pressed(ui, Key::Enter, true, false) {
+        ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, Key::Enter));
         let caret = selection_of(ui, buffer, id).end;
         let line = editor::line_start(buffer, caret);
         let end = editor::line_end(buffer, line);
         if let Some(edit) = editor::toggle_line_task(buffer, line..end) {
-            *buffer = edit.text;
-            set_selection(ui, buffer, id, edit.selection);
+            apply(ui, buffer, id, edit);
             return Some(EditorKey::Changed);
         }
     }
 
-    if continue_list(ui, buffer, id) {
-        return Some(EditorKey::Changed);
+    if pressed(ui, Key::S, true, false) {
+        return Some(EditorKey::Save);
     }
-    outcome
+    None
 }
 
-/// After Enter, a caret on a fresh empty line whose previous line is a list item gets the next
-/// marker. On an item that was empty, the marker that was left behind is taken away (that is how a
-/// list ends).
-fn continue_list(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> bool {
+/// After the widget ran: a caret on a fresh line whose previous line is a list item gets the next
+/// marker. On an item that was empty, the marker left behind is taken away (that is how a list ends).
+pub fn post(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> bool {
     let enter = ui.input(|input| input.key_pressed(Key::Enter) && !input.modifiers.command && !input.modifiers.shift);
     if !enter {
         return false;
@@ -112,7 +99,6 @@ fn continue_list(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> bool {
 
     let Some(item) = editor::next_item(previous) else { return false };
     if item.empty {
-        // Enter on an empty item ends the list: the marker that was left behind goes away.
         let marker_start = previous_start + item.lead_len;
         buffer.replace_range(marker_start..previous_end, "");
         set_selection(ui, buffer, id, Selection::caret(caret - (previous_end - marker_start)));
@@ -122,6 +108,17 @@ fn continue_list(ui: &mut egui::Ui, buffer: &mut String, id: egui::Id) -> bool {
     buffer.insert_str(caret, &item.marker);
     set_selection(ui, buffer, id, Selection::caret(caret + item.marker.len()));
     true
+}
+
+/// Whether `key` was pressed with exactly these modifiers.
+fn pressed(ui: &egui::Ui, key: Key, command: bool, shift: bool) -> bool {
+    ui.input(|input| input.key_pressed(key) && input.modifiers.command == command && input.modifiers.shift == shift && !input.modifiers.alt)
+}
+
+/// Writes the edit into the buffer and restores the caret.
+fn apply(ui: &egui::Ui, buffer: &mut String, id: egui::Id, edit: editor::Edit) {
+    *buffer = edit.text;
+    set_selection(ui, buffer, id, edit.selection);
 }
 
 /// The widget's selection, in bytes.
