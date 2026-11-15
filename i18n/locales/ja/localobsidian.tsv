@@ -57,7 +57,7 @@
 	Review this note	このノートを復習
 	Review #{tag}	#{tag} を復習
 	Close the review panel	復習パネルを閉じる
-	{count} cards due	期限のカード {count} 枚
+@plural	{n} card due|{n} cards due	期限のカード {n} 枚
 	the whole vault	保管庫全体
 	{left} to review, {done} done	残り {left} 枚、{done} 枚完了
 	practice - nothing is graded	練習 — 記録されません
@@ -110,7 +110,7 @@
 	Project	プロジェクト
 	Filter notes	ノートを絞り込む
 	Clear the filter	絞り込みを解除
-	{count} notes	{count} 件のノート
+@plural	{n} note|{n} notes	{n} 件のノート
 	no note matches the filter	条件に合うノートがありません
 	No note is open	ノートを開いていません
 	Pick one in the sidebar, or create a new note.	サイドバーから選ぶか、新規ノートを作成してください。
@@ -140,7 +140,7 @@
 	Export as HTML	HTML として書き出す
 	HTML page	HTML ページ
 	exported to {file}	{file} に書き出しました
-	{count} images copied	画像 {count} 件をコピーしました
+@plural	{n} image copied|{n} images copied	画像 {n} 件をコピーしました
 	could not write the page	ページを書き出せませんでした
 	open a note first	先にノートを開いてください
 	note	ノート

@@ -105,6 +105,13 @@ pub fn tr_fmt(source: &str, args: &[(&str, &str)]) -> String {
     craft_i18n::fmt(tr(source), args)
 }
 
+/// A count's wording with the language's own singular and plural: `trn(1, "{n} card due", "{n} cards
+/// due")`. The English pair is also the key of the catalogue's `@plural` row, and `{n}` is filled in
+/// with the number written the way the language writes it.
+pub fn trn(n: u64, one: &str, other: &str) -> String {
+    I18N.trn(current(), n, one, other)
+}
+
 /// A string in the current language: `tl!("About")`.
 #[macro_export]
 macro_rules! tl {
@@ -123,6 +130,17 @@ mod tests {
         // here catches it before it ships.
         let problems = I18N.check_all();
         assert!(problems.is_empty(), "{problems:#?}");
+    }
+
+    #[test]
+    fn a_count_uses_the_languages_plural() {
+        set_language("en");
+        assert_eq!(trn(1, "{n} card due", "{n} cards due"), "1 card due");
+        assert_eq!(trn(2, "{n} card due", "{n} cards due"), "2 cards due");
+        set_language("pt-br");
+        assert_eq!(trn(1, "{n} card due", "{n} cards due"), "1 card para revisar", "singular");
+        assert_eq!(trn(2, "{n} card due", "{n} cards due"), "2 cards para revisar", "plural");
+        set_language(AUTO);
     }
 
     #[test]

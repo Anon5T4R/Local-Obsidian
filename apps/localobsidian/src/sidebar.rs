@@ -38,7 +38,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
     if !state.filter.trim().is_empty() || state.tag_filter.is_some() {
         let kept = state.filtered_count();
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(crate::i18n::tr_fmt("{count} notes", &[("count", &kept.to_string())])).small().weak());
+            ui.label(egui::RichText::new(crate::i18n::trn(kept as u64, "{n} note", "{n} notes")).small().weak());
             if let Some(tag) = state.tag_filter.clone()
                 && ui.small_button(format!("#{tag} x")).on_hover_text(tl!("Clear the tag")).clicked()
             {

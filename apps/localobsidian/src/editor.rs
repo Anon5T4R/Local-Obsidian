@@ -742,25 +742,39 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
 
 /// The text as the font can actually draw it.
 ///
-/// The app ships no emoji font (a decision, not an oversight): the fonts it does ship cover some
-/// pictographs and not others, so a note written with emojis would show some and draw a hollow box
-/// for the rest. A box in the middle of a title is worse than a shorter title, so a pictograph the
-/// font has no glyph for is left out of the *drawn* text - the note keeps it, the editor shows it,
-/// the reading view simply does not draw a box.
+/// The app ships no emoji font (a decision, not an oversight). An emoji in a note is therefore never
+/// drawn - a monochrome pictogram among coloured text reads as a mistake, and a hollow box reads
+/// worse - while the symbol ranges (arrows, maths signs) are drawn when the shipped fonts have them.
+/// The note keeps every character, and the editor shows it as written; only the reading view is
+/// quieter.
 fn drawable(ui: &egui::Ui, text: &str, size: f32) -> String {
-    if !text.chars().any(is_pictograph) {
+    if !text.chars().any(|c| is_emoji(c) || is_symbol(c)) {
         return text.to_string();
     }
     let font = egui::FontId::proportional(size);
-    ui.ctx().fonts_mut(|fonts| text.chars().filter(|c| !is_pictograph(*c) || fonts.has_glyph(&font, *c)).collect())
+    ui.ctx().fonts_mut(|fonts| {
+        text.chars()
+            .filter(|c| {
+                if is_emoji(*c) {
+                    false
+                } else if is_symbol(*c) {
+                    fonts.has_glyph(&font, *c)
+                } else {
+                    true
+                }
+            })
+            .collect()
+    })
 }
 
-/// The ranges a note uses for pictographs: arrows, symbols and the emoji planes.
-fn is_pictograph(c: char) -> bool {
-    matches!(
-        u32::from(c),
-        0x200D | 0x20E3 | 0xFE0F | 0x2190..=0x21FF | 0x2300..=0x23FF | 0x2600..=0x27BF | 0x2B00..=0x2BFF | 0x1F000..=0x1FAFF
-    )
+/// The emoji planes, and the invisible characters that glue an emoji together.
+pub(crate) fn is_emoji(c: char) -> bool {
+    matches!(u32::from(c), 0x20E3 | 0x200D | 0xFE0F | 0x1F000..=0x1FAFF)
+}
+
+/// The symbol ranges a note uses as text: arrows, maths operators and the common signs.
+pub(crate) fn is_symbol(c: char) -> bool {
+    matches!(u32::from(c), 0x2190..=0x21FF | 0x2200..=0x22FF | 0x2300..=0x23FF | 0x2600..=0x27BF | 0x2B00..=0x2BFF)
 }
 
 /// A nested run (bold inside italic), drawn into the run already open.

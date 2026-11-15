@@ -381,11 +381,11 @@ impl LocalApp {
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 let notes = self.vault.files.len();
-                ui.label(egui::RichText::new(i18n::tr_fmt("{count} notes", &[("count", &notes.to_string())])).small().weak());
+                ui.label(egui::RichText::new(i18n::trn(notes as u64, "{n} note", "{n} notes")).small().weak());
                 let due = self.vault.srs_stats().due;
                 if due > 0 {
                     ui.separator();
-                    if ui.small_button(i18n::tr_fmt("{count} cards due", &[("count", &due.to_string())])).clicked() {
+                    if ui.small_button(i18n::trn(due as u64, "{n} card due", "{n} cards due")).clicked() {
                         self.review.start(&self.vault, Deck::All);
                     }
                 }
@@ -728,7 +728,7 @@ impl LocalApp {
         let mut message = i18n::tr_fmt("exported to {file}", &[("file", &file)]);
         if copied > 0 {
             message.push_str(" · ");
-            message.push_str(&i18n::tr_fmt("{count} images copied", &[("count", &copied.to_string())]));
+            message.push_str(&i18n::trn(copied as u64, "{n} image copied", "{n} images copied"));
         }
         self.vault.message = Some(message);
     }

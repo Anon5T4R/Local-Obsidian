@@ -317,6 +317,16 @@ fn a_wikilink_in_the_reading_view_is_clickable() {
 }
 
 #[test]
+fn the_reading_view_draws_no_emoji_and_keeps_the_arrows() {
+    // Emoji are never drawn (no emoji font ships); arrows and maths signs are text and keep being
+    // drawn when the fonts have the glyph.
+    assert!(crate::editor::is_emoji('\u{1F3E5}') && crate::editor::is_emoji('\u{1F9ED}') && crate::editor::is_emoji('\u{FE0F}'));
+    assert!(!crate::editor::is_emoji('\u{2192}') && crate::editor::is_symbol('\u{2192}'), "an arrow is text, not an emoji");
+    assert!(crate::editor::is_symbol('\u{2264}'), "maths operators are symbols");
+    assert!(!crate::editor::is_symbol('\u{00A7}'), "a section sign is text");
+    assert!(!crate::editor::is_emoji('\u{00E3}') && !crate::editor::is_symbol('\u{00E3}'), "letters pass through");
+}
+#[test]
 fn the_binaries_of_the_vault_stay_out_of_the_tree() {
     // The generated vault holds a `.txt`, a `.docx` and a `.pdf` next to the notes: none of them is
     // listed. When "open with the system" arrives, this test becomes the click on the row.

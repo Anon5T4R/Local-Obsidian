@@ -57,7 +57,7 @@
 	Review this note	Repasar esta nota
 	Review #{tag}	Repasar #{tag}
 	Close the review panel	Cerrar el panel de repaso
-	{count} cards due	{count} tarjetas por repasar
+@plural	{n} card due|{n} cards due	{n} tarjeta por repasar|{n} tarjetas por repasar
 	the whole vault	todo el cofre
 	{left} to review, {done} done	{left} por repasar, {done} hechas
 	practice - nothing is graded	práctica: no se registra nada
@@ -110,7 +110,7 @@
 	Project	Proyecto
 	Filter notes	Filtrar notas
 	Clear the filter	Limpiar el filtro
-	{count} notes	{count} notas
+@plural	{n} note|{n} notes	{n} nota|{n} notas
 	no note matches the filter	ninguna nota coincide con el filtro
 	No note is open	No hay ninguna nota abierta
 	Pick one in the sidebar, or create a new note.	Elige una en la barra lateral o crea una nota nueva.
@@ -140,7 +140,7 @@
 	Export as HTML	Exportar como HTML
 	HTML page	Página HTML
 	exported to {file}	exportado a {file}
-	{count} images copied	{count} imágenes copiadas
+@plural	{n} image copied|{n} images copied	{n} imagen copiada|{n} imágenes copiadas
 	could not write the page	no se pudo escribir la página
 	open a note first	abre una nota primero
 	note	nota

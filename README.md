@@ -75,7 +75,7 @@ que o mesmo cofre abra nos dois.
 | **Import de `.apkg` (Anki)** | Ler o pacote exige um motor SQLite. A única opção 100% Rust madura hoje (`turso`/`limbo`) ainda é pré-release e traz uma árvore grande; `rusqlite` compila C, o que o port não aceita. O import de **texto** do Anki (`Arquivo → Importar cartões do Anki (texto)...`) cobre o uso real, e o `.apkg` fica anotado com esse caminho. |
 | **Math renderizado** | Continua em unidade própria (precisa de fontes matemáticas + pintor). Hoje o TeX aparece limpo em monoespaçado, sem virar sopa de símbolos. |
 | **IA / chat** | Sem IA local, por decisão: nada sai da máquina, e não há provedor embutido. A janela de chat do app de origem não tem equivalente. |
-| **Fonte de emoji** | Decisão do João: não se embarca fonte de emoji. As fontes da suíte cobrem alguns pictogramas (que aparecem em monocromático) e não outros; na leitura, um pictograma sem glifo simplesmente **não é desenhado** — um retângulo vazio no meio de um título é pior que um título mais curto. O texto-fonte da nota não muda, e o editor mostra o caractere como está. |
+| **Fonte de emoji** | Decisão do João: não se embarca fonte de emoji. **Emoji nunca é desenhado** na leitura (um pictograma monocromático no meio do texto lê como erro), e as faixas de símbolo — setas, operadores matemáticos — aparecem quando as fontes da suíte têm o glifo. O texto-fonte da nota não muda e o editor mostra o caractere como está. |
 
 ## Roadmap pós-1.0
 
