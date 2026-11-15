@@ -11,10 +11,14 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod app;
+mod editor;
 mod fonts;
 mod i18n;
 mod pickers;
+mod prefs;
+mod sidebar;
 mod suite_entry;
+mod vault_state;
 
 use app::LocalApp;
 use suite_entry::APP;

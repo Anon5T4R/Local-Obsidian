@@ -13,22 +13,54 @@
 
 @id	language.name	日本語
 	File	ファイル
-	Open a file.	ファイルを開く。
-	Choose a folder.	フォルダを選択。
-	Quit Local Obsidian	Local Obsidian を終了
+	View	表示
 	Help	ヘルプ
+	Open a vault...	保管庫を開く...
+	New note...	新規ノート...
+	Rename note...	ノート名を変更...
+	Save	保存
+	Quit Local Obsidian	Local Obsidian を終了
+	Show the sidebar	サイドバーを表示
+	Reading view	閲覧ビュー
+	Sort notes	ノートの並び順
+	Name	名前
+	Name (Z to A)	名前 (Z→A)
+	Last modified	更新日時
+	Refresh the vault	保管庫を再読み込み
 	Check for Updates.	アップデートを確認。
 	About Local Obsidian	Local Obsidian について
 	Local Obsidian	Local Obsidian
-	A vault is a folder of Markdown notes - no database, no lock-in. Pick one below; the file tree, the editor and wikilinks arrive in the next release.	保管庫は Markdown ノートのフォルダです。データベースも囲い込みもありません。下から選んでください。ファイルツリー、エディタ、ウィキリンクは次のリリースで入ります。
-	picked: {path}	選択: {path}
-	nothing picked yet	まだ何も選択されていません
+	A vault is a folder of Markdown notes: no database, no lock-in.	保管庫は Markdown ノートのフォルダです。データベースも囲い込みもありません。
+	New note	新規ノート
+	Rename note	ノート名を変更
+	Note name	ノート名
+	Create	作成
+	Cancel	キャンセル
+	Rename	名前を変更
+	Filter notes	ノートを絞り込む
+	Clear the filter	絞り込みを解除
+	{count} notes	{count} 件のノート
+	no note matches the filter	条件に合うノートがありません
+	No note is open	ノートを開いていません
+	Pick one in the sidebar, or create a new note.	サイドバーから選ぶか、新規ノートを作成してください。
+	Edit	編集
+	Read	閲覧
+	Switch between the editor and the reading view	エディタと閲覧ビューを切り替える
+	saved	保存しました
+	could not save the note	ノートを保存できませんでした
+	could not save the note that was open	開いていたノートを保存できませんでした
+	could not create the note	ノートを作成できませんでした
+	could not rename the note	ノート名を変更できませんでした
+	could not open the vault	保管庫を開けませんでした
+	could not read the vault	保管庫を読み込めませんでした
+	vault refreshed	保管庫を再読み込みしました
+	{count} links updated	{count} 件のリンクを更新しました
+	no note is called {name}	{name} というノートはありません
 	Language	言語
 	(following the system)	(システムに従う)
 	version {version}	バージョン {version}
 	You are on the newest version.	最新バージョンです。
 	checking for updates failed: {reason}	アップデートの確認に失敗しました: {reason}
-	Text files	テキストファイル
 	Minimize	最小化
 	Maximize	最大化
 	Close	閉じる

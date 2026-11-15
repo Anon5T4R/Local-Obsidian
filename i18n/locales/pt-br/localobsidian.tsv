@@ -13,22 +13,54 @@
 
 @id	language.name	Português (Brasil)
 	File	Arquivo
-	Open a file.	Abrir um arquivo.
-	Choose a folder.	Escolher uma pasta.
-	Quit Local Obsidian	Sair do Local Obsidian
+	View	Exibir
 	Help	Ajuda
+	Open a vault...	Abrir um cofre...
+	New note...	Nova nota...
+	Rename note...	Renomear nota...
+	Save	Salvar
+	Quit Local Obsidian	Sair do Local Obsidian
+	Show the sidebar	Mostrar a barra lateral
+	Reading view	Modo leitura
+	Sort notes	Ordenar notas
+	Name	Nome
+	Name (Z to A)	Nome (Z a A)
+	Last modified	Última modificação
+	Refresh the vault	Atualizar o cofre
 	Check for Updates.	Verificar atualizações.
 	About Local Obsidian	Sobre o Local Obsidian
 	Local Obsidian	Local Obsidian
-	A vault is a folder of Markdown notes - no database, no lock-in. Pick one below; the file tree, the editor and wikilinks arrive in the next release.	Um cofre é uma pasta de notas Markdown — sem banco de dados, sem lock-in. Escolha uma abaixo; a árvore de arquivos, o editor e os wikilinks chegam na próxima versão.
-	picked: {path}	escolhido: {path}
-	nothing picked yet	nada escolhido ainda
+	A vault is a folder of Markdown notes: no database, no lock-in.	Um cofre é uma pasta de notas Markdown: sem banco de dados, sem lock-in.
+	New note	Nova nota
+	Rename note	Renomear nota
+	Note name	Nome da nota
+	Create	Criar
+	Cancel	Cancelar
+	Rename	Renomear
+	Filter notes	Filtrar notas
+	Clear the filter	Limpar o filtro
+	{count} notes	{count} notas
+	no note matches the filter	nenhuma nota corresponde ao filtro
+	No note is open	Nenhuma nota aberta
+	Pick one in the sidebar, or create a new note.	Escolha uma na barra lateral ou crie uma nota nova.
+	Edit	Editar
+	Read	Ler
+	Switch between the editor and the reading view	Alternar entre o editor e o modo leitura
+	saved	salvo
+	could not save the note	não foi possível salvar a nota
+	could not save the note that was open	não foi possível salvar a nota que estava aberta
+	could not create the note	não foi possível criar a nota
+	could not rename the note	não foi possível renomear a nota
+	could not open the vault	não foi possível abrir o cofre
+	could not read the vault	não foi possível ler o cofre
+	vault refreshed	cofre atualizado
+	{count} links updated	{count} links atualizados
+	no note is called {name}	não existe nota chamada {name}
 	Language	Idioma
 	(following the system)	(seguindo o sistema)
 	version {version}	versão {version}
 	You are on the newest version.	Você está na versão mais recente.
 	checking for updates failed: {reason}	falha ao verificar atualizações: {reason}
-	Text files	Arquivos de texto
 	Minimize	Minimizar
 	Maximize	Maximizar
 	Close	Fechar

@@ -1,0 +1,18 @@
+[package]
+name = "localobsidian-md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's note format: YAML frontmatter, tags, wikilinks, embeds and the preview model (no UI, no filesystem)"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Markdown -> the small block model the UI draws. Parsing events only: no HTML output.
+pulldown-cmark = { workspace = true }
+# YAML 1.2, pure Rust (the frontmatter block). `encoding` is off: a note is UTF-8 by contract.
+saphyr = { workspace = true }

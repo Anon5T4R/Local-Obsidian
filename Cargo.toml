@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["apps/localobsidian", "xtask"]
+members = ["crates/*", "apps/localobsidian", "xtask"]
 exclude = ["libs"]
-default-members = ["apps/localobsidian", "xtask"]
+default-members = ["crates/*", "apps/localobsidian", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,6 +20,16 @@ repository = "https://github.com/Anon5T4R/Local-Obsidian"
 craft-i18n = { path = "libs/craft-libs/crates/i18n/" }
 craft-update = { version = "=0.1.0", path = "libs/craft-libs/crates/update/", features = ["egui", "icons"] }
 craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
+
+# the app's own layers (crates/localobsidian-*)
+localobsidian-md = { path = "crates/md" }
+localobsidian-vault = { path = "crates/vault" }
+
+# note format
+# Markdown -> the preview's block model. Parser only (`html`/`getopts` are CLI/HTML output).
+pulldown-cmark = { version = "0.13", default-features = false }
+# YAML 1.2 for the frontmatter block; pure Rust, no C. `encoding` off: notes are UTF-8 by contract.
+saphyr = { version = "0.3", default-features = false }
 
 # foundation
 log = "0.4"

@@ -1,0 +1,16 @@
+[package]
+name = "localobsidian-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's vault: the folder scan, the note tree, the index (tags, aliases, backlinks), link resolution and safe file writes"
+
+[lints]
+workspace = true
+
+[dependencies]
+localobsidian-md = { workspace = true }
+log = { workspace = true }

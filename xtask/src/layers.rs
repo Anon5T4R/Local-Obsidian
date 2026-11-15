@@ -43,9 +43,10 @@ pub const TABLE: &[(&str, Class)] = &[
     // L6 apps and tooling
     ("localobsidian", Class::Exempt),
     ("xtask", Class::Exempt),
-    // A born app adds its engine crates here as it writes them, e.g.:
-    // ("core", Class::Layer(0)),
-    // ("engine", Class::Layer(3)),
+    // Note format: text in, blocks out. Depends on no workspace crate at all.
+    ("md", Class::Standalone),
+    // The vault: the folder scan, the index, link resolution, safe writes. Uses the note format.
+    ("vault", Class::Layer(3)),
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later).
