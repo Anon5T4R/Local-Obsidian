@@ -44,7 +44,9 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 }
 
 fn spawn((program, args): (&'static str, Vec<String>)) -> Result<(), String> {
-    std::process::Command::new(program).args(&args).spawn().map(|_| ()).map_err(|error| format!("{program}: {error}"))
+    // `craft_update::process::command` is the suite's spawn: no console flash on Windows, and the
+    // AppImage's environment is cleaned so the system handler is not handed our own libraries.
+    craft_update::process::command(program).args(&args).spawn().map(|_| ()).map_err(|error| format!("{program}: {error}"))
 }
 
 fn path_is_folder(path: &Path) -> bool {
