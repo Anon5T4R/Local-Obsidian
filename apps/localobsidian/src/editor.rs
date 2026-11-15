@@ -124,7 +124,73 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
 /// The narrowest a pane of the split may be dragged: below this the note cannot be read.
 const MIN_PANE: f32 = 180.0;
 
-/// The source, with the Markdown keys and the wikilink popup wired.
+/// A highlighter for the source pane: fences, headings, quotes, tags and wikilinks get a colour, so
+/// the Markdown reads as structure and not as one grey wall. It is a *source* view: nothing is hidden,
+/// only coloured.
+fn markdown_layouter(ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32) -> std::sync::Arc<egui::Galley> {
+    let visuals = ui.visuals();
+    let accent = crate::theme::accent(visuals.dark_mode);
+    let muted = visuals.weak_text_color();
+    let font = egui::FontId::monospace(13.0);
+    let plain = egui::TextFormat { font_id: font.clone(), color: visuals.text_color(), ..Default::default() };
+    let heading = egui::TextFormat { font_id: font.clone(), color: accent, ..Default::default() };
+    let dim = egui::TextFormat { font_id: font.clone(), color: muted, ..Default::default() };
+    let mark = egui::TextFormat { font_id: font.clone(), color: accent, background: accent.gamma_multiply(0.14), ..Default::default() };
+
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = wrap_width;
+    let mut in_fence = false;
+    for line in text.as_str().split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        let fence = trimmed.starts_with("```") || trimmed.starts_with("~~~");
+        if fence {
+            in_fence = !in_fence;
+        }
+        let line_format = if fence || in_fence {
+            &dim
+        } else if trimmed.starts_with('#') {
+            &heading
+        } else if trimmed.starts_with('>') {
+            &dim
+        } else {
+            &plain
+        };
+
+        // Inline pieces worth a colour, on a line that is not inside a fence: `[[link]]`, `#tag`,
+        // `==highlight==`.
+        if in_fence || fence {
+            job.append(line, 0.0, line_format.clone());
+            continue;
+        }
+        let mut rest = line;
+        while !rest.is_empty() {
+            let next = ["[[", "#", "=="].iter().filter_map(|open| rest.find(open).map(|at| (at, *open))).min_by_key(|(at, _)| *at);
+            let Some((at, open)) = next else {
+                job.append(rest, 0.0, line_format.clone());
+                break;
+            };
+            if at > 0 {
+                job.append(&rest[..at], 0.0, line_format.clone());
+            }
+            let close = match open {
+                "[[" => Some("]]"),
+                "==" => Some("=="),
+                _ => None,
+            };
+            let after = &rest[at + open.len()..];
+            let end = match close {
+                Some(close) => after.find(close).map(|end| end + close.len()).unwrap_or(after.len()),
+                // A tag runs while the characters can be part of one.
+                None => after.find(|c: char| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '/'))).unwrap_or(after.len()),
+            };
+            let piece_len = open.len() + end;
+            job.append(&rest[at..at + piece_len], 0.0, mark.clone());
+            rest = &rest[at + piece_len..];
+        }
+    }
+    ui.ctx().fonts_mut(|fonts| fonts.layout_job(job))
+}
+
 fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     let mut action = EditorAction::None;
     let mut changed = false;
@@ -178,12 +244,14 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     let row_height = ui.text_style_height(&TextStyle::Monospace).max(1.0);
     let rows = ((ui.available_height() / row_height).floor() as usize).saturating_sub(1).max(8);
     egui::ScrollArea::vertical().id_salt("editor-scroll").auto_shrink([false, false]).show(ui, |ui| {
+        let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| markdown_layouter(ui, text, wrap);
         let output = egui::TextEdit::multiline(&mut state.buffer)
             .id(editor_id)
             .font(TextStyle::Monospace)
             .desired_width(f32::INFINITY)
             .desired_rows(rows)
             .code_editor()
+            .layouter(&mut layouter)
             .show(ui);
         changed |= output.response.changed();
         // List continuation reads the newline the widget has just inserted.
@@ -234,6 +302,10 @@ fn line_start_byte(text: &str, line: usize) -> usize {
     at
 }
 
+/// The widest the reading column gets, before the zoom: a line of 150 characters is a wall, and 820
+/// px is the measure a screen of text has had since print.
+const READING_WIDTH: f32 = 820.0;
+
 /// The reading view, scrolling to the section a link asked for.
 fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> EditorAction {
     if !state.view.shows_reading() {
@@ -241,20 +313,69 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
     }
     state.refresh_preview();
     let section = state.pending_section.take();
+    let zoom = state.zoom;
     let vault: &VaultState = state;
     let blocks = vault.preview();
+    let fields = vault.frontmatter();
     let mut action = EditorAction::None;
     let mut target = section.as_deref();
     egui::ScrollArea::vertical().id_salt("reading-scroll").auto_shrink([false, false]).show(ui, |ui| {
-        if let Some(hit) = show_blocks(ui, blocks, vault, images, &mut target) {
-            action = match hit {
-                Hit::Link(target) => EditorAction::Navigate(target),
-                Hit::Tag(tag) => EditorAction::FilterTag(tag),
-                Hit::Task(index) => EditorAction::ToggleTask(index),
-            };
-        }
+        // The column is centred with generous margins: the text is what the window is for.
+        let column = (READING_WIDTH * zoom).min(ui.available_width());
+        let pad = ((ui.available_width() - column) / 2.0).max(0.0);
+        ui.horizontal_top(|ui| {
+            ui.add_space(pad);
+            ui.vertical(|ui| {
+                ui.set_max_width(column);
+                if !fields.is_empty() {
+                    properties(ui, fields);
+                }
+                if let Some(hit) = show_blocks(ui, blocks, vault, images, &mut target, zoom) {
+                    action = match hit {
+                        Hit::Link(target) => EditorAction::Navigate(target),
+                        Hit::Tag(tag) => EditorAction::FilterTag(tag),
+                        Hit::Task(index) => EditorAction::ToggleTask(index),
+                    };
+                }
+            });
+        });
     });
     action
+}
+
+/// The note's own metadata, as a card at the top: `tipo: sistema`, `aliases: Lacunas, Gap`. The block
+/// is what tells a note apart from a page, and the reading view used to drop it silently.
+fn properties(ui: &mut egui::Ui, fields: &[(String, String)]) {
+    let accent = crate::theme::accent(ui.visuals().dark_mode);
+    egui::Frame::new()
+        .fill(ui.visuals().faint_bg_color)
+        .stroke(egui::Stroke::new(1.0, ui.visuals().weak_text_color().gamma_multiply(0.35)))
+        .corner_radius(8)
+        .inner_margin(12.0)
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            for (key, value) in fields {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
+                    ui.label(egui::RichText::new(key).small().weak());
+                    // A list is a row of chips: one per alias, one per tag.
+                    let chips = matches!(key.as_str(), "tags" | "tag" | "aliases" | "alias");
+                    if chips && !value.is_empty() {
+                        for item in value.split(',').map(str::trim).filter(|item| !item.is_empty()) {
+                            let label = if matches!(key.as_str(), "tags" | "tag") { format!("#{item}") } else { item.to_string() };
+                            egui::Frame::new()
+                                .fill(accent.gamma_multiply(0.16))
+                                .corner_radius(9)
+                                .inner_margin(egui::Margin { left: 7, right: 7, top: 1, bottom: 1 })
+                                .show(ui, |ui| ui.label(egui::RichText::new(label).small().color(accent)));
+                        }
+                    } else if !value.is_empty() {
+                        ui.label(egui::RichText::new(value).small());
+                    }
+                });
+            }
+        });
+    ui.add_space(14.0);
 }
 
 fn header(ui: &mut egui::Ui, state: &mut VaultState, active: &std::path::Path, action: &mut EditorAction) {
@@ -306,10 +427,10 @@ enum Hit {
 
 /// Draws blocks, returning what the user clicked. `target` is the section a link asked for: the
 /// first heading that matches it is scrolled to and the target is cleared.
-fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: &mut Images, target: &mut Option<&str>) -> Option<Hit> {
+fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: &mut Images, target: &mut Option<&str>, zoom: f32) -> Option<Hit> {
     let mut hit = None;
     for block in blocks {
-        let found = show_block(ui, block, state, images, target);
+        let found = show_block(ui, block, state, images, target, zoom);
         if found.is_some() {
             hit = found;
         }
@@ -317,11 +438,13 @@ fn show_blocks(ui: &mut egui::Ui, blocks: &[Block], state: &VaultState, images: 
     hit
 }
 
-fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut Images, target: &mut Option<&str>) -> Option<Hit> {
+fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut Images, target: &mut Option<&str>, zoom: f32) -> Option<Hit> {
     match block {
         Block::Heading { level, spans } => {
-            ui.add_space(6.0);
-            let mut style = Style::new(heading_size(*level));
+            // The steps are wide enough to read as a hierarchy, and the space above a heading is
+            // what makes a long note skimmable: 26 px above a chapter, 18 above a section.
+            ui.add_space(if *level <= 2 { 26.0 } else { 18.0 } * zoom);
+            let mut style = Style::new(heading_size(*level) * zoom);
             style.strong = true;
             let text: String = spans.iter().map(Span::plain).collect();
             let drawn = ui.vertical(|ui| show_spans(ui, spans, state, style));
@@ -331,12 +454,12 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
                 ui.scroll_to_rect(drawn.response.rect, Some(egui::Align::TOP));
                 *target = None;
             }
-            ui.add_space(2.0);
+            ui.add_space(6.0 * zoom);
             drawn.inner
         }
         Block::Paragraph(spans) => {
-            let hit = show_spans(ui, spans, state, Style::new(14.5));
-            ui.add_space(4.0);
+            let hit = show_spans(ui, spans, state, Style::new(15.0 * zoom));
+            ui.add_space(14.0 * zoom);
             hit
         }
         Block::List { ordered, items, tasks } => {
@@ -357,30 +480,33 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
                         }
                     }
                     for span in item {
-                        if let Some(found) = show_span(ui, span, state, Style::new(14.5)) {
+                        if let Some(found) = show_span(ui, span, state, Style::new(15.0 * zoom)) {
                             hit = Some(found);
                         }
                     }
                 });
+                // A list is a stack of lines, not a paragraph: 5 px between items keeps the rhythm.
+                ui.add_space(5.0 * zoom);
             }
-            ui.add_space(4.0);
+            ui.add_space(8.0);
             hit
         }
         Block::Code { language, text } => {
             if !language.is_empty() {
                 ui.label(RichText::new(language).small().weak());
             }
-            egui::Frame::new().fill(ui.visuals().code_bg_color).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
-                ui.label(RichText::new(text).monospace());
+            egui::Frame::new().fill(ui.visuals().code_bg_color).inner_margin(12.0).corner_radius(6.0).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(RichText::new(text).monospace().size(13.0 * zoom));
             });
-            ui.add_space(4.0);
+            ui.add_space(12.0);
             None
         }
         Block::Quote(inner) => {
             let weak = ui.visuals().weak_text_color();
             let quoted = ui.indent(ui.scope_id().with("quote"), |ui| {
                 ui.visuals_mut().override_text_color = Some(weak);
-                show_blocks(ui, inner, state, images, target)
+                show_blocks(ui, inner, state, images, target, zoom)
             });
             let rect = quoted.response.rect;
             if rect.height() > 0.0 {
@@ -391,14 +517,16 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             }
             quoted.inner
         }
-        Block::Callout { kind, title, body } => show_callout(ui, kind, title, body, state, images, target),
-        Block::Table { headers, rows, aligns } => show_table(ui, headers, rows, aligns, state),
+        Block::Callout { kind, title, body } => show_callout(ui, kind, title, body, state, images, target, zoom),
+        Block::Table { headers, rows, aligns } => show_table(ui, headers, rows, aligns, state, zoom),
         Block::Image { destination, alt } => {
             show_image(ui, destination, alt, state, images);
             None
         }
         Block::Rule => {
+            ui.add_space(10.0);
             ui.separator();
+            ui.add_space(10.0);
             None
         }
     }
@@ -413,24 +541,27 @@ fn show_callout(
     state: &VaultState,
     images: &mut Images,
     target: &mut Option<&str>,
+    zoom: f32,
 ) -> Option<Hit> {
     let color = callout_color(kind);
     let mut hit = None;
     egui::Frame::new()
         .fill(color.gamma_multiply(0.12))
         .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.55)))
-        .inner_margin(10.0)
-        .corner_radius(6.0)
+        .inner_margin(14.0)
+        .corner_radius(8.0)
         .show(ui, |ui| {
             // A callout is a block: it takes the width of the note, not the width of its title.
             ui.set_min_width(ui.available_width());
-            ui.label(RichText::new(title).strong().color(color));
-            ui.add_space(2.0);
-            if let Some(found) = show_blocks(ui, body, state, images, target) {
+            if !title.trim().is_empty() {
+                ui.label(RichText::new(title).strong().size(15.0 * zoom).color(color));
+                ui.add_space(4.0);
+            }
+            if let Some(found) = show_blocks(ui, body, state, images, target, zoom) {
                 hit = Some(found);
             }
         });
-    ui.add_space(6.0);
+    ui.add_space(12.0);
     hit
 }
 
@@ -450,6 +581,8 @@ fn callout_color(kind: &str) -> Color32 {
 
 /// Room around a cell's text.
 const TABLE_PAD: f32 = 8.0;
+/// Room above and below it: 12 + a 15 px line is the ~40 px row the Electron app has.
+const TABLE_PAD_Y: f32 = 12.0;
 /// No column is squeezed below this: a word still fits, so a line never breaks inside one.
 const TABLE_MIN_COL: f32 = 72.0;
 /// The tallest a single row may get; a table is a table, not a page.
@@ -462,13 +595,13 @@ const TABLE_MAX_ROW: f32 = 240.0;
 /// laid out inside a `with_layout` measures as almost nothing: the grid fell back to its minimum and
 /// the table turned into a column of tall slivers. Measuring the text here first, then painting the
 /// bands and drawing the cells into rects of the width that came out, is what fixes both.
-fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>], aligns: &[Align], state: &VaultState) -> Option<Hit> {
+fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>], aligns: &[Align], state: &VaultState, zoom: f32) -> Option<Hit> {
     let columns = headers.len().max(rows.iter().map(Vec::len).max().unwrap_or(0));
     if columns == 0 {
         return None;
     }
-    let body = Style::new(14.0);
-    let head = Style::new(14.0).strong();
+    let body = Style::new(14.0 * zoom);
+    let head = Style::new(14.0 * zoom).strong();
     let available = ui.available_width().max(TABLE_MIN_COL * columns as f32);
 
     // What each column would like: its widest cell, measured without wrapping.
@@ -499,7 +632,7 @@ fn show_table(ui: &mut egui::Ui, headers: &[Vec<Span>], rows: &[Vec<Vec<Span>>],
         .enumerate()
         .map(|(index, cells)| {
             let style = if index == 0 { head } else { body };
-            row_height(ui, cells, &widths, style, TABLE_PAD).min(TABLE_MAX_ROW)
+            row_height(ui, cells, &widths, style, TABLE_PAD, TABLE_PAD_Y).min(TABLE_MAX_ROW)
         })
         .collect();
     let total_width: f32 = widths.iter().sum();
@@ -574,8 +707,8 @@ fn paint_table(
         for (column, cell) in cells.iter().enumerate() {
             let width = widths.get(column).copied().unwrap_or(TABLE_MIN_COL);
             let rect = egui::Rect::from_min_size(
-                egui::pos2(x + TABLE_PAD, y + TABLE_PAD),
-                egui::vec2((width - 2.0 * TABLE_PAD).max(8.0), (height - 2.0 * TABLE_PAD).max(8.0)),
+                egui::pos2(x + TABLE_PAD, y + TABLE_PAD_Y),
+                egui::vec2((width - 2.0 * TABLE_PAD).max(8.0), (height - 2.0 * TABLE_PAD_Y).max(8.0)),
             );
             let align = aligns.get(column).copied().unwrap_or_default();
             ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(cell_layout(Some(align))), |ui| {
@@ -598,16 +731,16 @@ fn text_width(ui: &egui::Ui, spans: &[Span], style: Style) -> f32 {
 }
 
 /// The height a cell needs when wrapped at `width`, plus the padding above and below.
-fn row_height(ui: &egui::Ui, cells: &[Vec<Span>], widths: &[f32], style: Style, pad: f32) -> f32 {
+fn row_height(ui: &egui::Ui, cells: &[Vec<Span>], widths: &[f32], style: Style, pad_x: f32, pad_y: f32) -> f32 {
     let font = egui::FontId::proportional(style.size);
     let mut tallest: f32 = ui.text_style_height(&egui::TextStyle::Body);
     for (column, cell) in cells.iter().enumerate() {
-        let width = widths.get(column).copied().unwrap_or(TABLE_MIN_COL).max(8.0) - 2.0 * pad;
+        let width = widths.get(column).copied().unwrap_or(TABLE_MIN_COL).max(8.0) - 2.0 * pad_x;
         let text: String = cell.iter().map(Span::plain).collect();
         let height = ui.painter().layout(text, font.clone(), egui::Color32::WHITE, width).size().y;
         tallest = tallest.max(height);
     }
-    tallest + 2.0 * pad
+    tallest + 2.0 * pad_y
 }
 
 /// The width of the widest single word of a cell: no column is narrower than this, so a line never
@@ -680,10 +813,11 @@ fn show_image(ui: &mut egui::Ui, destination: &str, alt: &[Span], state: &VaultS
 
 fn heading_size(level: u8) -> f32 {
     match level {
-        1 => 22.0,
-        2 => 19.0,
-        3 => 17.0,
-        4 => 15.5,
+        1 => 29.0,
+        2 => 21.0,
+        3 => 18.0,
+        4 => 16.0,
+        5 => 15.0,
         _ => 14.5,
     }
 }
@@ -711,7 +845,10 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
             None
         }
         Span::Code(text) => {
-            ui.label(style.rich(text.clone()).monospace().background_color(ui.visuals().code_bg_color));
+            // A code chip is a chip, not a warning: the same violet-grey family as the tag pills,
+            // not the olive the theme's code background lands on.
+            let tint = crate::theme::accent(ui.visuals().dark_mode).gamma_multiply(if ui.visuals().dark_mode { 0.22 } else { 0.12 });
+            ui.label(style.rich(text.clone()).monospace().background_color(tint));
             None
         }
         Span::Highlight(text) => {
@@ -793,8 +930,14 @@ fn show_link(ui: &mut egui::Ui, spans: &[Span], destination: &str, state: &Vault
     if let Some(target) = links::from_url(destination) {
         let parsed = localobsidian_md::parse_target(&target);
         let resolves = state.resolve(parsed.note).is_some();
-        let color = if resolves { ui.visuals().hyperlink_color } else { ui.visuals().weak_text_color() };
-        let response = ui.add(egui::Label::new(style.colored(color).rich(text)).sense(egui::Sense::click()));
+        // A link that resolves is the accent; one that points at a note nobody wrote is readable
+        // text with an underline - grey on a coloured callout was close to invisible.
+        let (color, underline) = if resolves { (ui.visuals().hyperlink_color, false) } else { (ui.visuals().text_color().gamma_multiply(0.9), true) };
+        let mut rich = style.colored(color).rich(text);
+        if underline {
+            rich = rich.underline();
+        }
+        let response = ui.add(egui::Label::new(rich).sense(egui::Sense::click()));
         if resolves && response.clicked() {
             return Some(Hit::Link(parsed.note.to_string()));
         }

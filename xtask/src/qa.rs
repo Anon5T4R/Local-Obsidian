@@ -165,6 +165,21 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
                 written += 1;
             }
         }
+        // The notes the visual QA compares against the Electron app: one shot each, at the size the
+        // comparison is made on.
+        if label == "real" {
+            let present: Vec<String> =
+                walk(vault).iter().filter_map(|path| path.file_stem().map(|stem| stem.to_string_lossy().to_string())).collect();
+            for fixture in ["convert test", "Análise de Lacunas do Vault", "Convenções do Vault"] {
+                if !present.iter().any(|name| name == fixture) {
+                    continue;
+                }
+                let safe = fixture.replace(' ', "-");
+                let shot = shots.join(format!("real-{safe}-1366x768.png"));
+                shoot(&app, vault, Some(fixture), 1366, 768, &shot)?;
+                written += 1;
+            }
+        }
     }
     let elapsed = started.elapsed();
     println!("qa-shots: {written} PNGs in {} ({:.1}s)", shots.display(), elapsed.as_secs_f32());
@@ -226,7 +241,18 @@ pub fn sample(count: Option<&str>) -> Result<(), String> {
     }
     let step = (notes.len() / wanted).max(1);
     let mut copied = 0;
-    for note in notes.iter().step_by(step).take(wanted) {
+    // The notes the QA compares against the Electron app, always: they are the fixtures of the
+    // visual pass, so a bigger vault must not push them out of the sample.
+    let fixtures = ["convert test", "Análise de Lacunas do Vault", "Convenções do Vault"];
+    let mut chosen: Vec<&PathBuf> = Vec::new();
+    for fixture in fixtures {
+        if let Some(note) = notes.iter().find(|note| note.file_stem().is_some_and(|stem| stem.to_string_lossy() == fixture)) {
+            chosen.push(note);
+        }
+    }
+    chosen.extend(notes.iter().step_by(step).take(wanted));
+    chosen.dedup();
+    for note in chosen {
         let relative = note.strip_prefix(&source).unwrap_or(note);
         let destination = target.join(relative);
         if let Some(folder) = destination.parent() {

@@ -78,6 +78,30 @@ impl Frontmatter {
         self.yaml.as_mapping().is_none_or(hashlink_is_empty)
     }
 
+    /// Every field, in the order the file wrote them, as `(key, text)`.
+    ///
+    /// A list becomes one comma-separated line, which is what a reading view shows on a chip row; a
+    /// nested mapping becomes an empty value (the card has no place for a tree). Numbers and
+    /// booleans come out as written.
+    pub fn pairs(&self) -> Vec<(String, String)> {
+        let Some(mapping) = self.yaml.as_mapping() else { return Vec::new() };
+        mapping
+            .iter()
+            .map(|(key, value)| {
+                let key = scalar_text(untag_ref(key)).unwrap_or_default();
+                let value = untag_ref(value);
+                let text = match value {
+                    YamlOwned::Sequence(items) => {
+                        items.iter().filter_map(|item| scalar_text(untag_ref(item))).filter(|item| !item.is_empty()).collect::<Vec<_>>().join(", ")
+                    }
+                    other => scalar_text(other).unwrap_or_default(),
+                };
+                (key, text)
+            })
+            .filter(|(key, _)| !key.is_empty())
+            .collect()
+    }
+
     /// Sets `key` to a list of strings (used when a note is created with fields already in it).
     pub fn set_list(&mut self, key: &str, values: &[String]) {
         let sequence: Vec<YamlOwned> = values.iter().map(|v| YamlOwned::Value(ScalarOwned::String(v.clone()))).collect();
@@ -301,5 +325,18 @@ mod tests {
     #[test]
     fn a_yaml_list_is_not_frontmatter() {
         assert!(Frontmatter::from_yaml("- a\n- b\n").is_none());
+    }
+
+    #[test]
+    fn the_pairs_keep_the_files_order_and_flatten_lists() {
+        let frontmatter = parse("---\ntipo: sistema\naliases:\n  - Lacunas\n  - Gap\nnumero: 7\n---\n\n# Nota\n").expect("frontmatter");
+        assert_eq!(
+            frontmatter.pairs(),
+            [
+                ("tipo".to_string(), "sistema".to_string()),
+                ("aliases".to_string(), "Lacunas, Gap".to_string()),
+                ("numero".to_string(), "7".to_string()),
+            ]
+        );
     }
 }

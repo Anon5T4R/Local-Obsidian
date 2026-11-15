@@ -89,6 +89,10 @@ pub struct VaultState {
     pub tags_open: bool,
     /// Where the divider between the source and the reading view sits, as a share of the width.
     pub split: f32,
+    /// How much the reading view is scaled: 0.8 to 1.6, 1.0 by default.
+    pub zoom: f32,
+    /// The open note's frontmatter, as `(key, value)` in file order, refreshed with the preview.
+    properties: Vec<(String, String)>,
     /// The section a link asked for: the reading view scrolls to it, then clears it.
     pub pending_section: Option<String>,
     /// The line a search result asked for: the editor puts the caret there, then clears it.
@@ -131,6 +135,8 @@ impl Default for VaultState {
             outline_open: false,
             tags_open: false,
             split: 0.5,
+            zoom: 1.0,
+            properties: Vec::new(),
             pending_section: None,
             pending_line: None,
             completion: None,
@@ -436,12 +442,19 @@ impl VaultState {
             let expanded = embeds::expand(&self.buffer, &|target| self.content_for(target));
             let prepared = preview::prepare(&expanded);
             self.preview_cache = Some((self.revision, preview::blocks(&prepared)));
+            // The note's own fields, for the card the reading view draws at the top.
+            self.properties = localobsidian_md::frontmatter::parse(&self.buffer).map(|frontmatter| frontmatter.pairs()).unwrap_or_default();
         }
     }
 
     /// The reading view as last built by [`Self::refresh_preview`].
     pub fn preview(&self) -> &[preview::Block] {
         self.preview_cache.as_ref().map(|(_, blocks)| blocks.as_slice()).unwrap_or_default()
+    }
+
+    /// The open note's frontmatter, in file order (empty when it has none).
+    pub fn frontmatter(&self) -> &[(String, String)] {
+        &self.properties
     }
 
     /// Rebuilds the filtered tree when the filter, the tag chip or the tree changed. The sidebar

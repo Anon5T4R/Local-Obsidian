@@ -98,6 +98,7 @@ impl LocalApp {
         vault.outline_open = prefs.outline_open;
         vault.tags_open = prefs.tags_open;
         vault.split = prefs.split;
+        vault.zoom = prefs.zoom;
 
         let mut app = Self {
             updater: Updater::new(&APP, env!("CARGO_PKG_VERSION")),
@@ -188,6 +189,7 @@ impl LocalApp {
         prefs.outline_open = self.vault.outline_open;
         prefs.tags_open = self.vault.tags_open;
         prefs.split = self.vault.split;
+        prefs.zoom = self.vault.zoom;
         prefs.sidebar_open = self.sidebar_open;
         prefs.language = self.language.clone();
         prefs.save();
@@ -261,6 +263,20 @@ impl LocalApp {
                             self.remember();
                             ui.close();
                         }
+                    }
+                });
+                ui.menu_button(tl!("Zoom"), |ui| {
+                    for (label, step) in [(tl!("Zoom in"), 1), (tl!("Zoom out"), -1)] {
+                        if ui.button(label).clicked() {
+                            self.vault.zoom = (self.vault.zoom + 0.1 * step as f32).clamp(crate::prefs::ZOOM_MIN, crate::prefs::ZOOM_MAX);
+                            self.remember();
+                            ui.close();
+                        }
+                    }
+                    if ui.button(tl!("Reset the zoom")).clicked() {
+                        self.vault.zoom = 1.0;
+                        self.remember();
+                        ui.close();
                     }
                 });
                 ui.menu_button(tl!("Sort notes"), |ui| {
@@ -1107,6 +1123,30 @@ impl eframe::App for LocalApp {
         if outline_shortcut && self.vault.root.is_some() {
             self.vault.outline_open = !self.vault.outline_open;
             self.remember();
+            wake = true;
+        }
+        // Zoom of the reading view: `Ctrl+=`, `Ctrl+-` and `Ctrl+0` for the middle. Consumed before
+        // the note sees the key, or the editor would insert the character.
+        let zoom_step = ctx.input(|input| {
+            if !input.modifiers.command {
+                return 0;
+            }
+            if input.key_pressed(egui::Key::Equals) || input.key_pressed(egui::Key::Plus) {
+                1
+            } else if input.key_pressed(egui::Key::Minus) {
+                -1
+            } else {
+                0
+            }
+        });
+        if zoom_step != 0 {
+            self.vault.zoom = (self.vault.zoom + 0.1 * zoom_step as f32).clamp(crate::prefs::ZOOM_MIN, crate::prefs::ZOOM_MAX);
+            ctx.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::Equals));
+            ctx.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::Minus));
+            wake = true;
+        }
+        if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::Num0)) {
+            self.vault.zoom = 1.0;
             wake = true;
         }
         let escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));

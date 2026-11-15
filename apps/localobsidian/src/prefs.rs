@@ -17,6 +17,10 @@ use crate::vault_state::ViewMode;
 pub const SPLIT_MIN: f32 = 0.2;
 pub const SPLIT_MAX: f32 = 0.8;
 
+/// The reading view's scale: small enough to fit a wide table, large enough to read from far away.
+pub const ZOOM_MIN: f32 = 0.8;
+pub const ZOOM_MAX: f32 = 1.6;
+
 /// What the app remembers. Every field has a default that is safe to start from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Prefs {
@@ -31,6 +35,8 @@ pub struct Prefs {
     pub tags_open: bool,
     /// Where the divider between the source and the reading view sits, as a share of the width.
     pub split: f32,
+    /// How much the reading view is scaled, 0.8 to 1.6.
+    pub zoom: f32,
     /// [`crate::i18n::AUTO`] or a language code.
     pub language: String,
 }
@@ -45,6 +51,7 @@ impl Default for Prefs {
             outline_open: false,
             tags_open: false,
             split: 0.5,
+            zoom: 1.0,
             language: crate::i18n::AUTO.to_string(),
         }
     }
@@ -94,6 +101,9 @@ impl Prefs {
         if let Some(split) = value.get("split").and_then(|v| v.as_f64()) {
             prefs.split = (split as f32).clamp(SPLIT_MIN, SPLIT_MAX);
         }
+        if let Some(zoom) = value.get("zoom").and_then(|v| v.as_f64()) {
+            prefs.zoom = (zoom as f32).clamp(ZOOM_MIN, ZOOM_MAX);
+        }
         if let Some(language) = value.get("language").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
             prefs.language = language.to_string();
         }
@@ -113,6 +123,7 @@ impl Prefs {
             "outline_open": self.outline_open,
             "tags_open": self.tags_open,
             "split": self.split,
+            "zoom": self.zoom,
             "language": self.language,
         })
     }
@@ -165,6 +176,7 @@ mod tests {
             outline_open: true,
             tags_open: true,
             split: 0.62,
+            zoom: 1.2,
             language: "pt-br".to_string(),
         };
         let again = Prefs::from_json(&prefs.to_json());
