@@ -249,6 +249,25 @@ impl VaultState {
         self.last_edit = Some(Instant::now());
     }
 
+    /// Replaces the whole buffer (an edit made from the reading view, which has no caret), and marks
+    /// it edited. The preview is rebuilt on the next frame.
+    pub fn replace_buffer(&mut self, text: String) {
+        if self.active.is_none() || self.buffer == text {
+            return;
+        }
+        self.buffer = text;
+        self.preview_cache = None;
+        self.outline_cache = None;
+        self.touch();
+    }
+
+    /// Flips the `index`-th task checkbox of the open note (the reading view clicked it).
+    pub fn toggle_task(&mut self, index: usize) -> bool {
+        let Some(edit) = localobsidian_editor::toggle_task(&self.buffer, index) else { return false };
+        self.replace_buffer(edit.text);
+        true
+    }
+
     /// Writes the open note. A note nobody edited is not written again.
     pub fn save(&mut self) -> io::Result<()> {
         let Some(path) = self.active.clone() else { return Ok(()) };

@@ -136,3 +136,59 @@
 	Minimize	Minimizar
 	Maximize	Maximizar
 	Close	Cerrar
+	Import Anki cards (text)...	Importar tarjetas de Anki (texto)...
+	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Una exportación de texto de Anki (.txt, .tsv, .csv). El paquete .apkg no se lee.
+	Anki text export	Exportación de texto de Anki
+	Import an Anki deck	Importar un mazo de Anki
+	Anki deck	Mazo de Anki
+	could not read the export	no se pudo leer la exportación
+	no cards were found in the export	no hay tarjetas en la exportación
+	imported {cards} cards into {notes} notes	{cards} tarjetas importadas en {notes} notas
+	media was left out	los archivos multimedia quedaron fuera
+	About	Acerca de
+	a heading, ## for the next level	un título, ## para el nivel siguiente
+	Stop asking this card	Dejar de preguntar esta tarjeta
+	Study before the schedule asks; nothing is graded	Estudiar antes de que el repaso lo pida; no se registra nada
+	this note has no headings	esta nota no tiene títulos
+	Import a Word or OpenDocument file...	Importar un archivo Word u OpenDocument...
+	Reads a .docx or .odt into a note. Pictures are left out.	Lee un .docx o .odt en una nota. Las imágenes quedan fuera.
+	Import a document	Importar un documento
+	Word or OpenDocument text	Texto Word u OpenDocument
+	could not read the document	no se pudo leer el documento
+	the document has no text to import	el documento no tiene texto que importar
+	imported {name}	{name} importado
+	the note {name} already exists; it was opened	la nota {name} ya existe; se abrió
+	Keyboard shortcuts and help	Atajos y ayuda
+	Getting around	Navegación
+	Open a vault	Abrir un cofre
+	Save the note	Guardar la nota
+	Close the panel or the window in front	Cerrar el panel o la ventana de delante
+	Writing	Escritura
+	Bold	Negrita
+	Italic	Cursiva
+	Inline code	Código en línea
+	Highlight	Resaltado
+	Indent or outdent the line	Indenta o desindenta la línea
+	Tick or untick a task	Marca o desmarca una tarea
+	Link to another note, with completion	Enlaza a otra nota, con autocompletado
+	What a note holds	Lo que guarda una nota
+	# Title	# Título
+	**bold** and *italic*	**negrita** y *cursiva*
+	and `code`, ==highlight==, ~~struck~~	y `código`, ==resaltado== y ~~tachado~~
+	[[Note]] or [[Note#Section]]	[[Nota]] o [[Nota#Sección]]
+	a link; ![[Note]] shows its text here	un enlace; ![[Nota]] muestra su texto aquí
+	- [ ] task	- [ ] tarea
+	a task list; Ctrl+Enter ticks it	una lista de tareas; Ctrl+Enter la marca
+	> [!warning] Title	> [!warning] Título
+	a callout: note, tip, warning, danger…	un callout: note, tip, warning, danger…
+	> [!card]- Question	> [!card]- Pregunta
+	a flashcard; the answer goes in the body	una tarjeta; la respuesta va en el cuerpo
+	> [!card]	> [!card]
+	with ==highlights==: one cloze card per highlight	con ==resaltados==: una tarjeta por resaltado
+	Where things live	Dónde vive cada cosa
+	A vault is a folder of .md files. Pictures and audio go in _attachments/, your own templates in _templates/, and the review schedule in .openobsidian/srs.json - the same file the phone app reads.	Un cofre es una carpeta de archivos .md. Las imágenes y el audio van en _attachments/, tus plantillas en _templates/, y el calendario de repaso en .openobsidian/srs.json — el mismo archivo que lee la app del móvil.
+	Reviewing	Repaso
+	Show the answer	Mostrar la respuesta
+	The full documentation is in the repository:	La documentación completa está en el repositorio:
+	README	README
+	Tick it in the note	Marcar en la nota

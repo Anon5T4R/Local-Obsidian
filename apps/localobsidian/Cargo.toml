@@ -19,6 +19,7 @@ craft-window = { workspace = true }
 # Calendar days for the note calendar and the template placeholders.
 chrono = { workspace = true }
 localobsidian-editor = { workspace = true }
+localobsidian-convert = { workspace = true }
 localobsidian-md = { workspace = true }
 localobsidian-review = { workspace = true }
 localobsidian-vault = { workspace = true }

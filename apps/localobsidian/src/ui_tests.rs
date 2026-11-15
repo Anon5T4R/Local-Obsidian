@@ -213,6 +213,51 @@ fn the_tag_chips_filter_the_tree() {
 }
 
 #[test]
+fn the_reading_view_ticks_a_task_in_the_note() {
+    let scratch = Scratch::new("task", &[("Hoje.md", "# Hoje\n\n- [ ] aspirar\n- [x] regar\n"), ("Outra.md", "# Outra\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Hoje.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 420.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            if let crate::editor::EditorAction::ToggleTask(index) = crate::editor::show(ui, state, images) {
+                state.toggle_task(index);
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-tasks");
+
+    let boxes: Vec<_> = harness.get_all_by_role(egui::accesskit::Role::CheckBox).collect();
+    assert_eq!(boxes.len(), 2, "one box per task");
+    boxes[0].click();
+    harness.run_steps(2);
+
+    let buffer = &harness.state().0.buffer;
+    assert!(buffer.contains("- [x] aspirar"), "{buffer}");
+    assert!(buffer.contains("- [x] regar"), "the other task is untouched: {buffer}");
+    assert!(harness.state().0.dirty, "the click marks the note edited");
+}
+
+#[test]
+fn the_help_window_lists_the_keys_and_the_documented_syntax() {
+    let mut harness = Harness::builder().with_size(egui::vec2(640.0, 760.0)).build_ui_state(|ui, _: &mut ()| crate::app::help_body(ui), ());
+    harness.run_steps(3);
+    shot(&mut harness, "ui-help");
+
+    harness.get_by_label("Getting around");
+    harness.get_by_label_contains("Save the note");
+    harness.get_by_label_contains("Tick or untick a task");
+    harness.get_by_label("What a note holds");
+    harness.get_by_label_contains("one cloze card per highlight");
+    harness.get_by_label("Where things live");
+}
+
+#[test]
 fn the_graph_draws_the_vault_and_says_so_when_there_is_nothing_to_draw() {
     let (_scratch, state) = demo_vault("graph");
     let mut harness = Harness::builder().with_size(egui::vec2(640.0, 520.0)).build_ui_state(

@@ -14,7 +14,7 @@ use crate::graph;
 use crate::i18n;
 use crate::images::Images;
 use crate::panels::{self, PanelAction};
-use crate::pickers::Pickers;
+use crate::pickers::{Pick, Pickers};
 use crate::prefs::Prefs;
 use crate::review_ui::{Deck, Review};
 use crate::sidebar::{self, SidebarAction};
@@ -35,6 +35,8 @@ pub struct LocalApp {
     /// Who draws the window frame (probed before the window was created).
     frame: craft_window::Frame,
     about_open: bool,
+    /// Whether the shortcuts window is on screen.
+    help_open: bool,
     /// The `language` setting: [`i18n::AUTO`] or a code from [`i18n::LANGUAGES`].
     language: String,
     prefs: Prefs,
@@ -77,6 +79,7 @@ impl LocalApp {
             pickers: Pickers::default(),
             frame,
             about_open: false,
+            help_open: false,
             language: prefs.language.clone(),
             restore_pending: prefs.last_vault.is_some(),
             sidebar_open: prefs.sidebar_open,
@@ -116,6 +119,22 @@ impl LocalApp {
                 }
                 if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("New note..."))).clicked() {
                     self.dialog = Some(Dialog::NewNote { name: String::new(), template: String::new() });
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(self.vault.root.is_some() && !self.pickers.busy(), egui::Button::new(tl!("Import a Word or OpenDocument file...")))
+                    .on_hover_text(tl!("Reads a .docx or .odt into a note. Pictures are left out."))
+                    .clicked()
+                {
+                    self.ask_document(ui.ctx());
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(self.vault.root.is_some() && !self.pickers.busy(), egui::Button::new(tl!("Import Anki cards (text)...")))
+                    .on_hover_text(tl!("A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read."))
+                    .clicked()
+                {
+                    self.ask_anki(ui.ctx());
                     ui.close();
                 }
                 if ui.add_enabled(has_note, egui::Button::new(tl!("Rename note..."))).clicked() {
@@ -219,6 +238,11 @@ impl LocalApp {
                 }
             });
             ui.menu_button(tl!("Help"), |ui| {
+                if ui.button(tl!("Keyboard shortcuts and help")).clicked() {
+                    self.help_open = true;
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button(tl!("Check for Updates.")).clicked() {
                     // The outcome shows in the About window, which is where a check belongs.
                     self.about_open = true;
@@ -293,6 +317,9 @@ impl LocalApp {
             EditorAction::None => {}
             EditorAction::Save => self.save(),
             EditorAction::Navigate(target) => self.navigate(&target),
+            EditorAction::ToggleTask(index) => {
+                self.vault.toggle_task(index);
+            }
         });
     }
 
@@ -453,6 +480,120 @@ impl LocalApp {
         self.calendar_open = open;
     }
 
+    /// Asks for a `.docx`/`.odt` to read into a note.
+    fn ask_document(&mut self, ctx: &egui::Context) {
+        let start = self.prefs.last_vault.as_ref().map(|path| path.display().to_string());
+        if !self.pickers.ask_document(ctx, tl!("Import a document"), start.as_deref()) {
+            log::debug!("a picker is already open");
+        }
+    }
+
+    /// Asks for an Anki text export.
+    fn ask_anki(&mut self, ctx: &egui::Context) {
+        let start = self.prefs.last_vault.as_ref().map(|path| path.display().to_string());
+        if !self.pickers.ask_anki(ctx, tl!("Import an Anki deck"), start.as_deref()) {
+            log::debug!("a picker is already open");
+        }
+    }
+
+    /// Reads the document at `path` into a note next to the open one.
+    ///
+    /// The upstream converts in the source's own folder; a document picked from outside the vault
+    /// has no folder here, so the note lands beside the open one (or in the vault's root) under the
+    /// document's name. A note that already has that name is opened instead of overwritten.
+    fn import_document(&mut self, path: &std::path::Path) {
+        let name = path.file_stem().map(|stem| stem.to_string_lossy().trim().to_string()).unwrap_or_default();
+        if name.is_empty() {
+            return;
+        }
+        if let Some(existing) = self.vault.files.iter().find(|note| note.name.eq_ignore_ascii_case(&name)) {
+            let existing = existing.path.clone();
+            self.vault.open_note(&existing);
+            self.vault.message = Some(i18n::tr_fmt("the note {name} already exists; it was opened", &[("name", &name)]));
+            return;
+        }
+        let markdown = match localobsidian_convert::to_markdown(path) {
+            Ok(markdown) => markdown,
+            Err(error) => {
+                self.vault.message = Some(format!("{}: {error}", tl!("could not read the document")));
+                return;
+            }
+        };
+        if markdown.trim().is_empty() {
+            self.vault.message = Some(tl!("the document has no text to import").to_string());
+            return;
+        }
+        match self.vault.create_note_with(&name, &markdown, None) {
+            Ok(created) => {
+                // Our own write is not an outside change.
+                self.saved_at = Some((created, std::time::Instant::now()));
+                self.vault.message = Some(i18n::tr_fmt("imported {name}", &[("name", &name)]));
+            }
+            Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not create the note"))),
+        }
+    }
+
+    /// Reads the Anki text export at `path` into notes of card callouts, the way the upstream's
+    /// `srs:anki-write` does: a deck of 2000 cards becomes notes of 100, so opening one is cheap.
+    ///
+    /// A text export never carries media, so nothing has to be copied - the cards that show a picture
+    /// keep the reference and the note says how many did.
+    fn import_anki(&mut self, path: &std::path::Path) {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => {
+                self.vault.message = Some(format!("{}: {error}", tl!("could not read the export")));
+                return;
+            }
+        };
+        let import = localobsidian_review::from_anki_text(&text);
+        if import.cards.is_empty() {
+            self.vault.message = Some(tl!("no cards were found in the export").to_string());
+            return;
+        }
+        let deck = path.file_stem().map(|stem| stem.to_string_lossy().trim().to_string()).unwrap_or_default();
+        let deck = if deck.is_empty() { tl!("Anki deck").to_string() } else { deck };
+        let chunks = localobsidian_review::chunk_cards(&import.cards, CARDS_PER_NOTE);
+        let root = self.vault.root.clone();
+        let mut written = 0;
+        for (index, chunk) in chunks.iter().enumerate() {
+            let base = if chunks.len() == 1 { deck.clone() } else { format!("{deck} {}", index + 1) };
+            let name = self.free_note_name(&base);
+            let markdown = localobsidian_review::anki_to_markdown(&name, chunk);
+            match self.vault.create_note_with(&name, &markdown, root.as_deref()) {
+                Ok(created) => {
+                    self.saved_at = Some((created, std::time::Instant::now()));
+                    written += 1;
+                }
+                Err(error) => {
+                    self.vault.message = Some(format!("{}: {error}", tl!("could not create the note")));
+                    return;
+                }
+            }
+        }
+        let mut message =
+            i18n::tr_fmt("imported {cards} cards into {notes} notes", &[("cards", &import.cards.len().to_string()), ("notes", &written.to_string())]);
+        if import.with_media > 0 {
+            message.push_str(&format!(" — {}", tl!("media was left out")));
+        }
+        self.vault.message = Some(message);
+    }
+
+    /// `base`, or `base 2`, `base 3`… - the first name no note in the vault has.
+    fn free_note_name(&self, base: &str) -> String {
+        let taken = |name: &str| self.vault.files.iter().any(|note| note.name.eq_ignore_ascii_case(name));
+        if !taken(base) {
+            return base.to_string();
+        }
+        for number in 2..1000 {
+            let candidate = format!("{base} {number}");
+            if !taken(&candidate) {
+                return candidate;
+            }
+        }
+        base.to_string()
+    }
+
     /// Opens the daily note for `iso`, creating it from `_templates/daily.md` when the user has one.
     fn open_daily_note(&mut self, iso: &str) {
         if !calendar::is_daily_note_name(iso) {
@@ -482,6 +623,18 @@ impl LocalApp {
             }
             Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not create the note"))),
         }
+    }
+
+    /// The help window: what the app does, the keys it answers, and the syntax a note holds.
+    fn help(&mut self, ui: &mut egui::Ui) {
+        if !self.help_open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(tl!("Help")).open(&mut open).default_size([560.0, 540.0]).show(ui.ctx(), |ui| {
+            egui::ScrollArea::vertical().id_salt("help-body").auto_shrink([false, false]).show(ui, help_body);
+        });
+        self.help_open = open;
     }
 
     fn about(&mut self, ui: &mut egui::Ui) {
@@ -666,6 +819,73 @@ impl LocalApp {
     }
 }
 
+/// Cards per note when an Anki deck is imported: a note of 2000 cards takes ~900 ms to draw, and a
+/// session of 100 is what a person reviews in one sitting.
+const CARDS_PER_NOTE: usize = 100;
+
+/// The body of the help window: the keys, what a note holds, and where the files live. A free
+/// function so the QA test can draw it without a whole window.
+pub(crate) fn help_body(ui: &mut egui::Ui) {
+    section(ui, tl!("Getting around"));
+    shortcut(ui, "Ctrl+Shift+O", tl!("Open a vault"));
+    shortcut(ui, "Ctrl+Shift+F", tl!("Search the vault"));
+    shortcut(ui, "Ctrl+S", tl!("Save the note"));
+    shortcut(ui, "Esc", tl!("Close the panel or the window in front"));
+
+    section(ui, tl!("Writing"));
+    shortcut(ui, "Ctrl+B", tl!("Bold"));
+    shortcut(ui, "Ctrl+I", tl!("Italic"));
+    shortcut(ui, "Ctrl+E", tl!("Inline code"));
+    shortcut(ui, "Ctrl+Shift+E", tl!("Highlight"));
+    shortcut(ui, "Tab / Shift+Tab", tl!("Indent or outdent the line"));
+    shortcut(ui, "Ctrl+Enter", tl!("Tick or untick a task"));
+    shortcut(ui, "[[", tl!("Link to another note, with completion"));
+
+    section(ui, tl!("What a note holds"));
+    for (syntax, what) in [
+        (tl!("# Title"), tl!("a heading, ## for the next level")),
+        (tl!("**bold** and *italic*"), tl!("and `code`, ==highlight==, ~~struck~~")),
+        (tl!("[[Note]] or [[Note#Section]]"), tl!("a link; ![[Note]] shows its text here")),
+        (tl!("- [ ] task"), tl!("a task list; Ctrl+Enter ticks it")),
+        (tl!("> [!warning] Title"), tl!("a callout: note, tip, warning, danger…")),
+        (tl!("> [!card]- Question"), tl!("a flashcard; the answer goes in the body")),
+        (tl!("> [!card]"), tl!("with ==highlights==: one cloze card per highlight")),
+    ] {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(syntax).monospace().small());
+            ui.label(egui::RichText::new(what).small().weak());
+        });
+    }
+
+    section(ui, tl!("Where things live"));
+    ui.label(egui::RichText::new(tl!("A vault is a folder of .md files. Pictures and audio go in _attachments/, your own templates in _templates/, and the review schedule in .openobsidian/srs.json - the same file the phone app reads.")).small());
+
+    section(ui, tl!("Reviewing"));
+    shortcut(ui, "Space", tl!("Show the answer"));
+    shortcut(ui, "1 2 3 4", &format!("{} / {} / {} / {}", tl!("Again"), tl!("Hard"), tl!("Good"), tl!("Easy")));
+
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(tl!("The full documentation is in the repository:")).small().weak());
+        ui.hyperlink_to(egui::RichText::new(tl!("README")).small(), APP.repo_url());
+    });
+}
+
+/// A section heading in the help window.
+fn section(ui: &mut egui::Ui, title: &str) {
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new(title).strong());
+    ui.add_space(2.0);
+}
+
+/// One key combination and what it does.
+fn shortcut(ui: &mut egui::Ui, keys: &str, what: &str) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(keys).monospace().small());
+        ui.label(egui::RichText::new(what).small());
+    });
+}
+
 impl eframe::App for LocalApp {
     /// Work that is not drawing: restoring the last vault, the update check, the pickers' answers,
     /// the autosave, and the shortcuts.
@@ -684,8 +904,12 @@ impl eframe::App for LocalApp {
         self.updater.check_at_start(ctx);
         self.updater.tick(ctx);
 
-        for path in self.pickers.take() {
-            self.open_vault(path);
+        for pick in self.pickers.take() {
+            match pick {
+                Pick::Folder(path) => self.open_vault(path),
+                Pick::Document(path) => self.import_document(&path),
+                Pick::Anki(path) => self.import_anki(&path),
+            }
             wake = true;
         }
 
@@ -765,6 +989,7 @@ impl eframe::App for LocalApp {
         self.dialogs(ui);
         self.graph(ui);
         self.calendar(ui);
+        self.help(ui);
 
         // The update prompt and its progress, drawn last so it sits above the window's content.
         match self.updater.show(ui.ctx()) {

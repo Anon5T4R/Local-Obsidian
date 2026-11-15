@@ -27,6 +27,9 @@ pub enum Block {
     List {
         ordered: bool,
         items: Vec<Vec<Span>>,
+        /// The task state of each item, in the same order as `items`. Empty for a plain list; an
+        /// item that is not a task is `None` in a checklist that mixes both.
+        tasks: Vec<Option<Task>>,
     },
     Code {
         language: String,
@@ -51,6 +54,15 @@ pub enum Block {
         alt: Vec<Span>,
     },
     Rule,
+}
+
+/// A `- [ ]` / `- [x]` item in a checklist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Task {
+    pub done: bool,
+    /// Which task of the note this is, counting from zero: the reading view says "this one", and
+    /// the editor finds it by the same count, so no offsets have to survive [`prepare`].
+    pub index: usize,
 }
 
 /// A block's horizontal alignment, from the table's separator row.
@@ -277,11 +289,33 @@ mod tests {
     }
 
     #[test]
-    fn a_checkbox_shows_its_state_as_text() {
+    fn a_checkbox_keeps_its_state_and_its_place_in_the_note() {
         let blocks = blocks("- [x] feito\n- [ ] pendente");
-        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
-        assert_eq!(items[0].iter().map(Span::plain).collect::<String>(), "[x] feito");
-        assert_eq!(items[1].iter().map(Span::plain).collect::<String>(), "[ ] pendente");
+        let Block::List { items, tasks, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        // The marker is a widget, not text: the item's text starts after the box.
+        assert_eq!(items[0].iter().map(Span::plain).collect::<String>(), "feito");
+        assert_eq!(items[1].iter().map(Span::plain).collect::<String>(), "pendente");
+        assert_eq!(tasks[0], Some(Task { done: true, index: 0 }));
+        assert_eq!(tasks[1], Some(Task { done: false, index: 1 }));
+    }
+
+    #[test]
+    fn a_plain_list_has_no_tasks() {
+        let blocks = blocks("- um\n- dois");
+        let Block::List { tasks, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        assert_eq!(tasks, &vec![None, None]);
+    }
+
+    #[test]
+    fn the_task_indexes_count_across_lists() {
+        let blocks = blocks("- [ ] um\n\n1. [x] dois");
+        let mut indexes = Vec::new();
+        for block in &blocks {
+            if let Block::List { tasks, .. } = block {
+                indexes.extend(tasks.iter().flatten().map(|task| (task.index, task.done)));
+            }
+        }
+        assert_eq!(indexes, [(0, false), (1, true)]);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
-use super::{Align, Block, Span};
+use super::{Align, Block, Span, Task};
 
 /// What is open at this point of the parse. Inline containers are always on top of block ones.
 enum Open {
@@ -16,6 +16,7 @@ enum Open {
     List {
         ordered: bool,
         items: Vec<Vec<Span>>,
+        tasks: Vec<Option<Task>>,
     },
     Emphasis(Vec<Span>),
     Strong(Vec<Span>),
@@ -62,6 +63,10 @@ pub(super) fn parse(markdown: &str, options: Options) -> Vec<Block> {
 struct Builder {
     blocks: Vec<Block>,
     stack: Vec<Open>,
+    /// The checkbox of the item being read, waiting for its `Item` to close.
+    pending_task: Option<Task>,
+    /// How many checkboxes the note has declared so far, in document order.
+    task_count: usize,
 }
 
 impl Builder {
@@ -74,7 +79,12 @@ impl Builder {
             Event::SoftBreak => self.text(" "),
             Event::HardBreak => self.text("\n"),
             Event::Rule => self.push_block(Block::Rule),
-            Event::TaskListMarker(done) => self.text(if done { "[x] " } else { "[ ] " }),
+            // A checkbox is drawn as a widget, not as `[x] ` text; the item it belongs to picks it
+            // up when it closes.
+            Event::TaskListMarker(done) => {
+                self.pending_task = Some(Task { done, index: self.task_count });
+                self.task_count += 1;
+            }
             Event::FootnoteReference(name) => self.text(&format!("[^{name}]")),
             Event::InlineMath(tex) | Event::DisplayMath(tex) => self.span(Span::Code(tex.to_string())),
             // Raw HTML has no renderer here; showing it beats dropping it silently.
@@ -88,7 +98,7 @@ impl Builder {
             Tag::Heading { level, .. } => Open::Heading { level: level_number(level), spans: Vec::new() },
             Tag::BlockQuote(_) => Open::Quote(Vec::new()),
             Tag::CodeBlock(kind) => Open::CodeBlock { language: language_of(&kind), text: String::new() },
-            Tag::List(start) => Open::List { ordered: start.is_some(), items: Vec::new() },
+            Tag::List(start) => Open::List { ordered: start.is_some(), items: Vec::new(), tasks: Vec::new() },
             Tag::Item => Open::Item(Vec::new()),
             Tag::Emphasis => Open::Emphasis(Vec::new()),
             Tag::Strong => Open::Strong(Vec::new()),
@@ -145,16 +155,19 @@ impl Builder {
                 }
             }
             TagEnd::List(_) => {
-                if let Some(Open::List { ordered, items }) = self.stack.pop() {
-                    self.push_block(Block::List { ordered, items });
+                if let Some(Open::List { ordered, items, tasks }) = self.stack.pop() {
+                    self.push_block(Block::List { ordered, items, tasks });
                 }
             }
             TagEnd::Item => {
                 if let Some(Open::Item(spans)) = self.stack.pop() {
-                    if let Some(Open::List { items, .. }) = self.stack.last_mut() {
-                        items.push(spans);
-                    } else {
-                        self.push_block(Block::Paragraph(spans));
+                    let task = self.pending_task.take();
+                    match self.stack.last_mut() {
+                        Some(Open::List { items, tasks, .. }) => {
+                            items.push(spans);
+                            tasks.push(task);
+                        }
+                        _ => self.push_block(Block::Paragraph(spans)),
                     }
                 }
             }
@@ -270,7 +283,7 @@ impl Builder {
                 Open::Paragraph(spans) => self.push_block(Block::Paragraph(spans)),
                 Open::Heading { level, spans } => self.push_block(Block::Heading { level, spans }),
                 Open::Quote(blocks) => self.push_block(Block::Quote(blocks)),
-                Open::List { ordered, items } => self.push_block(Block::List { ordered, items }),
+                Open::List { ordered, items, tasks } => self.push_block(Block::List { ordered, items, tasks }),
                 Open::CodeBlock { language, text } => self.push_block(Block::Code { language, text: text.trim_end_matches('\n').to_string() }),
                 Open::Table { aligns, headers, rows, .. } => self.push_block(Block::Table { headers, rows, aligns }),
                 _ => {}

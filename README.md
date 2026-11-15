@@ -9,7 +9,7 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v0.4.0)
+## O que funciona hoje (v0.5.0)
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
   das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
@@ -25,7 +25,15 @@ que o mesmo cofre abra nos dois.
   `Tab`/`Shift+Tab`, `Ctrl+Enter` (checkbox), lista que continua no Enter, autosave de 800 ms e
   `Ctrl+S`; escrita atômica (arquivo temporário + rename), nunca meio arquivo.
 - **Leitura**: títulos, listas, citação, callouts (`> [!warning]`), tabelas alinhadas, blocos de
-  código, imagens de `_attachments/` e links clicáveis; **Edit | Read | Split**.
+  código, imagens de `_attachments/` e links clicáveis; **Edit | Read | Split**. Um `- [ ]` na
+  leitura é uma caixa de verdade: clicar nela alterna a linha no arquivo.
+- **Importar documento** (`Arquivo → Importar um arquivo Word ou OpenDocument...`): um `.docx` ou
+  `.odt` vira uma nota na pasta da nota aberta, com títulos, listas (numeradas inclusive), negrito,
+  itálico, links e tabelas. Imagens, gráficos, notas de rodapé e comentários ficam de fora — o mesmo
+  corte que o app de origem faz. O `.docx` é lido direto do pacote (ZIP + XML), sem Office instalado.
+- **Importar cartões do Anki** (`Arquivo → Importar cartões do Anki (texto)...`): uma exportação de
+  texto (`.txt`, `.tsv`, `.csv`) vira notas de `> [!card]`, 100 cartões por nota, com as tags do
+  baralho no topo. Mídia de um `.apkg` não entra (ver a tabela abaixo).
 - **Renomear** uma nota reescreve os `[[links]]` que apontavam para ela (e diz quantos).
 - **Revisão (SRS)**: flashcards escritos na própria nota — `> [!card]- Pergunta` com a resposta no
   corpo, ou `> [!card]` com `==destaques==` (uma lacuna por destaque, tipo cloze) e `> [!mnemonic]?` —
@@ -45,7 +53,19 @@ que o mesmo cofre abra nos dois.
 - **Cofre observado**: mudança feita por outro programa (editor, cliente de sync) entra sozinha, com
   debounce de 300 ms; as escritas do próprio app e o `srs.json` são ignorados. Se a nota aberta tiver
   texto não salvo, **o seu texto vence** e a barra de status avisa.
+- **Ajuda** (`Ajuda → Atalhos e ajuda`): as teclas, a sintaxe que uma nota aceita e onde cada coisa
+  mora no cofre, com link para esta documentação.
 - Interface em pt-br, es e ja.
+
+## O que este port não faz (e por quê)
+
+| O que | Por quê |
+|---|---|
+| **Plugins / sistema de extensões** | O app de origem é Electron: o "plugin" era código JS rodando no renderer. Aqui não há renderer, nem JS, nem carregador dinâmico — é binário Rust. Não é pendência; é divergência estrutural. |
+| **Visualizador de PDF/EPUB/DOCX na árvore** | Binários ficam fora da árvore (decisão do port). Um `.docx`/`.odt` entra por **importação**, que vira nota editável — o que um cofre de Markdown quer. PDF/EPUB continuam sendo trabalho do leitor do sistema. |
+| **Import de `.apkg` (Anki)** | Ler o pacote exige um motor SQLite. A única opção 100% Rust madura hoje (`turso`/`limbo`) ainda é pré-release e traz uma árvore grande; `rusqlite` compila C, o que o port não aceita. O import de **texto** do Anki (`Arquivo → Importar cartões do Anki (texto)...`) cobre o uso real, e o `.apkg` fica anotado com esse caminho. |
+| **Math renderizado** | Continua em unidade própria (precisa de fontes matemáticas + pintor). Hoje o TeX aparece limpo em monoespaçado, sem virar sopa de símbolos. |
+| **IA / chat** | Sem IA local, por decisão: nada sai da máquina, e não há provedor embutido. A janela de chat do app de origem não tem equivalente. |
 
 ## O que já vem do molde
 

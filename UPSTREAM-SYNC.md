@@ -36,6 +36,13 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Calendário | `CalendarPopover` + `utils/calendar.ts` | popover próprio: grade de 6 semanas, dia com nota marcado, cria a diária a partir de `_templates/daily.md` | mesma conta de mês (clamp de dia) e de nota diária `YYYY-MM-DD` |
 | Templates | `TemplateModal` + 6 embutidos + `exampleTemplate` | 4 embutidos (Blank/Daily/Meeting/Project) + notas do usuário em `_templates/`; variáveis `{{title}}`, `{{date[:fmt]}}`, `{{time}}`, `{{datetime}}` | o `exampleTemplate` é demo de bloco de query; os outros dois embutidos não tinham uso no port |
 | Nota diária | nome `YYYY-MM-DD` na raiz + template `daily` | igual | — |
+| ODT/DOCX | `odtToHtml` + mammoth → HTML → turndown (`.md` ao lado do arquivo) | crate `localobsidian-convert`: ZIP + XML → **Markdown direto**; a nota vai para a pasta da nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
+| Export ODT/DOCX | **não existe** no upstream (só export HTML/PDF) | também não | não se inventa direção que o spec não tem |
+| Conversão de documento | botão na barra, com o arquivo já na árvore | item de menu + seletor nativo; o binário fica fora da árvore | a árvore lista só `.md` (decisão do port) |
+| Checkbox na leitura | clicável (CodeMirror resolve a posição) | clicável: a leitura conta qual caixa é (`n`-ésima) e `toggle_task` acha a mesma linha no fonte | `prepare` reescreve o texto, então deslocamento de byte não sobrevive; a contagem sim |
+| Import Anki `.apkg` | `sql.js` (SQLite em WASM) + `fzstd` para a mídia | **não** — só a exportação de texto | ver a nota abaixo |
+| Import Anki texto | `srs:anki-pick` → `srs:anki-write`, 100 cartões por nota | igual (mesmo `chunk_cards`, mesma colisão de nome com sufixo numérico); notas soltas, não uma pasta por baralho | o upstream cria uma pasta por baralho quando a exportação passa de 100; aqui as notas ficam na raiz com sufixo |
+| Ajuda | `HelpModal` com 5 abas | janela única: teclas, sintaxe da nota, onde cada coisa mora, link do README | 5 abas para uma janela que se abre raramente é peso, não ajuda |
 
 ### Math: avaliação do RaTeX (pendente, unidade própria)
 
@@ -45,13 +52,29 @@ pintor precisa de *fontes matemáticas* (o `MathList` traz `Face::MainRegular/Bo
 contornos) - são MBs de assets com licença própria para registrar em `ATTRIBUTION`, mais um pintor
 egui. Fica como unidade separada (com o João), junto dos pins `ratex-* =0.1.14` (4 crates).
 
+### `.apkg`: por que não entrou (pesquisa de 2026-11-15)
+
+O upstream lê `.apkg` com **`sql.js`** (SQLite compilado para WASM) dentro do Electron. Do lado Rust, as
+opções foram levantadas por evidência:
+
+| Caminho | Estado | Veredito |
+|---|---|---|
+| `rusqlite` (feature `bundled`) | 155 M downloads, maduro | **não**: compila SQLite em C, e o port é pure Rust (sem C no grafo, regra do `AGENTS.md`) |
+| `turso` / `turso_core` (`limbo`) | reescrita em Rust do SQLite, 1,6 M downloads, mas `0.9.0-pre.5` (12/11/2026) | **não agora**: pré-release, API instável, árvore grande — para ler 3 tabelas de um baralho é um martelo de demolição |
+| `sqlite-parser` | 26 k downloads totais, 104 recentes, último release 08/2025 | **não**: praticamente morto, e é parser de *SQL*, não leitor de b-tree |
+| leitor de b-tree próprio (read-only) | não existe no ecossistema; o formato é documentado | **caminho futuro**: ~400 linhas, sem dep, com o `apkg.test.ts` do upstream como spec |
+
+Enquanto isso, a **exportação de texto** cobre o uso real (o Anki exporta `.txt`/`.tsv` em dois
+cliques) e o import dela está implementado. O `.apkg` fica como limitação no README, com este caminho.
+
 ### Pendências herdadas do escopo
 
 - Autocomplete do `[[` existe e é testado; falta só o fuzzy por alias (hoje é `contains`).
 - O painel de busca não tem histórico de queries (o upstream tampouco).
-- Sem IA (o port é files-only, por contrato).
-- Import de `.apkg` adiado para o F5 (precisa de SQLite; ver a tabela acima).
-- Checkbox clicável na leitura segue pendente (hoje é `Ctrl+Enter` no editor).
+- Sem IA (o port é files-only, por contrato) e sem sistema de plugins: o do upstream era JS no
+  renderer, e aqui não há renderer — divergência estrutural, documentada no README.
+- Import de `.apkg` adiado (precisa de SQLite; ver a nota acima).
+- Math/TeX renderizado segue em unidade própria (fontes matemáticas + pintor); hoje é monoespaçado.
 
 ### Decisão do arquiteto 2026-11-15: limitações #4 e #5 do upstream
 

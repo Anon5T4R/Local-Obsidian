@@ -24,6 +24,8 @@ pub enum EditorAction {
     Save,
     /// Open the note a wikilink names.
     Navigate(String),
+    /// Flip the `n`-th `- [ ]` of the note (the reading view clicked its box).
+    ToggleTask(usize),
 }
 
 /// How a run of spans is drawn: the block's size, plus what the inline markers added.
@@ -231,6 +233,7 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
         if let Some(hit) = show_blocks(ui, blocks, vault, images, &mut target) {
             action = match hit {
                 Hit::Link(target) => EditorAction::Navigate(target),
+                Hit::Task(index) => EditorAction::ToggleTask(index),
             };
         }
     });
@@ -269,6 +272,8 @@ fn header(ui: &mut egui::Ui, state: &mut VaultState, active: &std::path::Path, a
 /// What the reading view hit: a link to a note (its section is part of the target).
 enum Hit {
     Link(String),
+    /// A task checkbox of the reading view: the ordinal of the checkbox in the note.
+    Task(usize),
 }
 
 /// Draws blocks, returning what the user clicked. `target` is the section a link asked for: the
@@ -306,12 +311,23 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             ui.add_space(4.0);
             hit
         }
-        Block::List { ordered, items } => {
+        Block::List { ordered, items, tasks } => {
             let mut hit = None;
             for (index, item) in items.iter().enumerate() {
                 ui.horizontal_wrapped(|ui| {
-                    let marker = if *ordered { format!("{}.", index + 1) } else { "•".to_string() };
-                    ui.label(RichText::new(marker).weak());
+                    match tasks.get(index).copied().flatten() {
+                        // A checklist draws a real box: the note's source is what a click edits.
+                        Some(task) => {
+                            let mut done = task.done;
+                            if ui.add(egui::Checkbox::without_text(&mut done)).on_hover_text(tl!("Tick it in the note")).clicked() {
+                                hit = Some(Hit::Task(task.index));
+                            }
+                        }
+                        None => {
+                            let marker = if *ordered { format!("{}.", index + 1) } else { "•".to_string() };
+                            ui.label(RichText::new(marker).weak());
+                        }
+                    }
                     for span in item {
                         if let Some(found) = show_span(ui, span, state, Style::new(14.5)) {
                             hit = Some(found);

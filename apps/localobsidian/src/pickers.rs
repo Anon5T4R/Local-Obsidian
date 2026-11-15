@@ -13,11 +13,22 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-/// The picker in flight, plus the folders waiting for the frame that consumes them.
+use crate::tl;
+
+/// What a finished picker gives back: a folder to open, or a document to import.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Pick {
+    Folder(PathBuf),
+    Document(PathBuf),
+    /// An Anki text export (`.txt`, `.tsv`, `.csv`).
+    Anki(PathBuf),
+}
+
+/// The picker in flight, plus the picks waiting for the frame that consumes them.
 #[derive(Default)]
 pub struct Pickers {
     showing: Arc<AtomicBool>,
-    done: Arc<Mutex<Vec<PathBuf>>>,
+    done: Arc<Mutex<Vec<Pick>>>,
 }
 
 impl Pickers {
@@ -34,11 +45,29 @@ impl Pickers {
         if let Some(dir) = start.filter(|dir| !dir.is_empty()) {
             dialog = dialog.set_directory(dir);
         }
-        self.run(ctx, move || pollster::block_on(dialog.pick_folder()).map(|handle| handle.path().to_path_buf()))
+        self.run(ctx, move || pollster::block_on(dialog.pick_folder()).map(|handle| Pick::Folder(handle.path().to_path_buf())))
+    }
+
+    /// Asks for one document to import. Same contract as [`Self::ask_folder`].
+    pub fn ask_document(&self, ctx: &egui::Context, title: &str, start: Option<&str>) -> bool {
+        let mut dialog = rfd::AsyncFileDialog::new().set_title(title).add_filter(tl!("Word or OpenDocument text"), &["docx", "odt"]);
+        if let Some(dir) = start.filter(|dir| !dir.is_empty()) {
+            dialog = dialog.set_directory(dir);
+        }
+        self.run(ctx, move || pollster::block_on(dialog.pick_file()).map(|handle| Pick::Document(handle.path().to_path_buf())))
+    }
+
+    /// Asks for an Anki text export to import. Same contract as [`Self::ask_folder`].
+    pub fn ask_anki(&self, ctx: &egui::Context, title: &str, start: Option<&str>) -> bool {
+        let mut dialog = rfd::AsyncFileDialog::new().set_title(title).add_filter(tl!("Anki text export"), &["txt", "tsv", "csv"]);
+        if let Some(dir) = start.filter(|dir| !dir.is_empty()) {
+            dialog = dialog.set_directory(dir);
+        }
+        self.run(ctx, move || pollster::block_on(dialog.pick_file()).map(|handle| Pick::Anki(handle.path().to_path_buf())))
     }
 
     /// Runs `dialog` on a worker thread; its result is queued, and the frame that asked is woken up.
-    fn run(&self, ctx: &egui::Context, dialog: impl FnOnce() -> Option<PathBuf> + Send + 'static) -> bool {
+    fn run(&self, ctx: &egui::Context, dialog: impl FnOnce() -> Option<Pick> + Send + 'static) -> bool {
         if self.busy() {
             return false;
         }
@@ -47,10 +76,10 @@ impl Pickers {
         let done = self.done.clone();
         let ctx = ctx.clone(); // an Arc inside: cheap; the thread needs 'static
         std::thread::Builder::new()
-            .name("folder-picker".into())
+            .name("file-picker".into())
             .spawn(move || {
-                if let Some(path) = dialog() {
-                    done.lock().unwrap_or_else(PoisonError::into_inner).push(path);
+                if let Some(pick) = dialog() {
+                    done.lock().unwrap_or_else(PoisonError::into_inner).push(pick);
                 }
                 showing.store(false, Ordering::SeqCst);
                 ctx.request_repaint(); // wakes the frame that consumes the answer
@@ -58,8 +87,8 @@ impl Pickers {
             .is_ok()
     }
 
-    /// The folders chosen so far; the frame that asks clears the queue.
-    pub fn take(&self) -> Vec<PathBuf> {
+    /// The picks made so far; the frame that asks clears the queue.
+    pub fn take(&self) -> Vec<Pick> {
         std::mem::take(&mut *self.done.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }

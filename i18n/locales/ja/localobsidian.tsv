@@ -136,3 +136,59 @@
 	Minimize	最小化
 	Maximize	最大化
 	Close	閉じる
+	Import Anki cards (text)...	Anki のカードを読み込む（テキスト）...
+	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Anki のテキスト書き出し（.txt・.tsv・.csv）。.apkg パッケージは読みません。
+	Anki text export	Anki のテキスト書き出し
+	Import an Anki deck	Anki のデッキを読み込む
+	Anki deck	Anki デッキ
+	could not read the export	書き出しを読めませんでした
+	no cards were found in the export	書き出しにカードがありません
+	imported {cards} cards into {notes} notes	{cards} 枚のカードを {notes} 件のノートに読み込みました
+	media was left out	メディアは含まれていません
+	About	このアプリについて
+	a heading, ## for the next level	見出し（## で下の階層）
+	Stop asking this card	このカードを出題しない
+	Study before the schedule asks; nothing is graded	予定より先に復習します。記録はされません
+	this note has no headings	このノートに見出しはありません
+	Import a Word or OpenDocument file...	Word または OpenDocument ファイルを読み込む...
+	Reads a .docx or .odt into a note. Pictures are left out.	.docx または .odt をノートとして読み込みます。画像は含まれません。
+	Import a document	文書を読み込む
+	Word or OpenDocument text	Word または OpenDocument のテキスト
+	could not read the document	文書を読めませんでした
+	the document has no text to import	読み込むテキストがありません
+	imported {name}	{name} を読み込みました
+	the note {name} already exists; it was opened	ノート {name} は既にあります。開きました
+	Keyboard shortcuts and help	キーボードショートカットとヘルプ
+	Getting around	基本操作
+	Open a vault	保管庫を開く
+	Save the note	ノートを保存
+	Close the panel or the window in front	パネルまたは前面のウィンドウを閉じる
+	Writing	執筆
+	Bold	太字
+	Italic	斜体
+	Inline code	インラインコード
+	Highlight	ハイライト
+	Indent or outdent the line	行をインデント／解除
+	Tick or untick a task	タスクの完了を切り替える
+	Link to another note, with completion	別のノートへのリンク（補完つき）
+	What a note holds	ノートに書けるもの
+	# Title	# 見出し
+	**bold** and *italic*	**太字** と *斜体*
+	and `code`, ==highlight==, ~~struck~~	`コード`、==ハイライト==、~~打ち消し~~
+	[[Note]] or [[Note#Section]]	[[ノート]] または [[ノート#節]]
+	a link; ![[Note]] shows its text here	リンク。![[ノート]] で本文をその場に表示
+	- [ ] task	- [ ] タスク
+	a task list; Ctrl+Enter ticks it	タスクリスト。Ctrl+Enter で切り替え
+	> [!warning] Title	> [!warning] 見出し
+	a callout: note, tip, warning, danger…	コールアウト: note・tip・warning・danger…
+	> [!card]- Question	> [!card]- 質問
+	a flashcard; the answer goes in the body	フラッシュカード。答えは本文に書く
+	> [!card]	> [!card]
+	with ==highlights==: one cloze card per highlight	==ハイライト== ごとに 1 枚の穴埋めカード
+	Where things live	ファイルの場所
+	A vault is a folder of .md files. Pictures and audio go in _attachments/, your own templates in _templates/, and the review schedule in .openobsidian/srs.json - the same file the phone app reads.	保管庫は .md ファイルの入ったフォルダです。画像と音声は _attachments/、自分のテンプレートは _templates/、復習スケジュールは .openobsidian/srs.json にあります。スマホのアプリが読むのと同じファイルです。
+	Reviewing	復習
+	Show the answer	答えを表示
+	The full documentation is in the repository:	詳しい説明はリポジトリにあります:
+	README	README
+	Tick it in the note	ノート側で切り替える

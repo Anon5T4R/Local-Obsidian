@@ -17,4 +17,4 @@ pub mod tags;
 
 pub use frontmatter::Frontmatter;
 pub use links::{Target, display_target, parse_target};
-pub use preview::{Block, Span};
+pub use preview::{Block, Span, Task};
