@@ -1,0 +1,19 @@
+[package]
+name = "localobsidian-review"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's spaced repetition: SM-2 scheduling, flashcard extraction from callouts, and the .openobsidian/srs.json file the Android app shares"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dates as plain calendar days: the schedule is ISO dates, never instants.
+chrono = { workspace = true }
+# srs.json: the one state file shared with OpenObsidianAndroid.
+serde_json = { workspace = true }
+log = { workspace = true }

@@ -49,6 +49,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("vault", Class::Layer(3)),
     // Markdown editing commands: pure text transforms, no UI, no filesystem.
     ("editor", Class::Layer(2)),
+    // Spaced repetition: SM-2, the cards a note declares, and the srs.json the phone shares.
+    ("review", Class::Layer(2)),
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later).

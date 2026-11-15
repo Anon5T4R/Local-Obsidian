@@ -24,6 +24,7 @@ craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
 # the app's own layers (crates/localobsidian-*)
 localobsidian-editor = { path = "crates/editor" }
 localobsidian-md = { path = "crates/md" }
+localobsidian-review = { path = "crates/review" }
 localobsidian-vault = { path = "crates/vault" }
 
 # note format
@@ -35,8 +36,13 @@ saphyr = { version = "0.3", default-features = false }
 regex = "1"
 # Decoding the pictures a note shows. No C: every format listed here is pure Rust.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
+# Watching the vault folder (pure-Rust bindings to ReadDirectoryChangesW/inotify/kqueue).
+notify = "8"
 # Headless UI tests (egui_kittest): the panels render, list what they should and answer clicks.
 egui_kittest = { version = "0.37", default-features = false, features = ["wgpu"] }
+# Calendar days for the flashcard schedule and the daily-note calendar. Pure Rust; already in the
+# tree (craft-update). `clock` brings the local time zone, which is what "due today" means.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # foundation
 log = "0.4"
