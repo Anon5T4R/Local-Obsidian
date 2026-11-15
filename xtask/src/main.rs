@@ -6,6 +6,7 @@
 mod assets;
 mod ico;
 mod layers;
+mod qa;
 mod version;
 
 use std::path::PathBuf;
@@ -20,6 +21,9 @@ commands:
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   layers          enforce the crate dependency layering (see xtask/src/layers.rs)
+  qa-vault [dir]  write the QA vault (every block type, 500+ notes, binaries) into target/qa-vault
+  qa-shots [dir]  one window PNG per size (1920, 1366, 1024, 800 wide) into target/qa-f7
+  qa-sample [n]   copy n notes from the user's own vault into target/qa-vault-real (read-only there)
   version [set X.Y.Z]
                   print the workspace version, or bump it (the single source) and refresh Cargo.lock
 
@@ -35,6 +39,9 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("assets") => assets::run(&root()),
         Some("fmt") => cmd_fmt(),
+        Some("qa-vault") => qa::vault(rest.first().copied()),
+        Some("qa-shots") => qa::shots(rest.first().copied()),
+        Some("qa-sample") => qa::sample(rest.first().copied()),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

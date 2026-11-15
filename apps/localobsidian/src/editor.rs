@@ -422,6 +422,8 @@ fn show_callout(
         .inner_margin(10.0)
         .corner_radius(6.0)
         .show(ui, |ui| {
+            // A callout is a block: it takes the width of the note, not the width of its title.
+            ui.set_min_width(ui.available_width());
             ui.label(RichText::new(title).strong().color(color));
             ui.add_space(2.0);
             if let Some(found) = show_blocks(ui, body, state, images, target) {
@@ -664,6 +666,12 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
         }
         Span::Code(text) => {
             ui.label(style.rich(text.clone()).monospace().background_color(ui.visuals().code_bg_color));
+            None
+        }
+        Span::Highlight(text) => {
+            // `==text==`: a tint of the accent, the same one the export uses.
+            let accent = crate::theme::accent(ui.visuals().dark_mode);
+            ui.label(style.rich(drawable(ui, text, style.size)).background_color(accent.gamma_multiply(0.22)));
             None
         }
         Span::Strong(inner) => nested(ui, inner, state, style.strong()),

@@ -67,6 +67,10 @@ struct Builder {
     pending_task: Option<Task>,
     /// How many checkboxes the note has declared so far, in document order.
     task_count: usize,
+    /// Blocks found inside a list item (a nested list, a table). An item holds only spans, so they
+    /// wait here and come out *after* the list that contains them - pushing them at once put the
+    /// nested list before its own parent, and the reading order came out inside out.
+    deferred: Vec<Block>,
 }
 
 impl Builder {
@@ -157,6 +161,11 @@ impl Builder {
             TagEnd::List(_) => {
                 if let Some(Open::List { ordered, items, tasks }) = self.stack.pop() {
                     self.push_block(Block::List { ordered, items, tasks });
+                    // The blocks a nested item held follow the list itself: the reading order stays
+                    // the order of the source.
+                    for block in std::mem::take(&mut self.deferred) {
+                        self.push_block(block);
+                    }
                 }
             }
             TagEnd::Item => {
@@ -243,9 +252,31 @@ impl Builder {
         // A `#tag` in the body is drawn as a tag, by the same rules the index uses.
         for piece in crate::tags::pieces(text) {
             match piece {
-                crate::tags::Piece::Text(plain) => self.span(Span::Text(plain.to_string())),
+                crate::tags::Piece::Text(plain) => self.highlights(plain),
                 crate::tags::Piece::Tag(tag) => self.span(Span::Tag(tag.to_string())),
             }
+        }
+    }
+
+    /// `==text==` on one line is a highlight; an odd `==` or one that spans lines is text, so a
+    /// note that uses the marks for something else is not mangled.
+    fn highlights(&mut self, text: &str) {
+        let mut rest = text;
+        while let Some(open) = rest.find("==") {
+            let after = &rest[open + 2..];
+            let Some(close) = after.find("==") else { break };
+            let inner = &after[..close];
+            if inner.is_empty() || inner.contains('\n') {
+                break;
+            }
+            if open > 0 {
+                self.span(Span::Text(rest[..open].to_string()));
+            }
+            self.span(Span::Highlight(inner.to_string()));
+            rest = &after[close + 2..];
+        }
+        if !rest.is_empty() {
+            self.span(Span::Text(rest.to_string()));
         }
     }
 
@@ -273,7 +304,16 @@ impl Builder {
     }
 
     /// Blocks go to the nearest block container above the block level (a quote), else to the root.
+    /// A block found inside a list item is deferred: it belongs after the list, not before it.
     fn push_block(&mut self, block: Block) {
+        if !matches!(block, Block::Paragraph(_)) && self.stack.iter().any(|open| matches!(open, Open::Item(_))) {
+            self.deferred.push(block);
+            return;
+        }
+        self.place_block(block);
+    }
+
+    fn place_block(&mut self, block: Block) {
         for open in self.stack.iter_mut().rev() {
             if let Open::Quote(blocks) = open {
                 blocks.push(block);

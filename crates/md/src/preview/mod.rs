@@ -84,6 +84,8 @@ pub enum Span {
     Strike(Vec<Span>),
     /// A `#tag` written in the note: the reading view draws it as a tag, not as prose.
     Tag(String),
+    /// `==text==`: the author's highlight, drawn with a tinted background.
+    Highlight(String),
     /// `destination` is a URL or this app's `#wikilink:<target>` form (see [`links::from_url`]).
     Link {
         spans: Vec<Span>,
@@ -97,6 +99,7 @@ impl Span {
         match self {
             Span::Text(text) | Span::Code(text) => text.clone(),
             Span::Tag(tag) => format!("#{tag}"),
+            Span::Highlight(text) => text.clone(),
             Span::Strong(spans) | Span::Emphasis(spans) | Span::Strike(spans) => spans.iter().map(Span::plain).collect(),
             Span::Link { spans, .. } => spans.iter().map(Span::plain).collect(),
         }
@@ -289,6 +292,37 @@ mod tests {
         let Block::Paragraph(spans) = &blocks[0] else { panic!("{blocks:?}") };
         assert!(matches!(&spans[1], Span::Strong(_)), "{spans:?}");
         assert!(matches!(&spans[3], Span::Emphasis(_)), "{spans:?}");
+    }
+
+    #[test]
+    fn a_nested_list_comes_after_its_parent() {
+        // The nested list is a block of its own (an item holds spans only) and has to land *after*
+        // the list that contains it - before this it came out inside out, child list first.
+        let blocks = blocks("- pai\n  - filho\n- irmão");
+        let lists: Vec<&Block> = blocks.iter().filter(|block| matches!(block, Block::List { .. })).collect();
+        assert_eq!(lists.len(), 2, "{blocks:?}");
+        let Block::List { items, .. } = lists[0] else { panic!() };
+        assert_eq!(items.len(), 2, "the parent keeps its items: {items:?}");
+        let Block::List { items, .. } = lists[1] else { panic!() };
+        assert_eq!(items.len(), 1, "the nested one holds the child: {items:?}");
+        assert!(lists[0].plain().contains("pai") && lists[0].plain().contains("irmão"), "{lists:?}");
+        assert!(lists[1].plain().contains("filho"));
+    }
+
+    #[test]
+    fn a_highlight_is_its_own_run() {
+        let blocks = blocks("um ==destaque== e outro");
+        let Block::Paragraph(spans) = &blocks[0] else { panic!("{blocks:?}") };
+        assert_eq!(spans[0], Span::Text("um ".into()));
+        assert_eq!(spans[1], Span::Highlight("destaque".into()));
+        assert_eq!(spans[2], Span::Text(" e outro".into()));
+        assert_eq!(blocks[0].plain(), "um destaque e outro");
+    }
+
+    #[test]
+    fn an_odd_pair_of_equals_stays_text() {
+        assert_eq!(blocks("a == b")[0].plain().trim(), "a == b");
+        assert_eq!(blocks("== aberto")[0].plain().trim(), "== aberto");
     }
 
     #[test]

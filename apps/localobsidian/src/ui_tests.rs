@@ -83,7 +83,7 @@ fn shot<State>(harness: &mut Harness<'_, State>, name: &str) {
     if std::env::var_os("LOCALOBSIDIAN_QA_RENDER").is_none() {
         return;
     }
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/qa-f3");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/qa-f7");
     if std::fs::create_dir_all(&directory).is_err() {
         return;
     }
@@ -216,6 +216,121 @@ fn the_tag_chips_filter_the_tree() {
     harness.get_by_label("uti 1").click();
     harness.run_steps(2);
     assert_eq!(harness.state().tag_filter.as_deref(), Some("uti"), "the chip filters the tree by that tag");
+}
+
+/// The QA battery's note: the same file the vault generator writes, so the test's spec is the real
+/// content and not a second demo.
+const KITCHEN_SINK: &str = include_str!("../../../qa/kitchen-sink.md");
+
+/// The window sizes the app is used at, wide to narrow: a table that fits 1920 can collapse at 800.
+const QA_SIZES: [(f32, f32); 4] = [(1920.0, 1080.0), (1366.0, 768.0), (1024.0, 600.0), (800.0, 500.0)];
+
+/// The QA battery: the kitchen-sink note laid out at every window size, with the assertions the
+/// collapsed table and the overlapping sidebar would have tripped. This is the test that runs before
+/// a phase closes; the PNGs are what the visual QA looks at.
+#[test]
+fn the_kitchen_sink_lays_out_at_every_window_size() {
+    for (width, height) in QA_SIZES {
+        let scratch = Scratch::new(&format!("battery-{}", width as u32), &[("Tudo.md", KITCHEN_SINK)]);
+        let mut state = VaultState::default();
+        state.open(scratch.0.clone()).expect("open the vault");
+        state.open_note(&scratch.0.join("Tudo.md"));
+        state.view = crate::vault_state::ViewMode::Read;
+        let images = crate::images::Images::default();
+        let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
+            |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+                crate::editor::show(ui, state, images);
+            },
+            (state, images),
+        );
+        harness.run_steps(3);
+        shot(&mut harness, &format!("battery-{}x{}", width as u32, height as u32));
+
+        // The table shares the page instead of collapsing into a sliver: the header cells are on one
+        // row, each column starts after the one before it, and the fourth column sits well into the
+        // width (in the collapsed version all four fit inside the first ~200 px).
+        let first = harness.get_by_label("Coluna curta").rect();
+        let second = harness.get_by_label("Uma coluna com nome bem mais longo").rect();
+        let fourth = harness.get_by_label("Outra").rect();
+        assert!((first.top() - second.top()).abs() < 2.0, "{width}x{height}: header cells on different rows");
+        assert!(second.left() > first.right() + 8.0, "{width}x{height}: the columns touch: {first:?} vs {second:?}");
+        assert!(fourth.left() > width * 0.25, "{width}x{height}: the table collapsed to {} px", fourth.left());
+        let cell = harness.get_by_label("texto médio na célula").rect();
+        assert!(cell.height() < 60.0, "{width}x{height}: the cell became a tower ({:?})", cell.height());
+
+        // No two labels share a rectangle: that is what "two lists drawn in the same place" looks
+        // like in the tree, and it is the cheapest way to catch it on any screen.
+        let labels: Vec<egui::Rect> = harness.get_all_by_role(egui::accesskit::Role::Label).map(|node| node.rect()).collect();
+        for (index, one) in labels.iter().enumerate() {
+            for other in labels.iter().skip(index + 1) {
+                let overlap = one.intersect(*other);
+                if overlap.width() <= 2.0 || overlap.height() <= 2.0 {
+                    continue;
+                }
+                // A label inside another is nesting (a run inside a line); two labels crossing each
+                // other is the bug - that is what two lists drawn in the same place look like.
+                let contains = |outer: &egui::Rect, inner: &egui::Rect| outer.contains(inner.min) && outer.contains(inner.max);
+                if contains(one, other) || contains(other, one) {
+                    continue;
+                }
+                panic!("{width}x{height}: two labels overlap: {one:?} and {other:?}");
+            }
+        }
+    }
+}
+
+/// The window the shots are taken from: the app itself, not a panel, and the vault the user has when
+/// it exists. `cargo xtask qa-shots` runs it; it is slower than two minutes, so it stays out of CI.
+#[test]
+#[ignore = "needs a built app and the QA vault: run `cargo xtask qa-vault && cargo xtask qa-shots`"]
+fn the_window_shots_are_taken_from_the_generated_vault() {
+    // The real work lives in xtask, which owns the process; this test only documents where it is.
+    let shots = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/qa-f7");
+    assert!(shots.is_dir(), "run `cargo xtask qa-shots`; it writes into {}", shots.display());
+}
+
+#[test]
+fn a_wikilink_in_the_reading_view_is_clickable() {
+    let scratch = Scratch::new("wikilink-click", &[("Origem.md", "# Origem\n\nVeja [[Alvo]] para o resto.\n"), ("Alvo.md", "# Alvo\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Origem.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let action = Rc::new(RefCell::new(crate::editor::EditorAction::None));
+    let sink = action.clone();
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 320.0)).build_ui_state(
+        move |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let done = crate::editor::show(ui, state, images);
+            if done != crate::editor::EditorAction::None {
+                *sink.borrow_mut() = done;
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-wikilink");
+
+    harness.get_by_label("Alvo").click();
+    harness.run_steps(2);
+    assert_eq!(*action.borrow(), crate::editor::EditorAction::Navigate("Alvo".into()), "the link navigates");
+}
+
+#[test]
+fn the_binaries_of_the_vault_stay_out_of_the_tree() {
+    // The generated vault holds a `.txt`, a `.docx` and a `.pdf` next to the notes: none of them is
+    // listed. When "open with the system" arrives, this test becomes the click on the row.
+    let scratch = Scratch::new("binaries", &[("Nota.md", "# Nota\n"), ("leia-me.txt", "texto"), ("protocolo.pdf", "%PDF-1.4"), ("anexo.docx", "PK")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    assert_eq!(state.files.len(), 1, "only the note is a note: {:?}", state.files.iter().map(|note| &note.name).collect::<Vec<_>>());
+    let mut harness = Harness::builder().with_size(egui::vec2(360.0, 320.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let _ = panels::tags(ui, state, 120.0);
+        },
+        state,
+    );
+    harness.run_steps(2);
 }
 
 #[test]

@@ -156,6 +156,7 @@ fn spans_html(spans: &[Span]) -> String {
         match span {
             Span::Text(text) => out.push_str(&escape(text)),
             Span::Tag(tag) => out.push_str(&format!("<span class=\"tag\">#{}</span>", escape(tag))),
+            Span::Highlight(text) => out.push_str(&format!("<mark>{}</mark>", escape(text))),
             Span::Code(text) => out.push_str(&format!("<code>{}</code>", escape(text))),
             Span::Strong(inner) => out.push_str(&format!("<strong>{}</strong>", spans_html(inner))),
             Span::Emphasis(inner) => out.push_str(&format!("<em>{}</em>", spans_html(inner))),

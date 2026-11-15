@@ -114,6 +114,21 @@ xtask/               fmt, assets, layers, version, ico
 Camadas: crie `crates/localobsidian-<nome>` e registre em `xtask/src/layers.rs` (`TABLE`) — o gate
 `cargo xtask layers` cobra o registro e as direções (nada abaixo de L5 puxa egui).
 
+## QA local (bateria de renderização)
+
+O conteúdo real é o spec: `cargo xtask qa-vault` gera `target/qa-vault/` com 580+ notas, todo tipo de
+bloco (títulos, tabela grande, callouts, listas aninhadas, citação com link, destaque, código,
+mermaid, query, emoji, frontmatter inválido), 120+ tags e os binários que a árvore mantém fora
+(`.txt`, `.docx`, `.pdf`). `cargo xtask qa-shots` abre o app nesse cofre em **1920, 1366, 1024 e
+800** px de largura e guarda um PNG de cada em `target/qa-f7/`; `cargo xtask qa-sample` copia ~20
+notas do cofre que o usuário tem (somente leitura) para `target/qa-vault-real/`, e as mesmas capturas
+saem sobre elas.
+
+A bateria automática é o teste `the_kitchen_sink_lays_out_at_every_window_size` (`cargo test`): nos
+quatro tamanhos ele cobra tabela espalhada na largura e sem torre de palavras, nenhum par de rótulos
+sobreposto, e (à parte) link clicável e binários fora da árvore. `qa-shots` leva ~12 s e fica fora do
+CI; o teste de layout roda sempre.
+
 ## Build e verificação
 
 ```
