@@ -1,0 +1,17 @@
+[package]
+name = "localobsidian-convert"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's document import: an .odt or .docx (a ZIP of XML) read into this app's Markdown"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Both office formats are a ZIP holding XML. Pure Rust, no C.
+zip = { workspace = true }
+quick-xml = { workspace = true }

@@ -2396,6 +2396,7 @@ dependencies = [
  "egui",
  "egui_kittest",
  "image",
+ "localobsidian-convert",
  "localobsidian-editor",
  "localobsidian-md",
  "localobsidian-review",
@@ -2406,6 +2407,14 @@ dependencies = [
  "rfd",
  "serde_json",
  "winresource",
+]
+
+[[package]]
+name = "localobsidian-convert"
+version = "0.4.0"
+dependencies = [
+ "quick-xml 0.41.0",
+ "zip",
 ]
 
 [[package]]
