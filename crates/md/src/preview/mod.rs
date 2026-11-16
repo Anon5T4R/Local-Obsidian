@@ -53,6 +53,10 @@ pub enum Block {
         destination: String,
         alt: Vec<Span>,
     },
+    /// A fence whose language is `query`: a question about the vault, not code to show.
+    Query {
+        source: String,
+    },
     Rule,
 }
 
@@ -114,6 +118,7 @@ impl Block {
             Block::Heading { spans, .. } | Block::Paragraph(spans) => join(spans),
             Block::List { items, .. } => items.iter().map(|item| join(item)).collect::<Vec<_>>().join("\n"),
             Block::Code { text, .. } => text.clone(),
+            Block::Query { source } => source.clone(),
             Block::Quote(inner) | Block::Callout { body: inner, .. } => inner.iter().map(Block::plain).collect::<Vec<_>>().join("\n"),
             Block::Table { headers, rows, .. } => {
                 let mut lines: Vec<String> = vec![headers.iter().map(|cell| join(cell)).collect::<Vec<_>>().join(" | ")];
@@ -444,6 +449,23 @@ mod tests {
         let Block::Callout { body, .. } = &blocks[0] else { panic!("not a callout: {blocks:?}") };
         assert_eq!(body.len(), 1, "{body:?}");
         assert_eq!(body[0].plain(), "primeiro segundo");
+    }
+
+    #[test]
+    fn a_query_fence_is_a_question_and_a_rust_fence_is_code() {
+        let blocks = blocks("```query\ntag: #uti\nsort: titulo\n```\n\n```rust\nfn x() {}\n```\n");
+        let Block::Query { source } = &blocks[0] else { panic!("not a query: {blocks:?}") };
+        assert_eq!(source, "tag: #uti\nsort: titulo");
+        assert!(matches!(&blocks[1], Block::Code { language, .. } if language == "rust"), "{blocks:?}");
+        // The query's text is still its own text, so search previews and the export see it.
+        assert_eq!(blocks[0].plain(), "tag: #uti\nsort: titulo");
+    }
+
+    #[test]
+    fn a_query_inside_a_callout_is_still_a_query() {
+        let blocks = blocks("> [!note] Nota\n>\n> ```query\n> tag: #uti\n> ```\n");
+        let Block::Callout { body, .. } = &blocks[0] else { panic!("not a callout: {blocks:?}") };
+        assert!(matches!(body[0], Block::Query { .. }), "{body:?}");
     }
 
     #[test]

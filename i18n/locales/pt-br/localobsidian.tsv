@@ -55,6 +55,17 @@
 	Go back or forward between the notes you visited	Voltar ou avançar entre as notas que você visitou
 	Tags ({count})	Tags ({count})
 	Clear the tag	Limpar a tag
+	Deck	Baralho
+	Next in this session	Próximos nesta sessão
+	query	consulta
+	Open this note	Abrir esta nota
+	no note matches this query	nenhuma nota corresponde a esta consulta
+	not understood: {line}	não entendi: {line}
+@plural	{n} result|{n} results	{n} resultado|{n} resultados
+@plural	+{n} more|+{n} more	+{n} mais|+{n} mais
+@plural	{n} card in this deck|{n} cards in this deck	{n} card neste baralho|{n} cards neste baralho
+@plural	{n} note with cards here|{n} notes with cards here	{n} nota com cards aqui|{n} notas com cards aqui
+@plural	Practice the {n} card|Practice the {n} cards	Treinar o {n} card|Treinar os {n} cards
 	Review	Revisão
 	Review the whole vault	Revisar o cofre inteiro
 	Review this note	Revisar esta nota

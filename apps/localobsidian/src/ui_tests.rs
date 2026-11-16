@@ -867,6 +867,69 @@ fn the_statistics_panel_lists_the_next_cards_of_the_session() {
 }
 
 #[test]
+fn a_query_block_answers_with_the_notes_it_selects() {
+    // The "convert test" note: a fenced `query` block used to render as a static box. It is a
+    // question, and the reading view answers it against the vault as it is now.
+    let scratch = Scratch::new(
+        "query-block",
+        &[
+            ("Q.md", "# Q\n\n```query\ntag: #tipo-patologia\nsort: titulo\n```\n"),
+            ("Anafilaxia.md", "---\ntags: [tipo-patologia]\n---\n\n# Anafilaxia\n"),
+            ("Asma.md", "---\ntags: [tipo-patologia]\n---\n\n# Asma\n"),
+            ("Outra.md", "---\ntags: [tipo-indice]\n---\n\n# Outra\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Q.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let action = Rc::new(RefCell::new(crate::editor::EditorAction::None));
+    let sink = action.clone();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 520.0)).build_ui_state(
+        move |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let done = crate::editor::show(ui, state, images);
+            if done != crate::editor::EditorAction::None {
+                *sink.borrow_mut() = done;
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-query-block");
+
+    harness.get_by_label_contains("2 results");
+    // The notes that carry the tag, in name order, and not the one that does not.
+    harness.get_by_label("Anafilaxia");
+    harness.get_by_label("Asma");
+    assert!(harness.query_by_label("Outra").is_none(), "the other tag is not selected");
+
+    harness.get_by_label("Asma").click();
+    harness.run_steps(2);
+    assert_eq!(*action.borrow(), crate::editor::EditorAction::Navigate("Asma".into()), "a result opens the note");
+}
+
+#[test]
+fn a_query_block_says_what_it_did_not_understand() {
+    let scratch = Scratch::new("query-bad", &[("Q.md", "# Q\n\n```query\ntag: #uti\ncor: azul\n```\n"), ("A.md", "---\ntags: [uti]\n---\n\n# A\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Q.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(620.0, 420.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let _ = crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-query-bad");
+    harness.get_by_label_contains("1 result");
+    harness.get_by_label_contains("not understood: cor: azul");
+}
+
+#[test]
 fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
     // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
     // themselves and not for what comes after, so the tree and the backlinks overlapped.

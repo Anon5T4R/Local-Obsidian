@@ -11,6 +11,7 @@
 pub mod filter;
 pub mod fs;
 pub mod index;
+pub mod query;
 pub mod resolve;
 pub mod search;
 pub mod tree;

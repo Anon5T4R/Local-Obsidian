@@ -14,6 +14,15 @@ use localobsidian_vault as vault;
 /// Autosave waits this long after the last keystroke, so a burst of typing is one write.
 pub const AUTOSAVE_AFTER: Duration = Duration::from_millis(800);
 
+/// What a `query` block answers: how many notes matched, the first few of them, and the lines the
+/// parser could not use.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct QueryOutcome {
+    pub total: usize,
+    pub notes: Vec<vault::NoteFile>,
+    pub mistakes: Vec<String>,
+}
+
 /// Which pane the note is shown in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ViewMode {
@@ -628,7 +637,15 @@ impl VaultState {
         review::stats(&self.srs, &review::today())
     }
 
-    /// The report of the cards in `files` (the whole schedule when `None`).
+    /// The notes `source` (the text of a `query` fence) selects, with the mistakes it made.
+    pub fn query_vault(&self, source: &str) -> QueryOutcome {
+        const SHOWN: usize = 12;
+        let query = vault::query::parse(source);
+        let notes = vault::query::run(&self.files, &self.index, &query);
+        QueryOutcome { total: notes.len(), notes: notes.into_iter().take(SHOWN).cloned().collect(), mistakes: query.mistakes }
+    }
+
+    /// The statistics of the cards in `files` (the whole schedule when `None`).
     pub fn srs_report_for(&self, files: Option<&[String]>) -> review::SrsReport {
         let today = review::today();
         match files {
@@ -1032,6 +1049,7 @@ mod tests {
                         }
                     }
                     Block::Image { destination, .. } => text.push_str(destination),
+                    Block::Query { source } => text.push_str(source),
                     Block::Rule => {}
                 }
             }

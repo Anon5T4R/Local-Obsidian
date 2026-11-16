@@ -575,6 +575,46 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             ui.add_space(16.0);
             None
         }
+        Block::Query { source } => {
+            let outcome = state.query_vault(source);
+            let mut hit = None;
+            egui::Frame::new()
+                .fill(ui.visuals().faint_bg_color)
+                .stroke(egui::Stroke::new(1.0, ui.visuals().weak_text_color().gamma_multiply(0.35)))
+                .corner_radius(6)
+                .inner_margin(12.0)
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(tl!("query")).small().weak());
+                        ui.label(RichText::new(crate::i18n::trn(outcome.total as u64, "{n} result", "{n} results")).small().strong());
+                    });
+                    // A line the parser cannot use is said out loud: a query that quietly matches
+                    // everything would be worse than an error.
+                    for mistake in &outcome.mistakes {
+                        ui.label(
+                            RichText::new(crate::i18n::tr_fmt("not understood: {line}", &[("line", mistake)]))
+                                .small()
+                                .color(ui.visuals().warn_fg_color),
+                        );
+                    }
+                    if outcome.total == 0 && outcome.mistakes.is_empty() {
+                        ui.label(RichText::new(tl!("no note matches this query")).small().weak());
+                    }
+                    for note in &outcome.notes {
+                        let label = ui.add(egui::Label::new(Style::new(BODY_SIZE * zoom).rich(note.name.clone())).sense(egui::Sense::click()));
+                        if label.on_hover_text(tl!("Open this note")).clicked() {
+                            hit = Some(Hit::Link(note.name.clone()));
+                        }
+                    }
+                    if outcome.total > outcome.notes.len() {
+                        let more = outcome.total - outcome.notes.len();
+                        ui.label(RichText::new(crate::i18n::trn(more as u64, "+{n} more", "+{n} more")).small().weak());
+                    }
+                });
+            ui.add_space(12.0);
+            hit
+        }
         Block::Quote(inner) => {
             let weak = ui.visuals().weak_text_color();
             let quoted = ui.indent(ui.scope_id().with("quote"), |ui| {

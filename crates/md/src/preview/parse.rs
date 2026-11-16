@@ -155,7 +155,14 @@ impl Builder {
             }
             TagEnd::CodeBlock => {
                 if let Some(Open::CodeBlock { language, text }) = self.stack.pop() {
-                    self.push_block(Block::Code { language, text: text.trim_end_matches('\n').to_string() });
+                    let text = text.trim_end_matches('\n').to_string();
+                    // A `query` fence is a question about the vault: the reading view answers it,
+                    // it does not print it as a code sample.
+                    if language.eq_ignore_ascii_case("query") {
+                        self.push_block(Block::Query { source: text });
+                    } else {
+                        self.push_block(Block::Code { language, text });
+                    }
                 }
             }
             TagEnd::List(_) => {

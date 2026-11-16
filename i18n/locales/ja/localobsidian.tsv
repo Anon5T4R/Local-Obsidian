@@ -55,6 +55,17 @@
 	Go back or forward between the notes you visited	訪れたノートを戻る・進む
 	Tags ({count})	タグ ({count})
 	Clear the tag	タグを解除
+	Deck	デッキ
+	Next in this session	このセッションの次のカード
+	query	クエリ
+	Open this note	このノートを開く
+	no note matches this query	このクエリに一致するノートはありません
+	not understood: {line}	解釈できません: {line}
+@plural	{n} result|{n} results	{n} 件
+@plural	+{n} more|+{n} more	残り {n} 件
+@plural	{n} card in this deck|{n} cards in this deck	このデッキに {n} 枚
+@plural	{n} note with cards here|{n} notes with cards here	ここにカードのあるノート {n} 件
+@plural	Practice the {n} card|Practice the {n} cards	{n} 枚を練習
 	Review	復習
 	Review the whole vault	保管庫全体を復習
 	Review this note	このノートを復習

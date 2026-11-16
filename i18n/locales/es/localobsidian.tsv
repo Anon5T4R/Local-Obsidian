@@ -55,6 +55,17 @@
 	Go back or forward between the notes you visited	Volver o avanzar entre las notas que visitó
 	Tags ({count})	Etiquetas ({count})
 	Clear the tag	Quitar la etiqueta
+	Deck	Mazo
+	Next in this session	A continuación en esta sesión
+	query	consulta
+	Open this note	Abrir esta nota
+	no note matches this query	ninguna nota coincide con esta consulta
+	not understood: {line}	no entendí: {line}
+@plural	{n} result|{n} results	{n} resultado|{n} resultados
+@plural	+{n} more|+{n} more	+{n} más|+{n} más
+@plural	{n} card in this deck|{n} cards in this deck	{n} tarjeta en este mazo|{n} tarjetas en este mazo
+@plural	{n} note with cards here|{n} notes with cards here	{n} nota con tarjetas aquí|{n} notas con tarjetas aquí
+@plural	Practice the {n} card|Practice the {n} cards	Practicar la {n} tarjeta|Practicar las {n} tarjetas
 	Review	Repaso
 	Review the whole vault	Repasar todo el cofre
 	Review this note	Repasar esta nota

@@ -77,6 +77,8 @@ fn block_html(block: &Block) -> String {
             // An empty paragraph is nothing to show (a note with only a picture gets one).
             if plain(spans).trim().is_empty() { String::new() } else { format!("<p>{}</p>", spans_html(spans)) }
         }
+        // An exported page has no vault behind it to ask: the query shows as it was written.
+        Block::Query { source } => format!("<pre class=\"query\">{}</pre>", escape(source)),
         Block::List { ordered, items, tasks } => {
             let (open, close) = if *ordered { ("ol", "ol") } else { ("ul", "ul") };
             let mut out = format!("<{open}>");
