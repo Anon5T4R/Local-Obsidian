@@ -72,8 +72,13 @@ que o mesmo cofre abra nos dois.
 - **Query blocks**: uma cerca ` ```query ` não é código para ler, é pergunta para responder —
   `tag:`, `path:`, `has:` e qualquer campo do frontmatter (`tipo: patologia`), com `sort: titulo|
   modificado|caminho [desc]` e `limit:`. A leitura mostra "N resultados" e a lista clicável (as notas
-  que casam, na ordem pedida); a linha que a gramática não entende aparece como aviso em vez de ser
-  ignorada. Mesma gramática do app Android.
+  que casam, na ordem pedida), com `+N more` para revelar o resto; a linha que a gramática não entende
+  aparece como aviso em vez de ser ignorada. Mesma gramática do app Android.
+- **Flashcards de IA** (`IA → Create flashcards from this note`, `Ctrl+Shift+K` ou o menu da nota na
+  árvore): o modelo escreve `> [!card] pergunta` + `> ==resposta==` a partir da nota aberta e o
+  resultado vai para **uma nota nova ao lado** (`<nota> AI.md`), com o frontmatter e as tags herdados
+  mais `flashcards-ai`; a nota original não é tocada e o undo apaga só a criada. O diálogo escolhe
+  cards por seção (1/2/3/5) e idioma, mostra o stream com Stop e reabre com a razão se a engine falhar.
 - **Diagnóstico do cofre** (`Visualizar → Diagnóstico do cofre`): links que apontam para nota
   inexistente (com quem os escreveu), notas órfãs (sem link de entrada nem de saída) e nomes
   duplicados em pastas diferentes — cada linha abre a nota.

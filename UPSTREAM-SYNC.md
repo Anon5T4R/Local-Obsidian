@@ -108,6 +108,7 @@ mesmo cofre responder diferente nos dois lados. Quando o Android for tocado de n
 | Decisões travadas (11 itens com veredito) | `docs/limitations.md` do upstream | itens "Keep" são requisito: não "consertar" no port |
 | Gramática de query | `utils/noteQuery.ts` + `NoteQuery` do Android | **a mesma gramática** em `crates/vault/src/query.rs`: `tag`/`tags`, `path`/`pasta`, `has`/`tem`, campo de frontmatter livre, `sort`/`ordenar` (titulo/modificado/criado/caminho + `desc`) e `limit`/`limite`; linha inválida volta em `mistakes` | uma só gramática, igual ao Android de propósito. `criado` cai em `modificado` (o cofre não guarda data de criação) |
 | Diagnóstico do cofre | **não existe** no upstream | janela própria: links quebrados (com quem os escreveu), notas órfãs e nomes duplicados, cada linha abre a nota | pedido do ledger do vault do João (item P1 não coberto pelo Electron) |
+| Flashcards de IA | **não existe** no upstream (o Electron não tem IA) | `IA → Create flashcards from this note`: o modelo escreve `[!card]` e o resultado vira **nota nova ao lado** (`<nota> AI`), original intacta, undo = apagar a criada | padrão Ação-Artefato da suíte (`padrao-craft.md` §Superfície de IA), destrutividade zero por decisão do João |
 | Contrato de vault | backlog B18 (dev-notes) | files-only: `.md` + frontmatter + wikilinks + embeds, `_attachments/`, `.openobsidian/srs.json` como único estado compartilhado |
 
 ## Forks vendored (`libs/`)
