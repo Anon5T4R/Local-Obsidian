@@ -798,6 +798,75 @@ fn the_statistics_panel_follows_the_deck_of_the_session() {
 }
 
 #[test]
+fn the_deck_can_be_changed_from_the_panel() {
+    // The panel used to leave the deck frozen at whatever the menu opened. The selector lists the
+    // decks the vault has, with their counts, and switching reloads the session.
+    let scratch = Scratch::new(
+        "review-selector",
+        &[
+            ("MOC.md", "---\ntags: [uti]\n---\n\n# Moc\n\n> [!card] Do MOC\n> Resposta\n"),
+            ("Outra.md", "---\ntags: [uti]\n---\n\n# Outra\n\n> [!card] Da outra\n> Resposta\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("MOC.md"));
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::Note("MOC.md".to_string()));
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 420.0)).build_ui_state(
+        |ui, (state, review, images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| {
+            review.ui(ui, state, images);
+        },
+        (state, review, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-selector");
+
+    // The selector is closed: it shows the deck in use. Opening it lists the decks with counts.
+    harness.get_by_label("Deck").click();
+    harness.run_steps(2);
+    harness.get_by_label_contains("the whole vault (2)");
+    harness.get_by_label_contains("#uti (2)");
+
+    harness.get_by_label_contains("the whole vault (2)").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().1.deck, crate::review_ui::Deck::All);
+    assert_eq!(harness.state().1.queue_len(), 2, "the new deck's queue");
+}
+
+#[test]
+fn the_statistics_panel_lists_the_next_cards_of_the_session() {
+    let scratch = Scratch::new(
+        "review-queue",
+        &[(
+            "MOC.md",
+            "# Moc\n\n> [!card] Primeira pergunta\n> Resposta\n\n> [!card] Segunda pergunta\n> Resposta\n\n> [!card] Terceira pergunta\n> Resposta\n",
+        )],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::All);
+    review.stats_open = true;
+    let mut harness = Harness::builder().with_size(egui::vec2(460.0, 720.0)).build_ui_state(
+        |ui, (state, review): &mut (VaultState, crate::review_ui::Review)| {
+            review.stats_ui(ui, state);
+        },
+        (state, review),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-queue");
+
+    harness.get_by_label("Next in this session");
+    // The cards after the one on screen, each with the note it came from.
+    assert!(harness.get_all_by_label("MOC").count() >= 2, "each row names its note");
+    assert!(harness.query_by_label("Primeira pergunta").is_none(), "the current card is not in 'next'");
+    harness.get_by_label("Segunda pergunta");
+    harness.get_by_label("Terceira pergunta");
+}
+
+#[test]
 fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
     // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
     // themselves and not for what comes after, so the tree and the backlinks overlapped.

@@ -52,6 +52,70 @@ struct Scope {
     next_due: Option<String>,
 }
 
+/// A deck the panel can switch to, and how many cards it holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeckOption {
+    pub deck: Deck,
+    pub label: String,
+    pub cards: usize,
+}
+
+/// The decks the vault actually has: the whole vault, the note that is open (when it has cards), and
+/// the tags that have cards. A deck nobody can review is not offered.
+fn decks(state: &VaultState) -> Vec<DeckOption> {
+    // Cards per note file, once: the tags sum this instead of walking the schedule for each tag.
+    let mut per_file: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for card in state.srs.cards.values() {
+        if !card.file.is_empty() {
+            *per_file.entry(card.file.as_str()).or_default() += 1;
+        }
+    }
+    let cards_of = |relative: &str| per_file.get(relative).copied().unwrap_or(0);
+
+    let mut options = vec![DeckOption { deck: Deck::All, label: tl!("the whole vault").to_string(), cards: per_file.values().sum() }];
+    if let Some(active) = state.active.as_ref().and_then(|path| state.files.iter().find(|file| &file.path == path))
+        && cards_of(&active.relative_path) > 0
+    {
+        options.push(DeckOption {
+            deck: Deck::Note(active.relative_path.clone()),
+            label: active.name.clone(),
+            cards: cards_of(&active.relative_path),
+        });
+    }
+
+    let mut tags: Vec<DeckOption> = state
+        .index
+        .tags
+        .iter()
+        .filter_map(|(tag, names)| {
+            let cards: usize = names
+                .iter()
+                .filter_map(|name| state.files.iter().find(|file| file.name.eq_ignore_ascii_case(name)))
+                .map(|file| cards_of(&file.relative_path))
+                .sum();
+            (cards > 0).then(|| DeckOption { deck: Deck::Tag(tag.clone()), label: format!("#{tag}"), cards })
+        })
+        .collect();
+    tags.sort_by(|a, b| b.cards.cmp(&a.cards).then_with(|| a.label.cmp(&b.label)));
+    options.extend(tags);
+    options
+}
+
+/// A card's question as one line of plain text: no markup, no more than `limit` characters.
+fn plain(question: &str, limit: usize) -> String {
+    let blocks = localobsidian_md::preview::blocks(&localobsidian_md::preview::prepare(question));
+    let text = blocks.first().map(|block| block.plain()).unwrap_or_default();
+    let text = text.trim().replace('\n', " ");
+    let mut out: String = text.chars().take(limit).collect();
+    if text.chars().count() > limit {
+        out.push('…');
+    }
+    out
+}
+
+/// How many cards of the session the statistics panel lists.
+const SESSION_LIST: usize = 8;
+
 /// The review session's state.
 pub struct Review {
     pub open: bool,
@@ -265,10 +329,25 @@ impl Review {
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState, images: &mut crate::images::Images) {
         // The header Restart button and the menu item share the same reload.
         ui.add_space(4.0);
+        // What the session is about is a control, not a caption: the deck can be changed from here,
+        // and the list only holds decks the vault actually has.
+        let mut chosen: Option<Deck> = None;
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(tl!("Review")).strong());
-            // The scope is named, not described: the note's own name, the tag as written, the vault.
-            ui.label(egui::RichText::new(self.deck.label(state)).strong());
+            let combo = egui::ComboBox::from_id_salt("review-deck")
+                .selected_text(egui::RichText::new(self.deck.label(state)).strong())
+                .width(190.0)
+                .show_ui(ui, |ui| {
+                    for option in decks(state) {
+                        let label = format!("{} ({})", option.label, option.cards);
+                        if ui.selectable_label(option.deck == self.deck, label).clicked() {
+                            chosen = Some(option.deck);
+                        }
+                    }
+                });
+            // A combo box with no label is a widget a screen reader cannot announce; this one is
+            // the deck of the session.
+            combo.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Deck")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button("x").on_hover_text(tl!("Close")).clicked() {
                     self.open = false;
@@ -287,6 +366,10 @@ impl Review {
                 }
             });
         });
+        if let Some(deck) = chosen {
+            // Another deck is another session: the queue and the counts start over.
+            self.start(state, deck);
+        }
         let counts = [
             i18n::trn(self.scope.cards as u64, "{n} card in this deck", "{n} cards in this deck"),
             i18n::tr_fmt("{due} due today", &[("due", &self.scope.due.to_string())]),
@@ -465,6 +548,25 @@ impl Review {
                 }
             });
 
+            // The session's own queue, with the note behind each card: seeing what is coming is how
+            // the reader decides whether to keep going, and where the card came from.
+            if self.queue.len() > 1 {
+                ui.add_space(10.0);
+                ui.label(egui::RichText::new(tl!("Next in this session")).strong());
+                for (_, card) in self.queue.iter().skip(1).take(SESSION_LIST) {
+                    let note = state
+                        .files
+                        .iter()
+                        .find(|file| file.relative_path == card.file)
+                        .map(|file| file.name.clone())
+                        .unwrap_or_else(|| card.file.clone());
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(note).small().weak());
+                        ui.label(egui::RichText::new(plain(&card.q, 56)).small());
+                    });
+                }
+            }
+
             ui.add_space(10.0);
             ui.label(egui::RichText::new(tl!("Next 14 days")).strong());
             for (date, count) in &report.forecast {
@@ -516,4 +618,71 @@ fn days_until(iso: &str) -> Option<i64> {
     let today = chrono::NaiveDate::parse_from_str(&review::today(), "%Y-%m-%d").ok()?;
     let target = chrono::NaiveDate::parse_from_str(iso, "%Y-%m-%d").ok()?;
     Some((target - today).num_days())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    /// A vault in memory: notes with their text, and the cards the schedule holds for them.
+    fn vault(notes: &[(&str, &str)], cards: &[(&str, &str)]) -> VaultState {
+        let mut state = VaultState::default();
+        state.files = notes
+            .iter()
+            .map(|(relative, _)| localobsidian_vault::NoteFile {
+                name: relative.rsplit('/').next().unwrap_or(relative).trim_end_matches(".md").to_string(),
+                path: PathBuf::from(format!("/v/{relative}")),
+                relative_path: (*relative).to_string(),
+                mtime_ms: 0,
+            })
+            .collect();
+        let contents: BTreeMap<PathBuf, String> =
+            notes.iter().map(|(relative, text)| (PathBuf::from(format!("/v/{relative}")), (*text).to_string())).collect();
+        state.index = localobsidian_vault::index::build(&state.files, &contents);
+        state.replace_contents_for_tests(contents);
+        let today = review::today();
+        for (file, question) in cards {
+            let card = review::new_card(file, question, &today);
+            state.srs.cards.insert(review::card_id(file, question, ""), card);
+        }
+        state
+    }
+
+    #[test]
+    fn the_selector_lists_only_the_decks_the_vault_has() {
+        let state = vault(
+            &[
+                ("MOC.md", "---\ntags: [uti]\n---\n\n# Moc\n"),
+                ("Outra.md", "---\ntags: [uti]\n---\n\n# Outra\n"),
+                ("Vazia.md", "---\ntags: [sem-cards]\n---\n\n# Vazia\n"),
+            ],
+            &[("MOC.md", "pergunta do MOC"), ("Outra.md", "primeira"), ("Outra.md", "segunda")],
+        );
+        let mut state = state;
+        state.active = Some(state.files[0].path.clone());
+
+        let options = decks(&state);
+        assert_eq!(options[0].deck, Deck::All, "the whole vault comes first");
+        assert_eq!(options[0].cards, 3);
+        assert!(options.iter().any(|option| option.deck == Deck::Note("MOC.md".to_string()) && option.cards == 1), "{options:?}");
+        // Only the tag that has cards is offered, and a tag never appears twice.
+        assert!(options.iter().any(|option| option.deck == Deck::Tag("uti".to_string()) && option.cards == 3), "{options:?}");
+        assert!(!options.iter().any(|option| option.label == "#sem-cards"), "a tag with no cards is not a deck: {options:?}");
+    }
+
+    #[test]
+    fn a_note_without_cards_is_not_a_deck() {
+        let mut state = vault(&[("MOC.md", "# Moc\n"), ("Outra.md", "# Outra\n")], &[("Outra.md", "pergunta")]);
+        state.active = Some(state.files[0].path.clone());
+        let options = decks(&state);
+        assert!(!options.iter().any(|option| matches!(&option.deck, Deck::Note(_))), "{options:?}");
+    }
+
+    #[test]
+    fn the_session_list_shows_the_question_without_its_markup() {
+        assert_eq!(plain("A **tetralogia** e o `CIA` são o quê?", 60), "A tetralogia e o CIA são o quê?");
+        assert!(plain(&"palavra ".repeat(20), 20).ends_with('…'), "a long question is cut");
+    }
 }
