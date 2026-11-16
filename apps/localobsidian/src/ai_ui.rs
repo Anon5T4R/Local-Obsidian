@@ -1,14 +1,11 @@
-//! The AI panel: one chat beside the note, over the suite's BYOK client.
+//! The AI panel: the suite's chat panel and connections form, over this app's BYOK client.
 //!
-//! What the panel does is deliberately small: it sends the note (or nothing, if none is open) as
-//! context, streams the answer into view, and writes the answer into the note as text when asked.
-//! The provider is the user's: a base URL (Ollama and `llama-server` are a base URL), a model from
-//! the provider's own list, and a key in the OS keychain - there is no server of ours in the path.
-//!
-//! The answer arrives on a worker thread ([`localobsidian_ai::Stream`]); this module only polls.
+//! The experience - the roll, the composer, the strip, the connections form and what actually goes
+//! to the model - is `craft-ai-ui`, shared with the other apps of the suite. What lives here is the
+//! app's side of the contract: the system prompt, the note as context, writing an answer into the
+//! note, and driving the shared `local-ai` client with what the panel hands over.
 
-use std::sync::mpsc::TryRecvError;
-
+use craft_ai_ui as ui;
 use localobsidian_ai as ai;
 
 use crate::i18n;
@@ -19,58 +16,39 @@ use crate::vault_state::VaultState;
 /// the tail is what the user is usually looking at.
 const CONTEXT_LIMIT: usize = 12_000;
 
-/// The width of the connection dialog: one form, one measure, centred.
-pub const DIALOG_WIDTH: f32 = 520.0;
+/// The whole request budget: the turns plus the note.
+const BUDGET_CHARS: usize = 24_000;
 
-/// Who said it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Who {
-    User,
-    Assistant,
-}
+/// The width of the connection dialog, from the shared component (the flashcards dialog uses it too).
+pub const DIALOG_WIDTH: f32 = ui::ConnectionsPanel::WIDTH;
 
 /// The chat beside the note.
 pub struct Chat {
     pub open: bool,
     pub settings_open: bool,
+    panel: ui::ChatPanel,
+    strip: ui::StatusStrip,
+    connections: ui::ConnectionsPanel,
     /// The connection in use, loaded from the suite's store.
     connection: Option<ai::Connection>,
-    /// What the settings window is editing (base URL, model, key).
-    pub draft_base: String,
-    pub draft_model: String,
-    pub draft_key: String,
-    pub draft_provider: String,
-    /// A model list fetched from the provider, waiting for the settings window.
-    models_job: Option<std::sync::mpsc::Receiver<Result<Vec<String>, String>>>,
-    pub models: Vec<String>,
-    messages: Vec<(Who, String)>,
-    input: String,
-    /// The answer being streamed, piece by piece.
-    answer: String,
     stream: Option<ai::Stream>,
-    pub error: Option<String>,
-    /// The note text last sent as context, kept for the header's count.
-    context_chars: usize,
+    /// A model list fetched from the provider, waiting for the form.
+    models_job: Option<std::sync::mpsc::Receiver<Result<Vec<String>, String>>>,
 }
 
 impl Default for Chat {
     fn default() -> Self {
+        let mut panel = ui::ChatPanel::default();
+        panel.set_policy(ui::WindowPolicy { turns: ui::Turns::LastN(8), total_budget_chars: BUDGET_CHARS });
         Self {
             open: false,
             settings_open: false,
+            panel,
+            strip: ui::StatusStrip::default(),
+            connections: ui::ConnectionsPanel::default(),
             connection: None,
-            draft_base: String::new(),
-            draft_model: String::new(),
-            draft_key: String::new(),
-            draft_provider: "custom".to_string(),
-            models_job: None,
-            models: Vec::new(),
-            messages: Vec::new(),
-            input: String::new(),
-            answer: String::new(),
             stream: None,
-            error: None,
-            context_chars: 0,
+            models_job: None,
         }
     }
 }
@@ -79,11 +57,8 @@ impl Chat {
     /// Loads the saved connection, if there is one.
     pub fn load(&mut self) {
         match ai::connections() {
-            Ok(all) => {
-                self.connection = all.into_iter().next();
-                self.fill_draft();
-            }
-            Err(error) => self.error = Some(error),
+            Ok(all) => self.connection = all.into_iter().next(),
+            Err(error) => log::warn!("ai: cannot read the connections: {error}"),
         }
     }
 
@@ -102,121 +77,64 @@ impl Chat {
         self.connection.as_ref()
     }
 
-    pub fn busy(&self) -> bool {
-        self.stream.is_some()
-    }
-
-    pub fn context_chars(&self) -> usize {
-        self.context_chars
-    }
-
-    /// Copies the saved connection into the settings fields.
-    fn fill_draft(&mut self) {
-        let Some(conn) = &self.connection else {
-            self.draft_provider = "custom".to_string();
-            self.draft_base = String::new();
-            self.draft_model = String::new();
-            return;
-        };
-        self.draft_provider = conn.provider.clone();
-        self.draft_base = conn.base_url.clone();
-        self.draft_model = conn.model.clone();
-        self.draft_key = conn.key(&ai::APP).unwrap_or_default();
-    }
-
-    /// Saves what the settings window holds as the one connection this app uses.
-    pub fn save_settings(&mut self) {
-        let base = self.draft_base.trim().to_string();
-        let model = self.draft_model.trim().to_string();
-        if model.is_empty() {
-            self.error = Some(tl!("choose a model first").to_string());
-            return;
+    /// Draws the panel beside the note.
+    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState) {
+        // The app's side of the contract: what the panel is, and what goes as context.
+        self.panel.set_system(system_prompt());
+        self.panel.set_context(self.context_of(state));
+        let model = self.model().to_string();
+        let labels = chat_labels(&model, self.ready());
+        let strip_action = self.strip.show(ui, ui::StripLabels { stop: tl!("Stop"), dismiss: tl!("Close") });
+        if strip_action == ui::StripAction::Stop {
+            self.stop();
         }
-        let provider = self.draft_provider.trim().to_string();
-        let conn = ai::Connection { id: "default".to_string(), provider, label: "Local Obsidian".to_string(), base_url: base, model };
-        if let Err(error) = conn.set_key(&ai::APP, self.draft_key.trim()) {
-            log::warn!("ai: cannot store the key: {error}");
-            self.error = Some(error);
-            return;
-        }
-        match ai::save(std::slice::from_ref(&conn)) {
-            Ok(()) => {
-                self.messages.clear();
-                self.answer.clear();
-                self.error = None;
-                self.connection = Some(conn);
+        ui.separator();
+        match self.panel.show(ui, &labels) {
+            ui::ChatAction::None => {}
+            ui::ChatAction::Send | ui::ChatAction::Retry => self.start(),
+            ui::ChatAction::Stop => self.stop(),
+            ui::ChatAction::Clear => self.panel.clear(),
+            ui::ChatAction::Insert => {
+                self.insert_answer(state);
             }
-            Err(error) => self.error = Some(error),
+            ui::ChatAction::Settings => self.settings_open = true,
+            ui::ChatAction::Close => self.close(),
         }
     }
 
-    /// Asks the provider for its model list, on a worker thread.
-    pub fn fetch_models(&mut self) {
-        let conn = ai::Connection {
-            id: "draft".to_string(),
-            provider: self.draft_provider.clone(),
-            label: String::new(),
-            base_url: self.draft_base.trim().to_string(),
-            model: self.draft_model.trim().to_string(),
-        };
-        // The key is not saved yet: the shared client reads it from the keychain, so trial it with
-        // the value in the field by storing it first.
-        if let Err(error) = conn.set_key(&ai::APP, self.draft_key.trim()) {
-            self.error = Some(error);
+    /// The note as the panel's context: the tail of the buffer, within the budget.
+    fn context_of(&self, state: &VaultState) -> Option<ui::ContextSource> {
+        state.active.as_ref()?;
+        Some(ui::ContextSource::new(ui::ContextKind::Note, tl!("the note"), state.buffer.clone(), CONTEXT_LIMIT, ui::Side::Tail))
+    }
+
+    /// Hands the panel's request to the shared client.
+    fn start(&mut self) {
+        let Some(lines) = self.panel.take_request() else { return };
+        let Some(connection) = self.connection.clone() else {
+            self.panel.finish(Err(tl!("configure the connection first").to_string()));
             return;
-        }
-        let (sender, receiver) = std::sync::mpsc::channel();
-        std::thread::Builder::new()
-            .name("ai-models".into())
-            .spawn(move || {
-                let _ = sender.send(ai::models(&conn));
+        };
+        let messages: Vec<ai::Msg> = lines
+            .into_iter()
+            .map(|line| match line.role {
+                ui::Role::System => ai::Msg::System(line.text),
+                ui::Role::User => ai::Msg::User(line.text),
+                ui::Role::Assistant => ai::Msg::Assistant(line.text),
             })
-            .map_err(|error| log::warn!("ai: cannot start the models thread: {error}"))
-            .ok();
-        self.models_job = Some(receiver);
-    }
-
-    /// Sends what is in the box, with the open note as context.
-    pub fn send(&mut self, state: &VaultState) {
-        let Some(conn) = self.connection.clone() else {
-            self.error = Some(tl!("configure the connection first").to_string());
-            return;
-        };
-        let question = self.input.trim().to_string();
-        if question.is_empty() || self.busy() {
-            return;
-        }
-        let context = context_of(state);
-        self.context_chars = context.chars().count();
-        let mut history = vec![ai::Msg::System(format!(
-            "You are a writing assistant inside a Markdown notes app. Answer in the language of the \
-             question, in plain Markdown, without preamble.{}",
-            if context.is_empty() { String::new() } else { format!("\n\nThe open note follows.\n\n{context}") }
-        ))];
-        for (who, text) in &self.messages {
-            history.push(match who {
-                Who::User => ai::Msg::User(text.clone()),
-                Who::Assistant => ai::Msg::Assistant(text.clone()),
-            });
-        }
-        history.push(ai::Msg::User(question.clone()));
-        self.messages.push((Who::User, question));
-        self.input.clear();
-        self.answer.clear();
-        self.error = None;
-        self.stream = Some(ai::Stream::start(conn, history));
+            .collect();
+        self.strip.begin();
+        self.stream = Some(ai::Stream::start(connection, messages));
     }
 
     /// Stops a streaming answer; the panel keeps what arrived.
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         if let Some(stream) = &self.stream {
             stream.cancel();
         }
-        if !self.answer.is_empty() {
-            let answer = std::mem::take(&mut self.answer);
-            self.messages.push((Who::Assistant, answer));
-        }
         self.stream = None;
+        self.strip.finish();
+        self.panel.stopped();
     }
 
     /// What arrived since the last frame. Called once per frame from the app's own loop.
@@ -224,39 +142,26 @@ impl Chat {
         if let Some(job) = &self.models_job {
             match job.try_recv() {
                 Ok(Ok(models)) => {
-                    self.models = models;
+                    self.connections.models = models;
                     self.models_job = None;
                 }
                 Ok(Err(error)) => {
-                    self.error = Some(error);
+                    self.connections.failed(error);
                     self.models_job = None;
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => self.models_job = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.models_job = None,
             }
         }
         let Some(stream) = &self.stream else { return };
         let (pieces, done) = stream.poll();
         for piece in pieces {
-            self.answer.push_str(&piece);
+            self.strip.push(&piece);
+            self.panel.push(&piece);
         }
         if let Some(result) = done {
-            match result {
-                Ok(answer) => {
-                    let text = std::mem::take(&mut self.answer);
-                    // A provider may send nothing in `delta` and the whole text at the end; the
-                    // joined answer is what gets kept either way.
-                    let text = if text.is_empty() { answer } else { text };
-                    self.messages.push((Who::Assistant, text));
-                }
-                Err(error) => {
-                    self.error = Some(error);
-                    if !self.answer.is_empty() {
-                        let answer = std::mem::take(&mut self.answer);
-                        self.messages.push((Who::Assistant, answer));
-                    }
-                }
-            }
+            self.strip.finish();
+            self.panel.finish(result);
             self.stream = None;
         }
     }
@@ -269,8 +174,7 @@ impl Chat {
 
     /// Writes the last answer into the open note, at its end, and leaves the note in the editor.
     pub fn insert_answer(&mut self, state: &mut VaultState) -> bool {
-        let Some((Who::Assistant, answer)) = self.messages.last() else { return false };
-        let answer = answer.clone();
+        let Some(answer) = self.panel.last_answer().map(str::to_string) else { return false };
         if state.active.is_none() || answer.trim().is_empty() {
             return false;
         }
@@ -285,273 +189,221 @@ impl Chat {
         state.view = crate::vault_state::ViewMode::Split;
         true
     }
-}
 
-/// The note's text, cut to a size a provider will accept.
-fn context_of(state: &VaultState) -> String {
-    if state.active.is_none() {
-        return String::new();
-    }
-    let text = state.buffer.clone();
-    if text.chars().count() <= CONTEXT_LIMIT {
-        return text;
-    }
-    let start = text.char_indices().nth(text.chars().count() - CONTEXT_LIMIT).map(|(index, _)| index).unwrap_or(0);
-    format!("[…]\n{}", &text[start..])
-}
-
-impl Chat {
-    /// Draws the panel beside the note.
-    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState) {
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(tl!("AI")).strong());
-            let model = self.model().to_string();
-            if model.is_empty() {
-                ui.label(egui::RichText::new(tl!("not configured")).small().weak());
-            } else {
-                ui.label(egui::RichText::new(model).small().weak());
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("x").on_hover_text(tl!("Close")).clicked() {
-                    self.close();
-                }
-                if ui.small_button(tl!("Settings")).clicked() {
-                    self.settings_open = true;
-                }
-                if !self.messages.is_empty() && ui.small_button(tl!("Clear")).clicked() {
-                    self.messages.clear();
-                    self.answer.clear();
-                }
-            });
-        });
-        ui.separator();
-
-        let height = (ui.available_height() - 92.0).max(120.0);
-        egui::ScrollArea::vertical().id_salt("ai-chat").max_height(height).auto_shrink([false, false]).show(ui, |ui| {
-            if self.messages.is_empty() && self.answer.is_empty() {
-                ui.label(egui::RichText::new(tl!("Ask about this note, or about anything.")).weak());
-            }
-            for (who, text) in &self.messages {
-                message(ui, *who, text);
-            }
-            if !self.answer.is_empty() {
-                message(ui, Who::Assistant, &self.answer);
-            }
-        });
-
-        if let Some(error) = &self.error {
-            ui.label(egui::RichText::new(error).small().color(ui.visuals().warn_fg_color));
-        }
-        if self.context_chars() > 0 && self.ready() {
-            ui.label(
-                egui::RichText::new(i18n::tr_fmt("the note goes as context: {count} characters", &[("count", &self.context_chars().to_string())]))
-                    .small()
-                    .weak(),
-            );
-        }
-
-        let send = {
-            let hint = if self.ready() { tl!("Ask about this note...") } else { tl!("configure the connection first") };
-            let box_ui = ui.add(egui::TextEdit::multiline(&mut self.input).hint_text(hint).desired_rows(3).desired_width(ui.available_width()));
-            box_ui.has_focus() && ui.input(|input| input.modifiers.command && input.key_pressed(egui::Key::Enter))
-        };
-        ui.horizontal(|ui| {
-            let can_send = self.ready() && !self.input.trim().is_empty() && !self.busy();
-            if ui.add_enabled(can_send, egui::Button::new(tl!("Send"))).clicked() || (send && can_send) {
-                self.send(state);
-            }
-            if self.busy() && ui.button(tl!("Stop")).clicked() {
-                self.stop();
-            }
-            let has_answer = matches!(self.messages.last(), Some((Who::Assistant, _)));
-            if ui.add_enabled(has_answer && !self.busy(), egui::Button::new(tl!("Insert into the note"))).clicked() {
-                self.insert_answer(state);
-            }
-        });
+    /// The panel itself, for the app's tests (the crate owns the transcript).
+    #[cfg(test)]
+    pub(crate) fn panel_mut(&mut self) -> &mut ui::ChatPanel {
+        &mut self.panel
     }
 
-    /// The connection window: base URL, model and key. One connection, the one this app uses.
-    ///
-    /// A dialog of one measured width, centred: a settings form that spans the screen is both
-    /// unreadable (fields 1900 px long) and a lie about what it belongs to. Returns the window's
-    /// rect, which is what the sizing test asserts on.
+    /// The connections form: the suite's dialog, with this app's store and keychain behind it.
+    /// The connections form: the suite's dialog, with this app's store and keychain behind it.
     pub fn settings(&mut self, ui: &mut egui::Ui) -> Option<egui::Rect> {
         if !self.settings_open {
+            self.connections.open = false;
             return None;
         }
-        let mut open = true;
-        let mut save = false;
-        let window = egui::Window::new(tl!("AI connection"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .min_width(DIALOG_WIDTH)
-            .max_width(DIALOG_WIDTH)
-            .show(ui.ctx(), |ui| {
-                // One width for the whole form: the field asks for the dialog, not for the screen.
-                let field = ui.available_width();
-                ui.label(egui::RichText::new(tl!("Provider")).small().weak());
-                let current = ai::provider(&self.draft_provider).map(|preset| preset.label).unwrap_or("Custom (OpenAI-compatible)");
-                egui::ComboBox::from_id_salt("ai-provider").selected_text(current).width(field).show_ui(ui, |ui| {
-                    for preset in ai::PROVIDERS {
-                        if ui.selectable_label(preset.id == self.draft_provider, preset.label).clicked() {
-                            self.draft_provider = preset.id.to_string();
-                            // A preset is a starting point: the URL stays editable after choosing one.
-                            if !preset.base_url.is_empty() {
-                                self.draft_base = preset.base_url.to_string();
-                            }
-                        }
-                    }
-                });
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(tl!("Base URL")).small().weak());
-                ui.add(egui::TextEdit::singleline(&mut self.draft_base).hint_text("http://localhost:11434/v1").desired_width(field));
-                ui.label(egui::RichText::new(tl!("Ollama and llama-server are a base URL and a model.")).small().weak());
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(tl!("Model")).small().weak());
-                ui.horizontal(|ui| {
-                    // The row minus the button that sits beside it.
-                    let list = 96.0;
-                    ui.add(egui::TextEdit::singleline(&mut self.draft_model).desired_width((field - list).max(120.0)));
-                    if ui.button(tl!("List models")).clicked() {
-                        self.fetch_models();
-                    }
-                });
-                if !self.models.is_empty() {
-                    egui::ScrollArea::vertical().max_height(120.0).id_salt("ai-models").show(ui, |ui| {
-                        for model in self.models.clone() {
-                            if ui.selectable_label(self.draft_model == model, &model).clicked() {
-                                self.draft_model = model.clone();
-                            }
-                        }
-                    });
-                }
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(tl!("API key")).small().weak());
-                ui.add(egui::TextEdit::singleline(&mut self.draft_key).password(true).desired_width(field));
-                ui.label(egui::RichText::new(tl!("Stored in the system keychain, never in a file.")).small().weak());
-                if let Some(error) = &self.error {
-                    ui.add_space(4.0);
-                    ui.label(egui::RichText::new(error).small().color(ui.visuals().warn_fg_color));
-                }
-                ui.add_space(10.0);
-                // Align::Min, not Center: a row centred in the space that is left grows the dialog
-                // to the height of the screen and floats the buttons in the middle of nothing.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    save = ui.button(tl!("Save")).clicked();
-                    if ui.button(tl!("Cancel")).clicked() {
-                        self.settings_open = false;
-                    }
-                });
-            });
-        if save {
-            self.save_settings();
-            if self.error.is_none() {
+        if !self.connections.open {
+            self.connections.set_presets(presets());
+            self.connections.open_with(self.connection.as_ref().map(draft_of));
+        }
+        let labels = form_labels();
+        match self.connections.show(ui.ctx(), &labels) {
+            ui::ConnectionsIntent::None => {}
+            ui::ConnectionsIntent::Cancel => {
+                self.connections.open = false;
                 self.settings_open = false;
             }
-        } else if !open {
-            self.settings_open = false;
+            ui::ConnectionsIntent::Save(draft, key) => self.save(draft, key),
+            ui::ConnectionsIntent::LoadModels(draft, key) => self.fetch_models(draft, key),
         }
-        window.map(|window| window.response.rect)
+        self.connections.rect()
+    }
+
+    /// Stores the connection (key in the keychain) and keeps it in use.
+    fn save(&mut self, draft: ui::ConnectionDraft, key: String) {
+        let connection = connection_of(&draft);
+        if let Err(error) = connection.set_key(&ai::APP, &key) {
+            log::warn!("ai: cannot store the key: {error}");
+            self.connections.failed(error);
+            return;
+        }
+        match ai::save(std::slice::from_ref(&connection)) {
+            Ok(()) => {
+                self.connection = Some(connection);
+                self.panel.clear();
+                self.connections.saved();
+                self.settings_open = false;
+            }
+            Err(error) => self.connections.failed(error),
+        }
+    }
+
+    /// Asks the provider for its model list, on a worker thread.
+    fn fetch_models(&mut self, draft: ui::ConnectionDraft, key: String) {
+        let connection = connection_of(&draft);
+        // The key is not saved yet: the shared client reads it from the keychain, so trial it with
+        // the value in the field by storing it first.
+        if let Err(error) = connection.set_key(&ai::APP, &key) {
+            self.connections.failed(error);
+            return;
+        }
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("ai-models".into())
+            .spawn(move || {
+                let _ = sender.send(ai::models(&connection));
+            })
+            .map_err(|error| log::warn!("ai: cannot start the models thread: {error}"))
+            .ok();
+        self.models_job = Some(receiver);
     }
 }
 
-/// One message in the transcript: who said it, and its text.
-fn message(ui: &mut egui::Ui, who: Who, text: &str) {
-    let (label, colour) = match who {
-        Who::User => (tl!("You"), ui.visuals().text_color()),
-        Who::Assistant => (tl!("AI"), crate::theme::accent(ui.visuals().dark_mode)),
-    };
-    ui.add_space(4.0);
-    ui.label(egui::RichText::new(label).small().strong().color(colour));
-    ui.label(egui::RichText::new(text).size(14.0));
+/// The connection a draft describes (one connection per app, so the id is fixed).
+fn connection_of(draft: &ui::ConnectionDraft) -> ai::Connection {
+    ai::Connection {
+        id: "default".to_string(),
+        provider: draft.provider.trim().to_string(),
+        label: "Local Obsidian".to_string(),
+        base_url: draft.base_url.trim().to_string(),
+        model: draft.model.trim().to_string(),
+    }
 }
+
+/// The draft the form shows for the connection in use.
+fn draft_of(connection: &ai::Connection) -> ui::ConnectionDraft {
+    ui::ConnectionDraft { provider: connection.provider.clone(), base_url: connection.base_url.clone(), model: connection.model.clone() }
+}
+
+/// The provider presets the form offers, from the shared client's table.
+fn presets() -> Vec<ui::Preset> {
+    ai::PROVIDERS
+        .iter()
+        .map(|provider| ui::Preset { id: provider.id.to_string(), label: provider.label.to_string(), base_url: provider.base_url.to_string() })
+        .collect()
+}
+
+/// The app's system prompt: the vocabulary of this app, and how the answer must look.
+fn system_prompt() -> String {
+    tl!("You are a writing assistant inside a Markdown notes app. Answer in the language of the question, in plain Markdown, without preamble.")
+        .to_string()
+}
+
+/// The panel's words, in the app's language.
+fn chat_labels<'a>(model: &'a str, ready: bool) -> ui::ChatLabels<'a> {
+    ui::ChatLabels {
+        title: tl!("AI"),
+        not_configured: tl!("not configured"),
+        configure: tl!("configure the connection first"),
+        settings: tl!("Settings"),
+        clear: tl!("Clear"),
+        close: tl!("Close"),
+        send: tl!("Send"),
+        stop: tl!("Stop"),
+        insert: tl!("Insert into the note"),
+        retry: tl!("Retry"),
+        dismiss: tl!("Close"),
+        empty: tl!("Ask about this note, or about anything."),
+        input_hint: if ready { tl!("Ask about this note...") } else { tl!("configure the connection first") },
+        chip: &chip,
+        model,
+        suggestions: &[],
+        to_end: tl!("to the end"),
+    }
+}
+
+/// The context chip: what the last request really sent.
+fn chip(info: &ui::ContextInfo) -> String {
+    let mut text = i18n::tr_fmt("{label}: {count} characters", &[("label", &info.label), ("count", &info.sent.to_string())]);
+    if info.truncated() {
+        text.push_str(&i18n::tr_fmt(" (cut from {count})", &[("count", &info.total.to_string())]));
+    }
+    if info.turns > 0 {
+        text.push_str(&i18n::tr_fmt(" · {count} turns", &[("count", &info.turns.to_string())]));
+    }
+    text
+}
+
+/// The connections form's words.
+fn form_labels<'a>() -> ui::ConnectionsLabels<'a> {
+    ui::ConnectionsLabels {
+        title: tl!("AI connection"),
+        provider: tl!("Provider"),
+        base_url: tl!("Base URL"),
+        model: tl!("Model"),
+        api_key: tl!("API key"),
+        list_models: tl!("List models"),
+        save: tl!("Save"),
+        cancel: tl!("Cancel"),
+        hint_url: tl!("Ollama and llama-server are a base URL and a model."),
+        hint_key: tl!("Stored in the system keychain, never in a file."),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     /// A vault of one note on disk, removed when the test ends.
-    struct Scratch(std::path::PathBuf);
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-
-    fn demo(tag: &str) -> (Scratch, VaultState) {
+    fn scratch(tag: &str, notes: &[(&str, &str)]) -> PathBuf {
         let root = std::env::temp_dir().join(format!("localobsidian-ai-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("scratch dir");
-        std::fs::write(root.join("Sepse.md"), "# Sepse\n\nLactato na admissão.\n").expect("the note");
-        let mut state = VaultState::default();
-        state.open(root.clone()).expect("open the vault");
-        (Scratch(root), state)
-    }
-
-    fn chat_with_answer(answer: &str) -> Chat {
-        let mut chat = Chat::default();
-        chat.messages.push((Who::User, "pergunta".to_string()));
-        chat.messages.push((Who::Assistant, answer.to_string()));
-        chat
+        for (name, text) in notes {
+            std::fs::write(root.join(name), text).expect("write note");
+        }
+        root
     }
 
     #[test]
     fn the_answer_is_written_at_the_end_of_the_note() {
-        let (scratch, mut state) = demo("insert");
-        state.open_note(&scratch.0.join("Sepse.md"));
-        let mut chat = chat_with_answer("Use lactato.");
+        let root = scratch("insert", &[("Nota.md", "# Nota\n\ncorpo\n")]);
+        let mut state = VaultState::default();
+        state.open(root.clone()).expect("open the vault");
+        state.open_note(&root.join("Nota.md"));
+        let mut chat = Chat::default();
+        chat.panel.push_answer("resposta da IA");
         assert!(chat.insert_answer(&mut state));
-        assert!(state.buffer.ends_with("Use lactato.\n"), "{}", state.buffer);
-        assert!(state.dirty, "inserting is an edit");
+        assert!(state.buffer.ends_with("resposta da IA\n"), "{:?}", state.buffer);
+        assert_eq!(state.view, crate::vault_state::ViewMode::Split);
+        // And the file follows the buffer once it is saved.
+        assert!(chat.insert_answer(&mut state), "a second insert appends again");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn an_answer_without_an_open_note_is_not_written() {
-        let (scratch, mut state) = demo("none");
-        let _ = &scratch;
-        assert!(state.active.is_none(), "nothing is open until a note is chosen");
-        let mut chat = chat_with_answer("texto");
-        assert!(!chat.insert_answer(&mut state));
+        let root = scratch("none", &[("Nota.md", "# Nota\n")]);
+        let mut state = VaultState::default();
+        state.open(root.clone()).expect("open the vault");
+        let mut chat = Chat::default();
+        chat.panel.push_answer("resposta");
+        assert!(!chat.insert_answer(&mut state), "no note open, nowhere to write");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_chat_with_no_connection_is_not_ready_and_says_so() {
+        let chat = Chat::default();
+        assert!(!chat.ready());
+        assert!(chat.model().is_empty());
+        assert!(chat.connection().is_none());
     }
 
     #[test]
     fn the_context_is_the_open_note_and_nothing_else() {
-        let (scratch, mut state) = demo("context");
-        assert!(context_of(&state).is_empty(), "no note, no context");
-        state.open_note(&scratch.0.join("Sepse.md"));
-        assert!(context_of(&state).contains("Lactato"));
-    }
-
-    #[test]
-    fn a_long_note_is_cut_from_the_front() {
-        let (scratch, mut state) = demo("long");
-        state.open_note(&scratch.0.join("Sepse.md"));
-        state.buffer = format!("INÍCIO\n{}\nFIM", "x".repeat(CONTEXT_LIMIT + 500));
-        let context = context_of(&state);
-        assert!(context.starts_with("[…]"), "the cut is marked");
-        assert!(context.ends_with("FIM"), "the tail is what stays");
-        assert!(context.chars().count() <= CONTEXT_LIMIT + 8);
-    }
-
-    #[test]
-    fn an_unconfigured_panel_says_so_instead_of_sending() {
-        let (_scratch, state) = demo("unconfigured");
-        let mut chat = Chat::default();
-        assert!(!chat.ready());
-        chat.input.push_str("pergunta");
-        chat.send(&state);
-        assert!(chat.error.is_some(), "no connection, an error the user can read");
-        assert!(chat.messages.is_empty(), "nothing was sent, nothing was kept");
-    }
-
-    #[test]
-    fn the_settings_need_a_model() {
-        let mut chat = Chat { draft_base: "http://localhost:11434/v1".to_string(), ..Chat::default() };
-        chat.save_settings();
-        assert!(chat.error.is_some(), "a connection without a model cannot answer");
-        assert!(!chat.ready());
+        let root = scratch("context", &[("Nota.md", "# Nota\n\ncorpo\n")]);
+        let mut state = VaultState::default();
+        state.open(root.clone()).expect("open the vault");
+        let chat = Chat::default();
+        assert!(chat.context_of(&state).is_none(), "no note, no context");
+        state.open_note(&root.join("Nota.md"));
+        let context = chat.context_of(&state).expect("the open note");
+        assert_eq!(context.kind, ui::ContextKind::Note);
+        assert_eq!(context.text, state.buffer);
+        assert_eq!(context.side, ui::Side::Tail, "the reader is usually at the end");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

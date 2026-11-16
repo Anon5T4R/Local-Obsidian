@@ -243,6 +243,13 @@
 	Ask about this note...	このノートについて聞く...
 	configure the connection first	先に接続を設定してください
 	Send	送信
+	You are a writing assistant inside a Markdown notes app. Answer in the language of the question, in plain Markdown, without preamble.	Markdown ノートアプリ内の執筆アシスタントです。質問の言語で、前置きなしの Markdown で答えてください。
+	the note	ノート
+	Retry	再試行
+	to the end	最後まで
+	{label}: {count} characters	{label}: {count} 文字
+	 (cut from {count})	（{count} 文字から切り詰め）
+	 · {count} turns	 · {count} ターン
 	Not connected to a model - configure it in AI > Connection.	モデルに接続していません - AI > 接続. で設定してください
 	Insert into the note	ノートに挿入
 	Provider	プロバイダー

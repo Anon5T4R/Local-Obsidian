@@ -18,6 +18,7 @@ repository = "https://github.com/Anon5T4R/Local-Obsidian"
 # `craft-ui` (widgets/icons/theme), `egui_extras` (tables/images/svg), `serde`/`serde_json` (the
 # app's own settings). Add the line back when the first crate needs it.
 craft-i18n = { path = "libs/craft-libs/crates/i18n/" }
+craft-ai-ui = { path = "libs/craft-libs/crates/ai-ui/" }
 craft-update = { version = "=0.1.0", path = "libs/craft-libs/crates/update/", features = ["egui", "icons"] }
 craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
 # BYOK AI: the suite's shared client (libs/local-ai), the same one local-office and local-pdf vendor.

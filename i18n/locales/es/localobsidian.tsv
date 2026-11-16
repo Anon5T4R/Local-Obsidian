@@ -243,6 +243,13 @@
 	Ask about this note...	Pregunta sobre esta nota...
 	configure the connection first	configura la conexión primero
 	Send	Enviar
+	You are a writing assistant inside a Markdown notes app. Answer in the language of the question, in plain Markdown, without preamble.	Eres un asistente de escritura dentro de una app de notas en Markdown. Responde en el idioma de la pregunta, en Markdown puro, sin preámbulo.
+	the note	la nota
+	Retry	Reintentar
+	to the end	al final
+	{label}: {count} characters	{label}: {count} caracteres
+	 (cut from {count})	 (recortado de {count})
+	 · {count} turns	 · {count} turnos
 	Not connected to a model - configure it in AI > Connection.	Sin conexión con un modelo - configúrela en IA > Conexión.
 	Insert into the note	Insertar en la nota
 	Provider	Proveedor

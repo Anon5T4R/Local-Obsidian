@@ -1197,6 +1197,36 @@ fn a_link_to_a_note_is_a_link_and_one_that_points_at_nothing_is_not() {
 }
 
 #[test]
+fn the_chat_panel_shows_the_suite_panel() {
+    // The panel is the suite's component now: header with the model, the roll, the composer and the
+    // actions, drawn the same way in every app.
+    let root = std::env::temp_dir().join(format!("localobsidian-chat-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("scratch dir");
+    std::fs::write(root.join("Nota.md"), "# Nota\n\ncorpo\n").expect("write");
+    let mut state = VaultState::default();
+    state.open(root.clone()).expect("open the vault");
+    state.open_note(&root.join("Nota.md"));
+    let mut chat = crate::ai_ui::Chat::default();
+    chat.open = true;
+    chat.panel_mut().push_answer("Resposta da IA sobre a nota.");
+    let mut harness = Harness::builder().with_size(egui::vec2(420.0, 520.0)).build_ui_state(
+        |ui, (chat, state): &mut (crate::ai_ui::Chat, VaultState)| {
+            chat.ui(ui, state);
+        },
+        (chat, state),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-chat-panel");
+
+    harness.get_by_label("AI");
+    harness.get_by_label("Send");
+    harness.get_by_label("Insert into the note");
+    harness.get_by_label_contains("Resposta da IA");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
     // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
     // themselves and not for what comes after, so the tree and the backlinks overlapped.

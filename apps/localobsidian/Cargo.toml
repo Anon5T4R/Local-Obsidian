@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 craft-i18n = { workspace = true }
+craft-ai-ui = { workspace = true }
 craft-update = { workspace = true }
 craft-window = { workspace = true }
 # Calendar days for the note calendar and the template placeholders.
