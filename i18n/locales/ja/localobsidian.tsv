@@ -92,8 +92,21 @@
 	Next 14 days	今後 14 日
 	Notes with the most cards	カードが多いノート
 	could not write the review schedule	復習スケジュールを書き込めませんでした
-	Graph	グラフ
-	Show the graph	グラフを表示
+	Connections	つながり
+	Show the connections	つながりを表示
+	in the middle	中央
+	Collapse all	すべて閉じる
+	Start from the open note	開いているノートから始める
+	Start from here	このノートから始める
+	Open the connections of {name}	{name} のつながりを開く
+	Close the connections of {name}	{name} のつながりを閉じる
+	Expand	開く
+	Collapse	閉じる
+	Open a note to see its connections	ノートを開くとつながりが見えます
+	Open	開く
+	This note is not in the vault any more	このノートはもう保管庫にありません
+	This note has no links yet. Write one with [[double brackets]].	このノートにはまだリンクがありません。[[二重角括弧]]で書けます。
+	Click a note to open it; the + opens its connections.	ノートをクリックで開き、＋でつながりを開きます。
 	Calendar	カレンダー
 	Show the calendar	カレンダーを表示
 	Previous month	前の月
@@ -106,7 +119,6 @@
 	could not read the template	テンプレートを読めませんでした
 	the note changed on disk; your unsaved text was kept	ノートがディスク上で変更されました。未保存のテキストは保持されています
 	the vault changed on disk and was reloaded	保管庫がディスク上で変更され、再読み込みしました
-	there are no notes to draw	描くノートがありません
 	Blank	白紙
 	Daily note	デイリーノート
 	Meeting	会議

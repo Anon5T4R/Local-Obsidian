@@ -767,26 +767,149 @@ fn the_help_window_lists_the_keys_and_the_documented_syntax() {
 }
 
 #[test]
-fn the_graph_draws_the_vault_and_says_so_when_there_is_nothing_to_draw() {
-    let (_scratch, state) = demo_vault("graph");
-    let mut harness = Harness::builder().with_size(egui::vec2(640.0, 520.0)).build_ui_state(
-        |ui, state: &mut VaultState| {
-            crate::graph::show(ui, state);
+fn the_connection_map_grows_where_the_reader_clicks_and_opens_what_they_pick() {
+    // The map starts at the open note with its direct connections; the badge opens a note's own
+    // connections, the note itself opens the note.
+    let scratch = Scratch::new(
+        "connections",
+        &[
+            ("Moc.md", "# Moc\n\n[[Ana]] [[Bia]]\n"),
+            ("Ana.md", "# Ana\n\n[[Bia]] [[Caio]]\n"),
+            ("Bia.md", "# Bia\n\nnada\n"),
+            ("Caio.md", "# Caio\n\nnada\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Moc.md"));
+    let map = crate::connections::Map::default();
+    let opened = Rc::new(RefCell::new(None::<PathBuf>));
+    let sink = opened.clone();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 600.0)).build_ui_state(
+        move |ui, (state, map): &mut (VaultState, crate::connections::Map)| match crate::connections::show(ui, state, map) {
+            crate::connections::Action::Open(path) => *sink.borrow_mut() = Some(path),
+            crate::connections::Action::Start(path) => map.start_from(&path),
+            crate::connections::Action::None => {}
         },
-        state,
+        (state, map),
     );
     harness.run_steps(3);
-    shot(&mut harness, "ui-graph");
+    shot(&mut harness, "ui-connections");
 
-    // An empty vault draws the message instead of an empty canvas.
-    let mut empty = Harness::builder().with_size(egui::vec2(400.0, 300.0)).build_ui_state(
-        |ui, state: &mut VaultState| {
-            crate::graph::show(ui, state);
+    // Moc, Ana and Bia: Caio is two hops away and waits.
+    harness.get_by_label("Ana");
+    harness.get_by_label("Bia");
+    assert!(harness.query_by_label("Caio").is_none(), "a note two hops away is not drawn yet");
+
+    // The badge on Ana opens her connections: Caio joins the map.
+    let caio = harness.state().0.files.iter().any(|note| note.name == "Caio");
+    assert!(caio);
+    harness.get_by_label_contains("Open the connections of Ana").click();
+    harness.run_steps(2);
+    harness.get_by_label("Caio");
+
+    // And the same badge closes them again.
+    harness.get_by_label_contains("Close the connections of Ana").click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Caio").is_none(), "collapsing takes the branch away");
+
+    // Clicking a note opens it (the app is the one that opens, so the test reads the action).
+    harness.get_by_label("Bia").click();
+    harness.run_steps(2);
+    assert_eq!(*opened.borrow(), Some(scratch.0.join("Bia.md")));
+
+    // The same map in a small window: the rings shrink, the labels stay inside the canvas.
+    let mut small = crate::connections::Map::default();
+    small.start_from(&scratch.0.join("Moc.md"));
+    small.toggle(&scratch.0.join("Ana.md"));
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Moc.md"));
+    let mut harness = Harness::builder().with_size(egui::vec2(480.0, 420.0)).build_ui_state(
+        |ui, (state, map): &mut (VaultState, crate::connections::Map)| {
+            crate::connections::show(ui, state, map);
         },
-        VaultState::default(),
+        (state, small),
     );
-    empty.run_steps(2);
-    empty.get_by_label("there are no notes to draw");
+    harness.run_steps(3);
+    shot(&mut harness, "ui-connections-small");
+    harness.get_by_label("Caio");
+}
+
+#[test]
+fn a_busy_note_draws_a_readable_ring() {
+    // The case the old vault-wide graph could not do: a note with dozens of connections, drawn at
+    // the size it will be read at. Deterministic, so the two sizes can be compared.
+    let mut notes: Vec<(String, String)> = Vec::new();
+    let links: String = (1..=16).map(|index| format!("[[Filho {index:02}]] ")).collect();
+    notes.push(("MOC.md".to_string(), links));
+    for index in 1..=16 {
+        notes.push((format!("Filho {index:02}.md"), "nada".to_string()));
+    }
+    for index in 1..=4 {
+        notes.push((format!("Fonte {index}.md"), "[[MOC]]".to_string()));
+    }
+    let borrowed: Vec<(&str, &str)> = notes.iter().map(|(name, text)| (name.as_str(), text.as_str())).collect();
+    let scratch = Scratch::new("connections-busy", &borrowed);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("MOC.md"));
+    let mut map = crate::connections::Map::default();
+    map.start_from(&scratch.0.join("MOC.md"));
+
+    for (width, height) in [(760.0f32, 600.0f32), (520.0, 420.0)] {
+        let mut state = VaultState::default();
+        state.open(scratch.0.clone()).expect("open the vault");
+        state.open_note(&scratch.0.join("MOC.md"));
+        let map = map.clone();
+
+        // Every connection is on the map, each with its own place.
+        let nodes = crate::connections::layout(&state, &map);
+        assert_eq!(nodes.len(), 21, "the note, its 16 links and its 4 backlinks");
+        let mut seen: Vec<(i32, i32)> = Vec::new();
+        for node in &nodes {
+            let cell = ((node.at.0 * width) as i32, (node.at.1 * height) as i32);
+            assert!(!seen.contains(&cell), "two notes share a place: {cell:?}");
+            seen.push(cell);
+        }
+
+        let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
+            |ui, (state, map): &mut (VaultState, crate::connections::Map)| {
+                crate::connections::show(ui, state, map);
+            },
+            (state, map),
+        );
+        harness.run_steps(3);
+        shot(&mut harness, &format!("ui-connections-busy-{}x{}", width as u32, height as u32));
+    }
+}
+
+#[test]
+fn the_connection_map_says_so_when_there_is_no_note_and_when_a_note_has_no_links() {
+    let empty = crate::connections::Map::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(420.0, 320.0)).build_ui_state(
+        |ui, map: &mut crate::connections::Map| {
+            let state = VaultState::default();
+            crate::connections::show(ui, &state, map);
+        },
+        empty,
+    );
+    harness.run_steps(2);
+    harness.get_by_label("Open a note to see its connections");
+
+    let scratch = Scratch::new("connections-empty", &[("So.md", "# So\n\nsem links\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("So.md"));
+    let map = crate::connections::Map::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(520.0, 360.0)).build_ui_state(
+        |ui, (state, map): &mut (VaultState, crate::connections::Map)| {
+            crate::connections::show(ui, state, map);
+        },
+        (state, map),
+    );
+    harness.run_steps(2);
+    harness.get_by_label_contains("This note has no links yet");
 }
 
 #[test]

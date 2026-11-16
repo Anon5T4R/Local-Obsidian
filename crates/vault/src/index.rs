@@ -40,6 +40,10 @@ pub struct Index {
     pub aliases: BTreeMap<String, PathBuf>,
     /// Note path → what the sidebar filter matches against.
     pub notes: BTreeMap<PathBuf, NoteInfo>,
+    /// Note path → the paths it links to (resolved, in document order, no self, no dangling).
+    pub links: BTreeMap<PathBuf, Vec<PathBuf>>,
+    /// Note path → the paths that link it (the reverse of [`Self::links`]).
+    pub linked_from: BTreeMap<PathBuf, Vec<PathBuf>>,
 }
 
 /// Builds the index from the notes and their contents. A note missing from `contents` contributes
@@ -76,6 +80,29 @@ pub fn build(files: &[NoteFile], contents: &BTreeMap<PathBuf, String>) -> Index 
         }
         index.notes.insert(file.path.clone(), NoteInfo { tags: note_tags, aliases: declared_aliases, title: None });
     }
+
+    // The resolved edges, in a second pass because an alias can be declared in a note that was
+    // read later: every note's outgoing links, and the reverse in the same walk, so the connection
+    // map never re-reads a note's text to find out what is next to it.
+    for file in files {
+        let Some(text) = contents.get(&file.path) else { continue };
+        for target in links::extract(text) {
+            let name = links::parse_target(&target).note;
+            let Some(other) = crate::resolve_note(files, name, Some(&file.path), Some(&index.aliases)) else { continue };
+            if other.path == file.path {
+                continue;
+            }
+            let outgoing = index.links.entry(file.path.clone()).or_default();
+            if !outgoing.iter().any(|existing| existing == &other.path) {
+                outgoing.push(other.path.clone());
+            }
+            let incoming = index.linked_from.entry(other.path.clone()).or_default();
+            if !incoming.iter().any(|existing| existing == &file.path) {
+                incoming.push(file.path.clone());
+            }
+        }
+    }
+
     index
 }
 
@@ -121,6 +148,30 @@ mod tests {
     fn links_point_back_at_their_source_note() {
         let index = index_of(&[("Alfa", "veja [[Beta]] e [[Beta|x]]"), ("Beta", "nada")]);
         assert_eq!(index.backlinks_of("Beta"), ["Alfa"]);
+    }
+
+    #[test]
+    fn the_resolved_edges_are_the_ones_the_map_walks() {
+        let index =
+            index_of(&[("Alfa", "[[Beta]] e [[Beta#Seção]] e [[Fantasma]]"), ("Beta", "veja [[Alfa]] e ele mesmo [[Beta]]"), ("Gama", "nada")]);
+        let alfa = PathBuf::from("/v/Alfa.md");
+        let beta = PathBuf::from("/v/Beta.md");
+        let gama = PathBuf::from("/v/Gama.md");
+
+        // Outgoing: resolved, deduplicated (a section link is the same note), no dangling, no self.
+        assert_eq!(index.links.get(&alfa), Some(&vec![beta.clone()]));
+        assert_eq!(index.links.get(&beta), Some(&vec![alfa.clone()]), "a link back is one edge, not two");
+        assert_eq!(index.links.get(&gama), None, "a note with no links has no entry");
+
+        // Incoming is the same edge seen from the other end.
+        assert_eq!(index.linked_from.get(&beta), Some(&vec![alfa.clone()]));
+        assert_eq!(index.linked_from.get(&alfa), Some(&vec![beta.clone()]));
+    }
+
+    #[test]
+    fn an_alias_in_another_note_is_an_edge() {
+        let index = index_of(&[("Alfa", "[[Lacunas]]"), ("Painel", "---\naliases: [Lacunas]\n---\n\nnada")]);
+        assert_eq!(index.links.get(&PathBuf::from("/v/Alfa.md")), Some(&vec![PathBuf::from("/v/Painel.md")]));
     }
 
     #[test]

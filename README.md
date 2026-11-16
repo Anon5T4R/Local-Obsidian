@@ -65,8 +65,11 @@ que o mesmo cofre abra nos dois.
   retenção, facilidade média e previsão de 14 dias. O cronograma mora em `.openobsidian/srs.json`,
   **o mesmo arquivo que o OpenObsidianAndroid lê** (mesmos campos, mesma ordem, nada de estado extra);
   o cartão guarda o id estável (hash da pergunta), então editar a resposta não zera o agendamento.
-- **Grafo** (`Visualizar → Mostrar o grafo`): as notas como nós e os `[[links]]` como arestas, com a
-  nota mais ligada no centro e o resto em anel; passar o mouse acende os links do nó e clicar abre a nota.
+- **Conexões** (`Visualizar → Mostrar as conexões`): a nota aberta no centro e as conexões diretas
+  dela (links que saem e links que entram) em anéis por salto, com o `+` de cada nota abrindo as
+  conexões *dela* — o mapa cresce só pelo pedaço do cofre que interessa. Clicar numa nota abre a
+  nota; o menu da direita abre, recolhe ou começa o mapa por ali; a barra tem "Recolher tudo" e
+  "Começar pela nota aberta". Layout determinístico (sem física): o mesmo cofre desenha o mesmo mapa.
 - **Calendário** (`Visualizar → Mostrar o calendário`): grade do mês com os dias que já têm nota
   marcados; clicar abre a nota diária (`YYYY-MM-DD`) e a cria quando falta, a partir de
   `_templates/daily.md` se existir.

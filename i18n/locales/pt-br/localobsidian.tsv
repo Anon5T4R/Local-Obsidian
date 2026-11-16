@@ -92,8 +92,21 @@
 	Next 14 days	Próximos 14 dias
 	Notes with the most cards	Notas com mais cards
 	could not write the review schedule	não foi possível gravar o cronograma de revisão
-	Graph	Grafo
-	Show the graph	Mostrar o grafo
+	Connections	Conexões
+	Show the connections	Mostrar as conexões
+	in the middle	no centro
+	Collapse all	Recolher tudo
+	Start from the open note	Começar pela nota aberta
+	Start from here	Começar por esta
+	Open the connections of {name}	Abrir as conexões de {name}
+	Close the connections of {name}	Fechar as conexões de {name}
+	Expand	Expandir
+	Collapse	Recolher
+	Open a note to see its connections	Abra uma nota para ver as conexões dela
+	Open	Abrir
+	This note is not in the vault any more	Esta nota não está mais no cofre
+	This note has no links yet. Write one with [[double brackets]].	Esta nota ainda não tem links. Escreva um com [[colchetes duplos]].
+	Click a note to open it; the + opens its connections.	Clique numa nota para abri-la; o + abre as conexões dela.
 	Calendar	Calendário
 	Show the calendar	Mostrar o calendário
 	Previous month	Mês anterior
@@ -106,7 +119,6 @@
 	could not read the template	não foi possível ler o modelo
 	the note changed on disk; your unsaved text was kept	a nota mudou no disco; seu texto não salvo foi mantido
 	the vault changed on disk and was reloaded	o cofre mudou no disco e foi recarregado
-	there are no notes to draw	não há notas para desenhar
 	Blank	Em branco
 	Daily note	Nota diária
 	Meeting	Reunião

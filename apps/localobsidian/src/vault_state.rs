@@ -561,16 +561,6 @@ impl VaultState {
         sources
     }
 
-    /// The text of a note, as last read or written.
-    pub fn contents_of(&self, path: &Path) -> Option<&String> {
-        self.contents.get(path)
-    }
-
-    /// Resolves a wikilink as if it were written in `from` (the graph needs this per note).
-    pub fn resolve_note_from(&self, target: &str, from: Option<&Path>) -> Option<&vault::NoteFile> {
-        vault::resolve_note(&self.files, target, from, Some(&self.index.aliases))
-    }
-
     /// Writes a note's whole text (a note created from a template).
     pub fn create_note_with(&mut self, name: &str, content: &str, folder: Option<&Path>) -> io::Result<PathBuf> {
         let root = self.root.clone().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no vault is open"))?;

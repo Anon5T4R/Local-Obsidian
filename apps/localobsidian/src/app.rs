@@ -10,8 +10,8 @@ use craft_update::updater::{Action, Status, Updater};
 
 use crate::ai_ui::Chat;
 use crate::calendar;
+use crate::connections::{self, Map};
 use crate::editor::{self, EditorAction};
-use crate::graph;
 use crate::i18n;
 use crate::images::Images;
 use crate::panels::{self, PanelAction};
@@ -56,8 +56,9 @@ pub struct LocalApp {
     images: Images,
     /// The review session and its statistics panel.
     review: Review,
-    /// Whether the link graph is on screen.
-    graph_open: bool,
+    /// Whether the connection map is on screen, and where it started.
+    connections_open: bool,
+    connections: Map,
     /// Whether the calendar popover is on screen, and the month it shows.
     calendar_open: bool,
     calendar_month: String,
@@ -113,7 +114,8 @@ impl LocalApp {
             vault,
             images: Images::default(),
             review: Review::default(),
-            graph_open: false,
+            connections_open: false,
+            connections: Map::default(),
             calendar_open: false,
             calendar_month: crate::calendar::today_iso(),
             watcher: None,
@@ -149,6 +151,14 @@ impl LocalApp {
                     let path = note.path.clone();
                     app.vault.open_note(&path);
                 }
+            }
+            // `LOCALOBSIDIAN_QA_CONNECTIONS=1` opens the connection map at that note: the capture
+            // has no hands to reach the menu with.
+            if std::env::var_os("LOCALOBSIDIAN_QA_CONNECTIONS").is_some()
+                && let Some(active) = app.vault.active.clone()
+            {
+                app.connections_open = true;
+                app.connections.start_from(&active);
             }
         }
         app
@@ -301,7 +311,13 @@ impl LocalApp {
                     self.remember();
                     ui.close();
                 }
-                if ui.checkbox(&mut self.graph_open, tl!("Show the graph")).clicked() {
+                if ui.checkbox(&mut self.connections_open, tl!("Show the connections")).clicked() {
+                    if self.connections_open {
+                        // The map opens at the note in front of the reader.
+                        if let Some(active) = self.vault.active.clone() {
+                            self.connections.start_from(&active);
+                        }
+                    }
                     ui.close();
                 }
                 if ui.checkbox(&mut self.calendar_open, tl!("Show the calendar")).clicked() {
@@ -595,21 +611,22 @@ impl LocalApp {
         }
     }
 
-    /// The link graph, in its own window.
-    fn graph(&mut self, ui: &mut egui::Ui) {
-        if !self.graph_open {
+    /// The connection map of the open note, in its own window.
+    fn connections(&mut self, ui: &mut egui::Ui) {
+        if !self.connections_open {
             return;
         }
         let mut open = true;
-        egui::Window::new(tl!("Graph")).open(&mut open).default_size([720.0, 620.0]).default_pos(centred(ui.ctx(), egui::vec2(720.0, 620.0))).show(
-            ui.ctx(),
-            |ui| {
-                if let Some(path) = graph::show(ui, &self.vault) {
-                    self.vault.open_note(&path);
-                }
-            },
-        );
-        self.graph_open = open;
+        egui::Window::new(tl!("Connections"))
+            .open(&mut open)
+            .default_size([760.0, 600.0])
+            .default_pos(centred(ui.ctx(), egui::vec2(760.0, 600.0)))
+            .show(ui.ctx(), |ui| match connections::show(ui, &self.vault, &mut self.connections) {
+                connections::Action::None => {}
+                connections::Action::Open(path) => self.vault.open_note(&path),
+                connections::Action::Start(path) => self.connections.start_from(&path),
+            });
+        self.connections_open = open;
     }
 
     /// The calendar window: a day with a note opens it, a day without creates it.
@@ -1282,7 +1299,7 @@ impl eframe::App for LocalApp {
         }
         self.dialogs(ui);
         let _ = self.chat.settings(ui);
-        self.graph(ui);
+        self.connections(ui);
         self.calendar(ui);
         self.help(ui);
 
