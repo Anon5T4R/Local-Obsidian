@@ -177,9 +177,10 @@ fn the_review_panel_shows_a_due_card_reveals_it_and_grades_it() {
     let mut review = crate::review_ui::Review::default();
     review.start(&state, crate::review_ui::Deck::All);
 
-    let mut harness = Harness::builder()
-        .with_size(egui::vec2(560.0, 900.0))
-        .build_ui_state(|ui, (state, review): &mut (VaultState, crate::review_ui::Review)| review.ui(ui, state), (state, review));
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 900.0)).build_ui_state(
+        |ui, (state, review, images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| review.ui(ui, state, images),
+        (state, review, crate::images::Images::default()),
+    );
     harness.run_steps(3);
     shot(&mut harness, "ui-review");
 
@@ -578,7 +579,7 @@ fn the_side_panels_keep_their_width_at_every_window_size() {
                             let _ = panels::outline(ui, state);
                         }
                         "ai-chat" => chat.ui(ui, state),
-                        "review" => review.ui(ui, state),
+                        "review" => review.ui(ui, state, &mut crate::images::Images::default()),
                         _ => review.stats_ui(ui, state),
                     });
                     sink.set(drawn.response.rect.width());
@@ -638,6 +639,162 @@ fn the_arrows_walk_the_notes_that_were_visited() {
     harness.get_by_label("Forward").click();
     harness.run_steps(2);
     assert_eq!(note(&harness).as_deref(), Some("Sepse neonatal"), "and forward again");
+}
+
+#[test]
+fn a_note_deck_reviews_only_that_notes_cards() {
+    // The report: "I clicked Review this note and got the whole vault". The wiring passes
+    // `Deck::Note(<relative path>)`; this is the test that holds it.
+    let scratch = Scratch::new(
+        "review-scope",
+        &[
+            ("MOC.md", "# MOC\n\n> [!card] Pergunta do MOC\n> Resposta do MOC\n"),
+            ("Outra.md", "# Outra\n\n> [!card] Pergunta da outra\n> Resposta da outra\n\n> [!card] Segunda\n> Resposta\n"),
+            ("Vazia.md", "# Vazia\n\nsem cards\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    assert_eq!(state.srs.cards.len(), 3, "the schedule was built from the notes");
+
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::Note("MOC.md".to_string()));
+    assert_eq!(review.queue_len(), 1, "only the open note's card");
+    assert_eq!(review.scope_cards(), 1, "and the header counts the deck, not the vault");
+
+    review.start(&state, crate::review_ui::Deck::Note("Outra.md".to_string()));
+    assert_eq!(review.queue_len(), 2, "the other note has two");
+
+    review.start(&state, crate::review_ui::Deck::All);
+    assert_eq!(review.queue_len(), 3, "the vault has all three");
+}
+
+#[test]
+fn the_review_header_names_its_deck_and_its_numbers() {
+    let scratch = Scratch::new(
+        "review-header",
+        &[
+            (
+                "MOC - Medicina.md",
+                "# Moc\n\n> [!card] A **tetralogia de Fallot** e a `CIA` são o quê?\n> Erros de septação; o ==destaque== também renderiza.\n",
+            ),
+            ("Outra.md", "# Outra\n\nsem cards\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("MOC - Medicina.md"));
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::Note("MOC - Medicina.md".to_string()));
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(560.0, 420.0)).build_ui_state(
+        |ui, (state, review, _images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| {
+            review.ui(ui, state, _images);
+        },
+        (state, review, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-header");
+
+    // The scope is the note's own name, and the counts belong to that deck.
+    harness.get_by_label("MOC - Medicina");
+    harness.get_by_label("1 card in this deck · 1 due today · 0 done in this session");
+    harness.get_by_label_contains("1 due today");
+    harness.get_by_label_contains("0 done in this session");
+}
+
+#[test]
+fn a_note_without_cards_says_so_and_shows_the_syntax() {
+    let scratch = Scratch::new("review-empty", &[("Vazia.md", "# Vazia\n\nsem cards\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::Note("Vazia.md".to_string()));
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(460.0, 420.0)).build_ui_state(
+        |ui, (state, review, images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| {
+            review.ui(ui, state, images);
+        },
+        (state, review, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-empty");
+
+    harness.get_by_label_contains("Vazia has no cards yet");
+    harness.get_by_label_contains("[!card] the question");
+    harness.get_by_label_contains("the answer, under it");
+}
+
+#[test]
+fn practice_never_touches_the_schedule() {
+    // A deck whose cards are all far in the future: the panel offers practice, and grading there
+    // must not write to `srs.json` - practice is not review.
+    let scratch = Scratch::new("review-practice", &[("Nota.md", "# Nota\n\n> [!card] Pergunta\n> Resposta\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    for card in state.srs.cards.values_mut() {
+        card.due = "2099-01-01".to_string();
+    }
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::All);
+    assert_eq!(review.queue_len(), 0, "nothing is due today");
+
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(460.0, 460.0)).build_ui_state(
+        |ui, (state, review, images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| {
+            review.ui(ui, state, images);
+        },
+        (state, review, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-practice");
+
+    harness.get_by_label_contains("1 card in");
+    harness.get_by_label_contains("Practice the 1 card").click();
+    harness.run_steps(2);
+    harness.get_by_label_contains("practice - nothing is graded");
+    harness.get_by_label("Reveal (Space)").click();
+    harness.run_steps(2);
+    harness.get_by_label("Good (3)").click();
+    harness.run_steps(2);
+
+    // The card was answered, and the schedule never heard about it.
+    let state = &harness.state().0;
+    for card in state.srs.cards.values() {
+        assert_eq!(card.reps, 0, "practice graded a card");
+        assert_eq!(card.due, "2099-01-01", "practice moved a due date");
+    }
+}
+
+#[test]
+fn the_statistics_panel_follows_the_deck_of_the_session() {
+    // The statistics were always the vault's, even in a one-note session: the panel's numbers have
+    // to be the deck's.
+    let scratch = Scratch::new(
+        "review-stats",
+        &[("MOC.md", "# Moc\n\n> [!card] Uma\n> Resposta\n"), ("Outra.md", "# Outra\n\n> [!card] Duas\n> Resposta\n\n> [!card] Três\n> Resposta\n")],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    assert_eq!(state.srs_report_for(None).stats.total, 3);
+    assert_eq!(state.srs_report_for(Some(&["MOC.md".to_string()])).stats.total, 1, "the note's own cards");
+    assert_eq!(state.deck_cards(Some(&["Outra.md".to_string()])), 2);
+
+    let mut review = crate::review_ui::Review::default();
+    review.start(&state, crate::review_ui::Deck::Note("MOC.md".to_string()));
+    review.stats_open = true;
+    let mut harness = Harness::builder().with_size(egui::vec2(420.0, 620.0)).build_ui_state(
+        |ui, (state, review): &mut (VaultState, crate::review_ui::Review)| {
+            review.stats_ui(ui, state);
+        },
+        (state, review),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-review-stats");
+
+    // The panel names the deck it is reporting, right next to the title.
+    harness.get_by_label("Review statistics");
+    harness.get_by_label("MOC");
 }
 
 #[test]

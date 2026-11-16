@@ -182,6 +182,10 @@ pub fn report(file: &SrsFile, today: &str) -> SrsReport {
 
     let mut by_file: BTreeMap<&str, usize> = BTreeMap::new();
     for card in &cards {
+        // A card with no note is not a note with cards: it is a card the decks cannot reach.
+        if card.file.is_empty() {
+            continue;
+        }
         *by_file.entry(card.file.as_str()).or_default() += 1;
     }
     let mut top_files: Vec<(String, usize)> = by_file.into_iter().map(|(file, count)| (file.to_string(), count)).collect();
@@ -255,6 +259,21 @@ pub fn sync_vault(srs: &SrsFile, found_by_file: &BTreeMap<String, Vec<(String, S
         }
     }
     SrsFile { version: 1, cards }
+}
+
+/// Drops the cards that belong to no note at all.
+///
+/// A card used to be written with an empty `file` (and an older sync left them behind when a
+/// question was rewritten): no note can claim them any more, no deck can show them, and they make
+/// the vault's numbers lie. A card whose note is merely unreadable keeps its `file` and stays.
+pub fn drop_orphans(file: &mut SrsFile) -> usize {
+    let before = file.cards.len();
+    file.cards.retain(|_, card| !card.file.is_empty());
+    let dropped = before - file.cards.len();
+    if dropped > 0 {
+        log::info!("srs: {dropped} cards belong to no note and were let go");
+    }
+    dropped
 }
 
 // ---- the file ------------------------------------------------------------------------------
@@ -1053,5 +1072,29 @@ mod tests {
         let chunks = chunk_cards(&cards, 100);
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[2].len(), 50);
+    }
+
+    #[test]
+    fn cards_that_belong_to_no_note_are_let_go() {
+        let mut file = SrsFile { version: 1, cards: BTreeMap::new() };
+        file.cards.insert("aa".into(), new_card("Nota.md", "pergunta", "2026-01-01"));
+        file.cards.insert("bb".into(), new_card("", "órfã", "2026-01-01"));
+        // A card whose note is merely unreadable keeps its file and its schedule.
+        file.cards.insert("cc".into(), new_card("Sumiu.md", "de nota ilegível", "2026-01-01"));
+        assert_eq!(drop_orphans(&mut file), 1);
+        assert_eq!(file.cards.len(), 2);
+        assert!(file.cards.contains_key("cc"));
+    }
+
+    #[test]
+    fn the_report_never_lists_a_note_without_a_name() {
+        // A card left behind by a rewritten question has no note: it is not a note with cards, and
+        // a blank row with a number beside it is what the panel showed.
+        let mut file = SrsFile { version: 1, cards: BTreeMap::new() };
+        file.cards.insert("aa".into(), new_card("Nota.md", "pergunta", "2026-01-01"));
+        file.cards.insert("bb".into(), new_card("", "pergunta órfã", "2026-01-01"));
+        let report = report(&file, "2026-01-01");
+        assert_eq!(report.top_files.len(), 1, "{:?}", report.top_files);
+        assert_eq!(report.top_files[0], ("Nota.md".to_string(), 1));
     }
 }

@@ -59,6 +59,32 @@
 	Review the whole vault	Repasar todo el cofre
 	Review this note	Repasar esta nota
 	Review #{tag}	Repasar #{tag}
+	Review “{note}” ({count} cards)	Repasar “{note}” ({count} tarjetas)
+	Review #{tag} ({count} cards)	Repasar #{tag} ({count} tarjetas)
+	Review the whole vault ({count} cards)	Repasar todo el cofre ({count} tarjetas)
+	Only the cards of the note that is open	Solo las tarjetas de la nota abierta
+	Open a note first	Abra una nota primero
+	Close the panel	Cerrar el panel
+	{n} card in this deck	{n} tarjeta en este mazo
+	{n} cards in this deck	{n} tarjetas en este mazo
+	{due} due today	{due} vencen hoy
+	{done} done in this session	{done} hechas en esta sesión
+	The review statistics of this deck	Las estadísticas de repaso de este mazo
+	this vault has no cards yet	este cofre aún no tiene tarjetas
+	no cards under {deck} yet	ninguna tarjeta en {deck} todavía
+	{deck} has no cards yet	{deck} aún no tiene tarjetas
+	a card is a callout in the note itself:	una tarjeta es un callout en la propia nota:
+	> [!card] the question	> [!card] la pregunta
+	> the answer, under it	> la respuesta, debajo
+	one card per callout; ==highlights== in the answer become cloze gaps	una tarjeta por callout; los ==destacados== de la respuesta se vuelven huecos
+	{cards} cards in {deck}, none due today	{cards} tarjetas en {deck}, ninguna vence hoy
+	next tomorrow ({date})	la próxima mañana ({date})
+	next in {days} days ({date})	la próxima en {days} días ({date})
+	Practice the {n} card	Practicar la {n} tarjeta
+	Practice the {n} cards	Practicar las {n} tarjetas
+	Study ahead of the schedule; nothing is graded	Estudiar antes del cronograma; no se registra nada
+	{n} note with cards here	{n} nota con tarjetas aquí
+	{n} notes with cards here	{n} notas con tarjetas aquí
 	Close the review panel	Cerrar el panel de repaso
 @plural	{n} card due|{n} cards due	{n} tarjeta por repasar|{n} tarjetas por repasar
 	the whole vault	todo el cofre
@@ -189,7 +215,6 @@
 	exported to {file}	exportado a {file}
 @plural	{n} image copied|{n} images copied	{n} imagen copiada|{n} imágenes copiadas
 	could not write the page	no se pudo escribir la página
-	open a note first	abre una nota primero
 	note	nota
 	Import Anki cards (text)...	Importar tarjetas de Anki (texto)...
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Una exportación de texto de Anki (.txt, .tsv, .csv). El paquete .apkg no se lee.

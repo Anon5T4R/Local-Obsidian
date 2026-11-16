@@ -18,6 +18,6 @@ pub mod srs;
 pub use cards::{CLOZE_GAP, CardKind, ExtractedCard, card_id, cloze_parts, extract_cards, render_cloze};
 pub use srs::{
     AnkiCard, AnkiImport, CardState, Grade, SrsFile, SrsReport, SrsStats, add_days, anki_field_to_markdown, anki_to_markdown, chunk_cards,
-    collect_media_refs, date_in, due_cards, from_anki_text, grade, is_due, new_card, report, rewrite_media_refs, stats, sync_file, sync_vault,
-    to_anki_text, today, today_iso,
+    collect_media_refs, date_in, drop_orphans, due_cards, from_anki_text, grade, is_due, new_card, report, rewrite_media_refs, stats, sync_file,
+    sync_vault, to_anki_text, today, today_iso,
 };

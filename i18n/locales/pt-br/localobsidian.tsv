@@ -59,6 +59,33 @@
 	Review the whole vault	Revisar o cofre inteiro
 	Review this note	Revisar esta nota
 	Review #{tag}	Revisar #{tag}
+	Review “{note}” ({count} cards)	Revisar “{note}” ({count} cards)
+	Review #{tag} ({count} cards)	Revisar #{tag} ({count} cards)
+	Review the whole vault ({count} cards)	Revisar o cofre inteiro ({count} cards)
+	Only the cards of the note that is open	Só os cards da nota que está aberta
+	Open a note first	Abra uma nota primeiro
+	Close the panel	Fechar o painel
+	{n} card in this deck	{n} card neste baralho
+	{n} cards in this deck	{n} cards neste baralho
+	{due} due today	{due} vencidos hoje
+	{done} done in this session	{done} feitos nesta sessão
+	The review statistics of this deck	As estatísticas de revisão deste baralho
+	The vault's review statistics	As estatísticas de revisão do cofre
+	this vault has no cards yet	este cofre ainda não tem cards
+	no cards under {deck} yet	nenhum card em {deck} ainda
+	{deck} has no cards yet	{deck} ainda não tem cards
+	a card is a callout in the note itself:	um card é um callout na própria nota:
+	> [!card] the question	> [!card] a pergunta
+	> the answer, under it	> a resposta, embaixo dela
+	one card per callout; ==highlights== in the answer become cloze gaps	um card por callout; ==destaques== na resposta viram lacunas
+	{cards} cards in {deck}, none due today	{cards} cards em {deck}, nenhum vence hoje
+	next tomorrow ({date})	próximo amanhã ({date})
+	next in {days} days ({date})	próximo em {days} dias ({date})
+	Practice the {n} card	Treinar o {n} card
+	Practice the {n} cards	Treinar os {n} cards
+	Study ahead of the schedule; nothing is graded	Estudar antes do cronograma; nada é registrado
+	{n} note with cards here	{n} nota com cards aqui
+	{n} notes with cards here	{n} notas com cards aqui
 	Close the review panel	Fechar o painel de revisão
 @plural	{n} card due|{n} cards due	{n} card para revisar|{n} cards para revisar
 	the whole vault	o cofre inteiro
@@ -80,7 +107,6 @@
 	Statistics	Estatísticas
 	Restart	Reiniciar
 	Reload the queue with what is due today	Recarregar a fila com o que vence hoje
-	The vault's review statistics	As estatísticas de revisão do cofre
 	Review statistics	Estatísticas de revisão
 	Cards	Cards
 	Due today	Vencem hoje
@@ -189,7 +215,6 @@
 	exported to {file}	exportado para {file}
 @plural	{n} image copied|{n} images copied	{n} imagem copiada|{n} imagens copiadas
 	could not write the page	não foi possível gravar a página
-	open a note first	abra uma nota primeiro
 	note	nota
 	Import Anki cards (text)...	Importar cartões do Anki (texto)...
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Uma exportação de texto do Anki (.txt, .tsv, .csv). Pacote .apkg não é lido.

@@ -595,8 +595,12 @@ impl VaultState {
         let Some(path) = self.srs_path() else { return };
         let (file, dropped) = review::srs::load(&path);
         let today = review::today();
-        let synced = review::sync_vault(&file, &self.cards_in_vault(), &today);
-        self.srs_dirty = dropped > 0 || synced != file;
+        let mut synced = review::sync_vault(&file, &self.cards_in_vault(), &today);
+        // A card with no note behind it can never be shown by a deck nor opened from the panel:
+        // it only inflates the vault's numbers (and it is what a question that was rewritten
+        // leaves behind).
+        let orphans = review::drop_orphans(&mut synced);
+        self.srs_dirty = dropped > 0 || orphans > 0 || synced != file;
         self.srs = synced;
         if self.srs_dirty {
             self.save_srs();
@@ -624,9 +628,22 @@ impl VaultState {
         review::stats(&self.srs, &review::today())
     }
 
-    /// The statistics panel's report.
-    pub fn srs_report(&self) -> review::SrsReport {
-        review::report(&self.srs, &review::today())
+    /// The report of the cards in `files` (the whole schedule when `None`).
+    pub fn srs_report_for(&self, files: Option<&[String]>) -> review::SrsReport {
+        let today = review::today();
+        match files {
+            None => review::report(&self.srs, &today),
+            Some(files) => {
+                let mut scoped = self.srs.clone();
+                scoped.cards.retain(|_, card| files.contains(&card.file));
+                review::report(&scoped, &today)
+            }
+        }
+    }
+
+    /// How many cards `files` covers (`None` is the whole schedule).
+    pub fn deck_cards(&self, files: Option<&[String]>) -> usize {
+        self.srs.cards.values().filter(|card| files.is_none_or(|files| files.contains(&card.file))).count()
     }
 
     /// Grades a card and writes the schedule at once, so a crash cannot lose a review session.

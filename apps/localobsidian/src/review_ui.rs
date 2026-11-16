@@ -7,6 +7,10 @@
 //!
 //! Practice is not review: repeating this session's cards, or studying ahead, never touches the
 //! schedule.
+//!
+//! The panel always names the deck it is on ("MOC - Medicina", "#uti", "the whole vault") and how
+//! many cards that deck has: a session that says 4598 while the reader asked for one note is a lie,
+//! and the numbers come from the deck, never from the vault.
 
 use localobsidian_review as review;
 
@@ -21,18 +25,31 @@ pub enum Deck {
     All,
     /// The notes carrying a tag.
     Tag(String),
-    /// The note that is open.
+    /// The note that is open, by its path inside the vault.
     Note(String),
 }
 
 impl Deck {
-    fn label(&self) -> String {
+    /// How the deck is named in the panel: the note's own name, the tag as written, or the vault.
+    fn label(&self, state: &VaultState) -> String {
         match self {
             Deck::All => tl!("the whole vault").to_string(),
             Deck::Tag(tag) => format!("#{tag}"),
-            Deck::Note(name) => name.clone(),
+            Deck::Note(relative) => {
+                state.files.iter().find(|file| &file.relative_path == relative).map(|file| file.name.clone()).unwrap_or_else(|| relative.clone())
+            }
         }
     }
+}
+
+/// What the deck holds right now: how many cards, how many are due today, and when the next one
+/// comes up.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Scope {
+    cards: usize,
+    due: usize,
+    /// The closest date after today, when nothing else is due.
+    next_due: Option<String>,
 }
 
 /// The review session's state.
@@ -49,11 +66,23 @@ pub struct Review {
     done: usize,
     /// Repeating or studying ahead grades nothing.
     practice: bool,
+    /// The deck as it was when the session started: what the header reports.
+    scope: Scope,
 }
 
 impl Default for Review {
     fn default() -> Self {
-        Self { open: false, stats_open: false, deck: Deck::All, queue: Vec::new(), revealed: false, seen: Vec::new(), done: 0, practice: false }
+        Self {
+            open: false,
+            stats_open: false,
+            deck: Deck::All,
+            queue: Vec::new(),
+            revealed: false,
+            seen: Vec::new(),
+            done: 0,
+            practice: false,
+            scope: Scope::default(),
+        }
     }
 }
 
@@ -69,21 +98,34 @@ impl Review {
     /// Fills the queue from the schedule.
     fn reload(&mut self, state: &VaultState, ahead_days: i64) {
         let today = review::today();
-        let when = if ahead_days == 0 { today } else { review::date_in(ahead_days) };
+        let when = if ahead_days == 0 { today.clone() } else { review::date_in(ahead_days) };
         let allowed = self.deck_files(state);
         self.queue = review::due_cards(&state.srs, &when)
             .into_iter()
             .filter(|(_, card)| allowed.as_ref().is_none_or(|files| files.contains(&card.file)))
             .collect();
+        self.scope = self.scope_of(state, &today);
         self.revealed = false;
         self.done = 0;
+    }
+
+    /// How many cards the deck holds, how many of them are due today, and when the next one is.
+    fn scope_of(&self, state: &VaultState, today: &str) -> Scope {
+        let allowed = self.deck_files(state);
+        let cards: Vec<&review::CardState> =
+            state.srs.cards.values().filter(|card| allowed.as_ref().is_none_or(|files| files.contains(&card.file))).collect();
+        Scope {
+            cards: cards.len(),
+            due: cards.iter().filter(|card| review::is_due(card, today)).count(),
+            next_due: cards.iter().filter(|card| !card.suspended && card.due.as_str() > today).map(|card| card.due.clone()).min(),
+        }
     }
 
     /// The relative paths this deck covers; `None` means every note.
     fn deck_files(&self, state: &VaultState) -> Option<Vec<String>> {
         match &self.deck {
             Deck::All => None,
-            Deck::Note(name) => Some(vec![name.clone()]),
+            Deck::Note(relative) => Some(vec![relative.clone()]),
             Deck::Tag(tag) => {
                 let notes = state.index.tags.get(tag)?;
                 Some(
@@ -105,6 +147,18 @@ impl Review {
 
     fn current(&self) -> Option<&(String, review::CardState)> {
         self.queue.first()
+    }
+
+    /// How many cards the session has left (the tests read the queue without drawing it).
+    #[cfg(test)]
+    pub fn queue_len(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// How many cards the deck holds, as the header reports it.
+    #[cfg(test)]
+    pub fn scope_cards(&self) -> usize {
+        self.scope.cards
     }
 
     /// Reveals the current card's answer.
@@ -152,12 +206,21 @@ impl Review {
         self.queue = self.seen.clone();
     }
 
-    /// Pulls in what comes due over the next week, without grading it.
-    fn ahead(&mut self, state: &VaultState) {
+    /// Studies the whole deck ahead of the schedule: nothing is graded.
+    fn practice_all(&mut self, state: &VaultState) {
         self.practice = true;
-        self.reload(state, 7);
-        let seen = self.seen.clone();
-        self.queue.retain(|(id, _)| !seen.iter().any(|(seen, _)| seen == id));
+        self.revealed = false;
+        self.done = 0;
+        let allowed = self.deck_files(state);
+        let mut cards: Vec<(String, review::CardState)> = state
+            .srs
+            .cards
+            .iter()
+            .filter(|(_, card)| !card.suspended && allowed.as_ref().is_none_or(|files| files.contains(&card.file)))
+            .map(|(id, card)| (id.clone(), card.clone()))
+            .collect();
+        cards.sort_by(|a, b| a.1.due.cmp(&b.1.due).then_with(|| a.1.q.cmp(&b.1.q)));
+        self.queue = cards;
     }
 
     /// The keys the session answers: `Space` reveals, `1`-`4` grade, `Escape` closes.
@@ -199,32 +262,38 @@ impl Review {
     }
 
     /// Draws the session.
-    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState, images: &mut crate::images::Images) {
         // The header Restart button and the menu item share the same reload.
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(tl!("Review")).strong());
-            ui.label(egui::RichText::new(self.deck.label()).small().weak());
+            // The scope is named, not described: the note's own name, the tag as written, the vault.
+            ui.label(egui::RichText::new(self.deck.label(state)).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button("x").on_hover_text(tl!("Close")).clicked() {
                     self.open = false;
                 }
-                if ui.small_button(tl!("Statistics")).on_hover_text(tl!("The vault's review statistics")).clicked() {
-                    self.stats_open = true;
+                // The statistics panel is one panel: this button opens and closes it, and shows
+                // whether it is open, instead of stacking a second copy of the same thing.
+                if ui
+                    .selectable_label(self.stats_open, egui::RichText::new(tl!("Statistics")).small())
+                    .on_hover_text(tl!("The review statistics of this deck"))
+                    .clicked()
+                {
+                    self.stats_open = !self.stats_open;
                 }
                 if ui.small_button(tl!("Restart")).on_hover_text(tl!("Reload the queue with what is due today")).clicked() {
                     self.restart(state);
                 }
             });
         });
-        ui.label(
-            egui::RichText::new(i18n::tr_fmt(
-                "{left} to review, {done} done",
-                &[("left", &self.queue.len().to_string()), ("done", &self.done.to_string())],
-            ))
-            .small()
-            .weak(),
-        );
+        let counts = [
+            i18n::trn(self.scope.cards as u64, "{n} card in this deck", "{n} cards in this deck"),
+            i18n::tr_fmt("{due} due today", &[("due", &self.scope.due.to_string())]),
+            i18n::tr_fmt("{done} done in this session", &[("done", &self.done.to_string())]),
+        ]
+        .join(" · ");
+        ui.label(egui::RichText::new(counts).small().weak());
         if self.practice {
             ui.label(egui::RichText::new(tl!("practice - nothing is graded")).small().color(ui.visuals().warn_fg_color));
         }
@@ -250,7 +319,9 @@ impl Review {
                 }
             });
             ui.add_space(6.0);
-            ui.label(egui::RichText::new(&card.q).size(17.0));
+            // The card is written in the note's Markdown: draw it the way the reading view draws the
+            // note. A card is a sentence, not a syntax lesson.
+            crate::editor::markdown(ui, state, images, &card.q, 17.0);
             ui.add_space(8.0);
             if self.revealed {
                 let answer = state.card_answer(&id).unwrap_or_default();
@@ -258,7 +329,7 @@ impl Review {
                     ui.label(egui::RichText::new(tl!("this card has no answer")).weak());
                 } else {
                     egui::Frame::new().fill(ui.visuals().faint_bg_color).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
-                        ui.label(egui::RichText::new(&answer).size(15.0));
+                        crate::editor::markdown(ui, state, images, &answer, 15.0);
                     });
                 }
             } else if ui.button(i18n::tr_fmt("Reveal ({key})", &[("key", tl!("Space"))])).clicked() {
@@ -267,6 +338,8 @@ impl Review {
         });
 
         ui.add_space(4.0);
+        // The actions of the card live together, after the answer: grading and parking are the same
+        // decision - what to do with this card now.
         if self.revealed {
             ui.horizontal(|ui| {
                 for (label, key, grade) in [
@@ -279,42 +352,94 @@ impl Review {
                         self.answer(state, grade);
                     }
                 }
+                ui.separator();
                 if ui.small_button(tl!("Suspend")).on_hover_text(tl!("Stop asking this card")).clicked() {
                     self.suspend(state);
                 }
             });
-        } else if ui.small_button(tl!("Suspend")).clicked() {
-            self.suspend(state);
         }
     }
 
     /// What the panel shows when the queue is empty.
+    ///
+    /// It always says which deck it is talking about: "nothing is due" means one thing in a note
+    /// with three cards and another in a vault with four thousand.
     fn empty(&mut self, ui: &mut egui::Ui, state: &VaultState) {
         ui.add_space(12.0);
+        let deck = self.deck.label(state);
         if self.done > 0 {
             ui.label(egui::RichText::new(i18n::tr_fmt("done for now - {count} reviewed", &[("count", &self.done.to_string())])).size(15.0));
-        } else {
-            ui.label(egui::RichText::new(tl!("nothing is due in this deck")).weak());
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if !self.seen.is_empty()
+                    && ui.button(i18n::tr_fmt("Repeat the {count} of this session", &[("count", &self.seen.len().to_string())])).clicked()
+                {
+                    self.repeat();
+                }
+                if ui.button(tl!("Close the panel")).clicked() {
+                    self.open = false;
+                }
+            });
+            return;
+        }
+
+        if self.scope.cards == 0 {
+            let message = match self.deck {
+                Deck::All => tl!("this vault has no cards yet").to_string(),
+                Deck::Tag(_) => i18n::tr_fmt("no cards under {deck} yet", &[("deck", &deck)]),
+                Deck::Note(_) => i18n::tr_fmt("{deck} has no cards yet", &[("deck", &deck)]),
+            };
+            ui.label(egui::RichText::new(message).size(15.0));
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new(tl!("a card is a callout in the note itself:")).small().weak());
+            egui::Frame::new().fill(ui.visuals().code_bg_color).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
+                ui.label(egui::RichText::new(tl!("> [!card] the question")).monospace().small());
+                ui.label(egui::RichText::new(tl!("> the answer, under it")).monospace().small());
+            });
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new(tl!("one card per callout; ==highlights== in the answer become cloze gaps")).small().weak());
+            return;
+        }
+
+        // Cards exist, none is due today: say how many, and when the next one comes up.
+        let message = i18n::tr_fmt("{cards} cards in {deck}, none due today", &[("cards", &self.scope.cards.to_string()), ("deck", &deck)]);
+        ui.label(egui::RichText::new(message).size(15.0));
+        ui.add_space(4.0);
+        if let Some(next) = &self.scope.next_due {
+            let days = days_until(next).unwrap_or(0);
+            let when = if days <= 1 {
+                i18n::tr_fmt("next tomorrow ({date})", &[("date", next)])
+            } else {
+                i18n::tr_fmt("next in {days} days ({date})", &[("days", &days.to_string()), ("date", next)])
+            };
+            ui.label(egui::RichText::new(when).small().weak());
         }
         ui.add_space(8.0);
         ui.horizontal(|ui| {
+            if ui
+                .button(i18n::trn(self.scope.cards as u64, "Practice the {n} card", "Practice the {n} cards"))
+                .on_hover_text(tl!("Study ahead of the schedule; nothing is graded"))
+                .clicked()
+            {
+                self.practice_all(state);
+            }
             if !self.seen.is_empty()
                 && ui.button(i18n::tr_fmt("Repeat the {count} of this session", &[("count", &self.seen.len().to_string())])).clicked()
             {
                 self.repeat();
             }
-            if ui.button(tl!("Review a week ahead")).on_hover_text(tl!("Study before the schedule asks; nothing is graded")).clicked() {
-                self.ahead(state);
-            }
         });
     }
 
-    /// Draws the statistics panel.
+    /// Draws the statistics panel, for the deck the session is on.
     pub fn stats_ui(&mut self, ui: &mut egui::Ui, state: &mut VaultState) {
-        let report = state.srs_report();
+        let files = self.deck_files(state);
+        let report = state.srs_report_for(files.as_deref());
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(tl!("Review statistics")).strong());
+            // Same rule as the session header: the numbers belong to a named deck.
+            ui.label(egui::RichText::new(self.deck.label(state)).small().weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button("x").clicked() {
                     self.stats_open = false;
@@ -359,7 +484,16 @@ impl Review {
 
             ui.add_space(10.0);
             if !report.top_files.is_empty() {
+                // The number is a count of notes, not a stray figure beside a heading.
+                let mut notes = std::collections::BTreeSet::new();
+                for card in state.srs.cards.values() {
+                    if card.file.is_empty() || files.as_ref().is_some_and(|files| !files.contains(&card.file)) {
+                        continue;
+                    }
+                    notes.insert(card.file.as_str());
+                }
                 ui.label(egui::RichText::new(tl!("Notes with the most cards")).strong());
+                ui.label(egui::RichText::new(i18n::trn(notes.len() as u64, "{n} note with cards here", "{n} notes with cards here")).small().weak());
                 let mut open: Option<std::path::PathBuf> = None;
                 for (file, count) in &report.top_files {
                     ui.horizontal(|ui| {
@@ -375,4 +509,11 @@ impl Review {
             }
         });
     }
+}
+
+/// How many days from today to `iso`.
+fn days_until(iso: &str) -> Option<i64> {
+    let today = chrono::NaiveDate::parse_from_str(&review::today(), "%Y-%m-%d").ok()?;
+    let target = chrono::NaiveDate::parse_from_str(iso, "%Y-%m-%d").ok()?;
+    Some((target - today).num_days())
 }

@@ -135,6 +135,20 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
 /// The narrowest a pane of the split may be dragged: below this the note cannot be read.
 const MIN_PANE: f32 = 180.0;
 
+/// The reading view's body size before the zoom: the measure every other block is a multiple of.
+const BODY_SIZE: f32 = 15.0;
+
+/// A piece of markdown drawn by the reading view, outside a note: the front and the back of a
+/// review card, which are written in the same syntax as the note they came from.
+///
+/// `images` is the app's cache, so a card that embeds a picture costs nothing extra.
+pub fn markdown(ui: &mut egui::Ui, state: &VaultState, images: &mut Images, text: &str, size: f32) {
+    let prepared = localobsidian_md::preview::prepare(text);
+    let blocks = localobsidian_md::preview::blocks(&prepared);
+    let mut target: Option<&str> = None;
+    show_blocks(ui, &blocks, state, images, &mut target, size / BODY_SIZE);
+}
+
 /// A highlighter for the source pane: fences, headings, quotes, tags and wikilinks get a colour, so
 /// the Markdown reads as structure and not as one grey wall. It is a *source* view: nothing is hidden,
 /// only coloured.
@@ -514,7 +528,7 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             drawn.inner
         }
         Block::Paragraph(spans) => {
-            let hit = show_spans(ui, spans, state, Style::new(15.0 * zoom));
+            let hit = show_spans(ui, spans, state, Style::new(BODY_SIZE * zoom));
             ui.add_space(14.0 * zoom);
             hit
         }
@@ -536,7 +550,7 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
                         }
                     }
                     for span in item {
-                        if let Some(found) = show_span(ui, span, state, Style::new(15.0 * zoom)) {
+                        if let Some(found) = show_span(ui, span, state, Style::new(BODY_SIZE * zoom)) {
                             hit = Some(found);
                         }
                     }

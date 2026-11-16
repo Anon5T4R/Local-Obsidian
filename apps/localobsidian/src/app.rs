@@ -337,19 +337,41 @@ impl LocalApp {
                 let note = self.vault.active.as_ref().and_then(|path| {
                     self.vault.files.iter().find(|file| &file.path == path).map(|file| (file.relative_path.clone(), file.name.clone()))
                 });
-                if ui.add_enabled(note.is_some(), egui::Button::new(tl!("Review this note"))).clicked()
-                    && let Some((relative, _)) = note
-                {
-                    self.review.start(&self.vault, Deck::Note(relative));
-                    ui.close();
+                // The two entries are not the same thing, so they do not read the same: the note's
+                // own name and how many cards it has, then the vault (which is always the bigger
+                // number, and the one that used to swallow the other).
+                if let Some((relative, name)) = &note {
+                    let cards = self.vault.deck_cards(Some(std::slice::from_ref(relative)));
+                    let label = i18n::tr_fmt("Review “{note}” ({count} cards)", &[("note", name), ("count", &cards.to_string())]);
+                    if ui.button(label).on_hover_text(tl!("Only the cards of the note that is open")).clicked() {
+                        self.review.start(&self.vault, Deck::Note(relative.clone()));
+                        ui.close();
+                    }
+                } else {
+                    ui.add_enabled(false, egui::Button::new(tl!("Review this note"))).on_hover_text(tl!("Open a note first"));
                 }
-                if let Some(tag) = self.vault.tag_filter.clone()
-                    && ui.button(i18n::tr_fmt("Review #{tag}", &[("tag", &tag)])).clicked()
-                {
-                    self.review.start(&self.vault, Deck::Tag(tag));
-                    ui.close();
+                if let Some(tag) = self.vault.tag_filter.clone() {
+                    let files: Option<Vec<String>> = self.vault.index.tags.get(&tag).map(|names| {
+                        names
+                            .iter()
+                            .filter_map(|name| self.vault.files.iter().find(|file| file.name.eq_ignore_ascii_case(name)))
+                            .map(|file| file.relative_path.clone())
+                            .collect()
+                    });
+                    let cards = self.vault.deck_cards(files.as_deref());
+                    let label = i18n::tr_fmt("Review #{tag} ({count} cards)", &[("tag", &tag), ("count", &cards.to_string())]);
+                    if ui.button(label).clicked() {
+                        self.review.start(&self.vault, Deck::Tag(tag));
+                        ui.close();
+                    }
                 }
                 ui.separator();
+                let all = self.vault.deck_cards(None);
+                let label = i18n::tr_fmt("Review the whole vault ({count} cards)", &[("count", &all.to_string())]);
+                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(label)).clicked() {
+                    self.review.start(&self.vault, Deck::All);
+                    ui.close();
+                }
                 if ui.button(tl!("Review statistics")).clicked() {
                     self.review.stats_open = true;
                     ui.close();
@@ -433,7 +455,7 @@ impl LocalApp {
         if self.review.open {
             let ceiling = panel_ceiling(ui.available_width(), 0.5, 520.0);
             egui::Panel::right("review").resizable(true).default_size(320.0).max_size(ceiling).show(ui, |ui| {
-                self.review.ui(ui, &mut self.vault);
+                self.review.ui(ui, &mut self.vault, &mut self.images);
             });
         }
         if self.chat.open {

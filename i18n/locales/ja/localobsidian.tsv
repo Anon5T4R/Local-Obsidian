@@ -59,6 +59,32 @@
 	Review the whole vault	保管庫全体を復習
 	Review this note	このノートを復習
 	Review #{tag}	#{tag} を復習
+	Review “{note}” ({count} cards)	「{note}」を復習（{count} 枚）
+	Review #{tag} ({count} cards)	#{tag} を復習（{count} 枚）
+	Review the whole vault ({count} cards)	保管庫全体を復習（{count} 枚）
+	Only the cards of the note that is open	開いているノートのカードだけ
+	Open a note first	先にノートを開いてください
+	Close the panel	パネルを閉じる
+	{n} card in this deck	このデッキに {n} 枚
+	{n} cards in this deck	このデッキに {n} 枚
+	{due} due today	今日が期限 {due} 枚
+	{done} done in this session	このセッションで {done} 枚
+	The review statistics of this deck	このデッキの復習統計
+	this vault has no cards yet	この保管庫にはまだカードがありません
+	no cards under {deck} yet	{deck} にはまだカードがありません
+	{deck} has no cards yet	{deck} にはまだカードがありません
+	a card is a callout in the note itself:	カードはノート自体の callout です:
+	> [!card] the question	> [!card] 質問
+	> the answer, under it	> その下に答え
+	one card per callout; ==highlights== in the answer become cloze gaps	callout 1 つでカード 1 枚。答えの ==強調== は穴埋めになります
+	{cards} cards in {deck}, none due today	{deck} に {cards} 枚、今日が期限のものはありません
+	next tomorrow ({date})	次は明日（{date}）
+	next in {days} days ({date})	次は {days} 日後（{date}）
+	Practice the {n} card	{n} 枚を練習
+	Practice the {n} cards	{n} 枚を練習
+	Study ahead of the schedule; nothing is graded	予定より早く学習。記録はされません
+	{n} note with cards here	ここにカードのあるノート {n} 件
+	{n} notes with cards here	ここにカードのあるノート {n} 件
 	Close the review panel	復習パネルを閉じる
 @plural	{n} card due|{n} cards due	期限のカード {n} 枚
 	the whole vault	保管庫全体
@@ -189,7 +215,6 @@
 	exported to {file}	{file} に書き出しました
 @plural	{n} image copied|{n} images copied	画像 {n} 件をコピーしました
 	could not write the page	ページを書き出せませんでした
-	open a note first	先にノートを開いてください
 	note	ノート
 	Import Anki cards (text)...	Anki のカードを読み込む（テキスト）...
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Anki のテキスト書き出し（.txt・.tsv・.csv）。.apkg パッケージは読みません。
