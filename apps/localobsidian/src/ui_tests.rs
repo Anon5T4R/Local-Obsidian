@@ -596,6 +596,51 @@ fn the_side_panels_keep_their_width_at_every_window_size() {
 }
 
 #[test]
+fn the_arrows_walk_the_notes_that_were_visited() {
+    // Three notes visited from the tree, then two steps back and one forward: the note in the
+    // header has to be the one the history says, and the arrows are the ones the mouse and the
+    // keyboard drive.
+    let (scratch, mut state) = demo_vault("history");
+    state.open_note(&scratch.0.join("Sepse.md"));
+    state.open_note(&scratch.0.join("Sepse neonatal.md"));
+    state.open_note(&scratch.0.join("Protocolos/Protocolo.md"));
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 700.0)).with_accessibility_check(false).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let mut images = crate::images::Images::default();
+            match crate::editor::show(ui, state, &mut images) {
+                crate::editor::EditorAction::Back => {
+                    assert!(state.go_back(), "the arrow is only live when there is a note behind");
+                }
+                crate::editor::EditorAction::Forward => {
+                    assert!(state.go_forward(), "and the same ahead");
+                }
+                _ => {}
+            }
+        },
+        state,
+    );
+    harness.run_steps(2);
+    shot(&mut harness, "ui-history");
+
+    let note = |harness: &Harness<'_, VaultState>| {
+        harness.state().active.as_ref().and_then(|path| path.file_stem()).map(|stem| stem.to_string_lossy().to_string())
+    };
+    assert_eq!(note(&harness).as_deref(), Some("Protocolo"), "the last note visited");
+
+    harness.get_by_label("Back").click();
+    harness.run_steps(2);
+    assert_eq!(note(&harness).as_deref(), Some("Sepse neonatal"), "one step back");
+
+    harness.get_by_label("Back").click();
+    harness.run_steps(2);
+    assert_eq!(note(&harness).as_deref(), Some("Sepse"), "two steps back");
+
+    harness.get_by_label("Forward").click();
+    harness.run_steps(2);
+    assert_eq!(note(&harness).as_deref(), Some("Sepse neonatal"), "and forward again");
+}
+
+#[test]
 fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
     // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
     // themselves and not for what comes after, so the tree and the backlinks overlapped.

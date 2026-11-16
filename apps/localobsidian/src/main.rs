@@ -18,6 +18,7 @@ mod editor;
 mod editor_keys;
 mod fonts;
 mod graph;
+mod history;
 mod i18n;
 mod images;
 mod opener;

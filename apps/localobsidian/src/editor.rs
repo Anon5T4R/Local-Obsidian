@@ -28,6 +28,10 @@ pub enum EditorAction {
     FilterTag(String),
     /// Flip the `n`-th `- [ ]` of the note (the reading view clicked its box).
     ToggleTask(usize),
+    /// Walk the history one note back.
+    Back,
+    /// Walk the history one note forward.
+    Forward,
 }
 
 /// How a run of spans is drawn: the block's size, plus what the inline markers added.
@@ -95,9 +99,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
     header(ui, state, &active, &mut action);
     ui.separator();
 
-    match state.view {
-        ViewMode::Edit => action = editor_pane(ui, state),
-        ViewMode::Read => action = reading_pane(ui, state, images),
+    // The pane's own action, if it has one. It must not overwrite what the header already asked
+    // for: `action = pane(..)` silently ate the header's Save when the header learned about it,
+    // and would have eaten the two arrows the same way.
+    let from_pane = match state.view {
+        ViewMode::Edit => editor_pane(ui, state),
+        ViewMode::Read => reading_pane(ui, state, images),
         ViewMode::Split => {
             // A draggable divider, the width the user left it at. `default_size` only sizes the
             // first frame; after that egui remembers what the drag chose, so the panel is asked what
@@ -115,14 +122,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) -> E
             if total > 1.0 {
                 state.split = (source.response.rect.width() / total).clamp(0.15, 0.85);
             }
-            if source.inner != EditorAction::None {
-                action = source.inner;
-            }
             let from_reading = reading_pane(ui, state, images);
-            if from_reading != EditorAction::None {
-                action = from_reading;
-            }
+            if from_reading != EditorAction::None { from_reading } else { source.inner }
         }
+    };
+    if from_pane != EditorAction::None {
+        action = from_pane;
     }
     action
 }
@@ -386,9 +391,52 @@ fn properties(ui: &mut egui::Ui, fields: &[(String, String)]) {
     ui.add_space(14.0);
 }
 
+/// One of the two history chevrons, drawn with two lines.
+///
+/// The fonts the app embeds (egui's Latin face plus the craft-fonts CJK faces) have no `‹`/`›`, and
+/// an arrow that renders as a box is worse than no arrow: the glyph is painted, not typed.
+fn chevron_button(ui: &mut egui::Ui, enabled: bool, left: bool, tooltip: &str) -> egui::Response {
+    let size = egui::vec2(20.0, 20.0);
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let response = ui.allocate_response(size, sense);
+    // Named for the accessibility tree (and for the tests): the arrow itself is paint, and paint
+    // has no name.
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, tooltip));
+    let rect = response.rect;
+    let visuals = ui.visuals();
+    if enabled && (response.hovered() || response.is_pointer_button_down_on()) {
+        let fill = visuals.widgets.hovered.bg_fill.gamma_multiply(0.6);
+        ui.painter().rect_filled(rect.shrink(1.0), 5.0, fill);
+    }
+    let color = if enabled && response.hovered() {
+        visuals.strong_text_color()
+    } else if enabled {
+        visuals.text_color()
+    } else {
+        visuals.weak_text_color().gamma_multiply(0.55)
+    };
+    let stroke = egui::Stroke::new(1.6, color);
+    let centre = rect.center();
+    let (tip, back) = if left { (-3.0, 3.0) } else { (3.0, -3.0) };
+    let points = [egui::pos2(centre.x + back, centre.y - 5.0), egui::pos2(centre.x + tip, centre.y), egui::pos2(centre.x + back, centre.y + 5.0)];
+    ui.painter().add(egui::Shape::line(points.to_vec(), stroke));
+    if enabled { response.on_hover_text(tooltip) } else { response }
+}
+
 fn header(ui: &mut egui::Ui, state: &mut VaultState, active: &std::path::Path, action: &mut EditorAction) {
     ui.add_space(2.0);
     ui.horizontal(|ui| {
+        // The two arrows sit at the left, where a browser puts them and where the hand that just
+        // came from the tree already is: they walk the notes, not the app.
+        let can_back = state.history.can_go_back();
+        let can_forward = state.history.can_go_forward();
+        if chevron_button(ui, can_back, true, tl!("Back")).clicked() {
+            *action = EditorAction::Back;
+        }
+        if chevron_button(ui, can_forward, false, tl!("Forward")).clicked() {
+            *action = EditorAction::Forward;
+        }
+        ui.add_space(6.0);
         let name = active.file_stem().and_then(|stem| stem.to_str()).unwrap_or_default();
         let mut title = RichText::new(name).strong();
         if state.dirty {

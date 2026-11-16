@@ -452,6 +452,12 @@ impl LocalApp {
         egui::CentralPanel::default_margins().show(ui, |ui| match editor::show(ui, &mut self.vault, &mut self.images) {
             EditorAction::None => {}
             EditorAction::Save => self.save(),
+            EditorAction::Back => {
+                self.vault.go_back();
+            }
+            EditorAction::Forward => {
+                self.vault.go_forward();
+            }
             EditorAction::Navigate(target) => self.navigate(&target),
             EditorAction::ToggleTask(index) => {
                 self.vault.toggle_task(index);
@@ -1048,6 +1054,7 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
     shortcut(ui, "Ctrl+Shift+O", tl!("Open a vault"));
     shortcut(ui, "Ctrl+Shift+F", tl!("Search the vault"));
     shortcut(ui, "Ctrl+S", tl!("Save the note"));
+    shortcut(ui, "Alt+Left / Alt+Right", tl!("Go back or forward between the notes you visited"));
     shortcut(ui, "Esc", tl!("Close the panel or the window in front"));
 
     section(ui, tl!("Writing"));
@@ -1172,6 +1179,24 @@ impl eframe::App for LocalApp {
         let save_shortcut = ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S));
         if save_shortcut && self.vault.dirty {
             self.save();
+        }
+        // Back and forward: the mouse's side buttons and `Alt+←`/`Alt+→`, the same pair every
+        // browser has. Only when a note is open.
+        if self.vault.active.is_some() {
+            match crate::history::requested(ctx) {
+                Some(crate::history::Direction::Back) => {
+                    self.vault.go_back();
+                    // The editor must not also move the caret with the same key press.
+                    ctx.input_mut(|input| input.consume_key(egui::Modifiers::ALT, egui::Key::ArrowLeft));
+                    wake = true;
+                }
+                Some(crate::history::Direction::Forward) => {
+                    self.vault.go_forward();
+                    ctx.input_mut(|input| input.consume_key(egui::Modifiers::ALT, egui::Key::ArrowRight));
+                    wake = true;
+                }
+                None => {}
+            }
         }
         let search_shortcut = ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::F));
         if search_shortcut && self.vault.root.is_some() {

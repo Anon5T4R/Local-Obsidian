@@ -99,6 +99,8 @@ pub struct VaultState {
     pub pending_line: Option<usize>,
     /// The `[[wikilink` being typed, when the popup is open.
     pub completion: Option<crate::completions::Completion>,
+    /// The notes already visited, for the two arrows of the note header.
+    pub history: crate::history::History,
     /// The schedule in `.openobsidian/srs.json`, as the phone reads it.
     pub srs: review::SrsFile,
     /// The schedule changed and has not reached the disk yet.
@@ -140,6 +142,7 @@ impl Default for VaultState {
             pending_section: None,
             pending_line: None,
             completion: None,
+            history: crate::history::History::default(),
             srs: review::SrsFile::default(),
             srs_dirty: false,
             preview_cache: None,
@@ -203,6 +206,8 @@ impl VaultState {
         self.buffer.clear();
         self.dirty = false;
         self.filter.clear();
+        // Another vault: the arrows have nowhere to go.
+        self.history.clear();
         self.reload()
     }
 
@@ -264,6 +269,14 @@ impl VaultState {
         if self.active.as_deref() == Some(path) {
             return;
         }
+        let from = self.active.clone();
+        if self.load_note(path) {
+            self.history.visit(from.as_deref(), path);
+        }
+    }
+
+    /// Reads `path` into the buffer without touching the history. Returns whether it opened.
+    fn load_note(&mut self, path: &Path) -> bool {
         if self.dirty && self.save().is_err() {
             self.message = Some(crate::i18n::tr("could not save the note that was open").to_string());
         }
@@ -275,10 +288,39 @@ impl VaultState {
                 self.revision = self.revision.wrapping_add(1);
                 self.preview_cache = None;
                 self.outline_cache = None;
+                self.properties.clear();
                 self.completion = None;
+                true
             }
-            Err(error) => self.message = Some(format!("{}: {error}", path.display())),
+            Err(error) => {
+                self.message = Some(format!("{}: {error}", path.display()));
+                false
+            }
         }
+    }
+
+    /// The note the back arrow goes to, opened. Returns false at the first note of the session.
+    pub fn go_back(&mut self) -> bool {
+        let Some(current) = self.active.clone() else { return false };
+        let Some(target) = self.history.peek_back() else { return false };
+        if !self.load_note(&target) {
+            // The note is gone from the vault: the step is not taken, so the arrow does not lie
+            // about where it goes (and the next one can still be reached).
+            return false;
+        }
+        self.history.step_back(&current);
+        true
+    }
+
+    /// The note the forward arrow returns to, opened.
+    pub fn go_forward(&mut self) -> bool {
+        let Some(current) = self.active.clone() else { return false };
+        let Some(target) = self.history.peek_forward() else { return false };
+        if !self.load_note(&target) {
+            return false;
+        }
+        self.history.step_forward(&current);
+        true
     }
 
     /// Marks the buffer as edited: dirty, a new revision for the reading view, autosave due.
@@ -397,7 +439,10 @@ impl VaultState {
             self.contents.insert(file.path.clone(), rewritten);
             written += count;
         }
-        self.active = Some(renamed);
+        self.active = Some(renamed.clone());
+        // The notes visited before the rename point at the file that moved, not at a note that is
+        // not there any more.
+        self.history.retarget(&path, &renamed);
         self.reload()?;
         Ok(written)
     }

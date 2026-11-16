@@ -50,6 +50,9 @@
 	Backlinks	バックリンク
 	Backlinks ({count})	バックリンク ({count})
 	no note links this one	このノートへのリンクはありません
+	Back	戻る
+	Forward	進む
+	Go back or forward between the notes you visited	訪れたノートを戻る・進む
 	Tags ({count})	タグ ({count})
 	Clear the tag	タグを解除
 	Review	復習
