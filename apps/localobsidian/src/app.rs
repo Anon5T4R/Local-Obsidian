@@ -56,6 +56,8 @@ pub struct LocalApp {
     images: Images,
     /// The review session and its statistics panel.
     review: Review,
+    /// Whether the vault diagnostics window is on screen.
+    diagnostics_open: bool,
     /// Whether the connection map is on screen, and where it started.
     connections_open: bool,
     connections: Map,
@@ -115,6 +117,7 @@ impl LocalApp {
             images: Images::default(),
             review: Review::default(),
             connections_open: false,
+            diagnostics_open: false,
             connections: Map::default(),
             calendar_open: false,
             calendar_month: crate::calendar::today_iso(),
@@ -318,6 +321,9 @@ impl LocalApp {
                             self.connections.start_from(&active);
                         }
                     }
+                    ui.close();
+                }
+                if ui.checkbox(&mut self.diagnostics_open, tl!("Vault diagnostics")).clicked() {
                     ui.close();
                 }
                 if ui.checkbox(&mut self.calendar_open, tl!("Show the calendar")).clicked() {
@@ -631,6 +637,24 @@ impl LocalApp {
                 }
             }
         }
+    }
+
+    /// The vault diagnostics, in its own window.
+    fn diagnostics(&mut self, ui: &mut egui::Ui) {
+        if !self.diagnostics_open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(tl!("Vault diagnostics"))
+            .open(&mut open)
+            .default_size([640.0, 560.0])
+            .default_pos(centred(ui.ctx(), egui::vec2(640.0, 560.0)))
+            .show(ui.ctx(), |ui| {
+                if let Some(path) = crate::diagnostics_ui::show(ui, &self.vault) {
+                    self.vault.open_note(&path);
+                }
+            });
+        self.diagnostics_open = open;
     }
 
     /// The connection map of the open note, in its own window.
@@ -1322,6 +1346,7 @@ impl eframe::App for LocalApp {
         self.dialogs(ui);
         let _ = self.chat.settings(ui);
         self.connections(ui);
+        self.diagnostics(ui);
         self.calendar(ui);
         self.help(ui);
 

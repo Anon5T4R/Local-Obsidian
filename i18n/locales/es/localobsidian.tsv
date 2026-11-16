@@ -57,6 +57,11 @@
 	Clear the tag	Quitar la etiqueta
 	Deck	Mazo
 	Next in this session	A continuación en esta sesión
+	Vault diagnostics	Diagnóstico del cofre
+	nothing to fix: every link lands and every note is reachable	nada que arreglar: cada enlace llega y cada nota es alcanzable
+@plural	{n} broken link|{n} broken links	{n} enlace roto|{n} enlaces rotos
+@plural	{n} orphan note|{n} orphan notes	{n} nota huérfana|{n} notas huérfanas
+@plural	{n} duplicated name|{n} duplicated names	{n} nombre duplicado|{n} nombres duplicados
 	query	consulta
 	Open this note	Abrir esta nota
 	no note matches this query	ninguna nota coincide con esta consulta

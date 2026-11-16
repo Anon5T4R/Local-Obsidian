@@ -8,6 +8,7 @@
 //! folders), `sidebarFilter.ts` (a filter matches names, tags and aliases, never note text),
 //! `vaultStore.buildBacklinks` (the index) and `safe-write.ts` (temp file + rename).
 
+pub mod diagnostics;
 pub mod filter;
 pub mod fs;
 pub mod index;
@@ -16,6 +17,7 @@ pub mod resolve;
 pub mod search;
 pub mod tree;
 
+pub use diagnostics::{Diagnostics, diagnose};
 pub use filter::{Filterable, matches_filter};
 pub use fs::{create_note, read_note, rename_note, write_atomic};
 pub use index::Index;

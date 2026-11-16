@@ -61,10 +61,22 @@ que o mesmo cofre abra nos dois.
 - **Revisão (SRS)**: flashcards escritos na própria nota — `> [!card]- Pergunta` com a resposta no
   corpo, ou `> [!card]` com `==destaques==` (uma lacuna por destaque, tipo cloze) e `> [!mnemonic]?` —
   agendados por SM-2 e revisados num painel só de teclado (`Espaço` mostra, `1`–`4` avaliam, `Esc`
-  fecha). Baralhos: cofre inteiro, a nota aberta ou uma tag. Painel de estatísticas com vencimento,
-  retenção, facilidade média e previsão de 14 dias. O cronograma mora em `.openobsidian/srs.json`,
-  **o mesmo arquivo que o OpenObsidianAndroid lê** (mesmos campos, mesma ordem, nada de estado extra);
-  o cartão guarda o id estável (hash da pergunta), então editar a resposta não zera o agendamento.
+  fecha). Baralhos: cofre inteiro, a nota aberta ou uma tag, **escolhidos no próprio painel** (o
+  seletor lista só o que tem cards, com a contagem de cada um) e o cabeçalho diz o escopo e os
+  números dele (cards no baralho · vencidos hoje · feitos na sessão). Cards renderizam o Markdown da
+  nota; o painel de estatísticas acompanha o baralho da sessão, com retenção, facilidade média,
+  previsão de 14 dias e a fila dos próximos cards com a nota de origem. O cronograma mora em
+  `.openobsidian/srs.json`, **o mesmo arquivo que o OpenObsidianAndroid lê** (mesmos campos, mesma
+  ordem, nada de estado extra); o cartão guarda o id estável (hash da pergunta), então editar a
+  resposta não zera o agendamento.
+- **Query blocks**: uma cerca ` ```query ` não é código para ler, é pergunta para responder —
+  `tag:`, `path:`, `has:` e qualquer campo do frontmatter (`tipo: patologia`), com `sort: titulo|
+  modificado|caminho [desc]` e `limit:`. A leitura mostra "N resultados" e a lista clicável (as notas
+  que casam, na ordem pedida); a linha que a gramática não entende aparece como aviso em vez de ser
+  ignorada. Mesma gramática do app Android.
+- **Diagnóstico do cofre** (`Visualizar → Diagnóstico do cofre`): links que apontam para nota
+  inexistente (com quem os escreveu), notas órfãs (sem link de entrada nem de saída) e nomes
+  duplicados em pastas diferentes — cada linha abre a nota.
 - **Conexões** (`Visualizar → Mostrar as conexões`): a nota aberta no centro e as conexões diretas
   dela (links que saem e links que entram) em anéis por salto, com o `+` de cada nota abrindo as
   conexões *dela* — o mapa cresce só pelo pedaço do cofre que interessa. Clicar numa nota abre a

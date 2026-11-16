@@ -57,6 +57,11 @@
 	Clear the tag	Limpar a tag
 	Deck	Baralho
 	Next in this session	Próximos nesta sessão
+	Vault diagnostics	Diagnóstico do cofre
+	nothing to fix: every link lands and every note is reachable	nada para consertar: todo link chega e toda nota é alcançável
+@plural	{n} broken link|{n} broken links	{n} link quebrado|{n} links quebrados
+@plural	{n} orphan note|{n} orphan notes	{n} nota órfã|{n} notas órfãs
+@plural	{n} duplicated name|{n} duplicated names	{n} nome duplicado|{n} nomes duplicados
 	query	consulta
 	Open this note	Abrir esta nota
 	no note matches this query	nenhuma nota corresponde a esta consulta

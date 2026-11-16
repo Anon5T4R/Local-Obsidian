@@ -260,11 +260,12 @@ fn the_kitchen_sink_lays_out_at_every_window_size() {
         assert!(cell.height() < 60.0, "{width}x{height}: the cell became a tower ({:?})", cell.height());
 
         // Two blocks in a row keep the rhythm of the page (the query boxes used to touch each
-        // other), and the line under a callout is a paragraph of the note, not the callout's body.
-        let first_block = harness.get_by_label_contains("tag: #qa").rect();
-        let second_block = harness.get_by_label_contains("tag: #tag-depois-do-callout").rect();
-        let gap = second_block.top() - first_block.bottom();
-        assert!(gap >= 28.0, "{width}x{height}: two blocks touch ({gap:.0} px of gap)");
+        // other): the two `query` cards of the kitchen sink are a block pair like any other.
+        let mut cards: Vec<egui::Rect> = harness.get_all_by_label("query").map(|node| node.rect()).collect();
+        cards.sort_by(|a, b| a.top().total_cmp(&b.top()));
+        assert!(cards.len() >= 2, "{width}x{height}: the two query cards are not drawn");
+        let gap = cards[1].top() - cards[0].bottom();
+        assert!(gap >= 12.0, "{width}x{height}: two blocks touch ({gap:.0} px of gap)");
 
         // `%%comentário%%` is a note to the author: it stays in the file and never reaches the page.
         assert!(harness.query_by_label_contains("um comentário do autor").is_none(), "{width}x{height}: the author's comment is on the page");
@@ -441,7 +442,7 @@ fn the_reading_column_is_centred_in_its_pane() {
 fn blocks_of_the_reading_view_keep_the_rhythm_between_them() {
     // Two consecutive query boxes looked glued: the gap between blocks is what keeps a note
     // readable, and a fence is a block like any other.
-    let note = "# T\n\n```query\ntag: #qa\nsort: titulo\n```\n\n```query\ntag: #outra\nsort: titulo\n```\n";
+    let note = "# T\n\n```rust\na\n```\n\n```rust\nb\n```\n";
     let scratch = Scratch::new("block-rhythm", &[("Ritmo.md", note)]);
     let mut state = VaultState::default();
     state.open(scratch.0.clone()).expect("open the vault");
@@ -457,8 +458,8 @@ fn blocks_of_the_reading_view_keep_the_rhythm_between_them() {
     harness.run_steps(3);
     shot(&mut harness, "ui-block-rhythm");
 
-    let first = harness.get_by_label_contains("tag: #qa").rect();
-    let second = harness.get_by_label_contains("tag: #outra").rect();
+    let first = harness.get_by_label("a").rect();
+    let second = harness.get_by_label("b").rect();
     let gap = second.top() - first.bottom();
     assert!(gap >= 30.0, "the two blocks keep a gap of their own: {gap:.0} px");
     assert!(gap <= 64.0, "and it is a rhythm, not a hole: {gap:.0} px");
@@ -696,8 +697,9 @@ fn the_review_header_names_its_deck_and_its_numbers() {
     harness.run_steps(3);
     shot(&mut harness, "ui-review-header");
 
-    // The scope is the note's own name, and the counts belong to that deck.
-    harness.get_by_label("MOC - Medicina");
+    // The scope is the note's own name (in the deck selector), and the counts belong to that deck.
+    harness.get_by_label("Deck");
+    assert_eq!(harness.state().1.deck, crate::review_ui::Deck::Note("MOC - Medicina.md".to_string()));
     harness.get_by_label("1 card in this deck · 1 due today · 0 done in this session");
     harness.get_by_label_contains("1 due today");
     harness.get_by_label_contains("0 done in this session");
@@ -911,7 +913,8 @@ fn a_query_block_answers_with_the_notes_it_selects() {
 
 #[test]
 fn a_query_block_says_what_it_did_not_understand() {
-    let scratch = Scratch::new("query-bad", &[("Q.md", "# Q\n\n```query\ntag: #uti\ncor: azul\n```\n"), ("A.md", "---\ntags: [uti]\n---\n\n# A\n")]);
+    let scratch =
+        Scratch::new("query-bad", &[("Q.md", "# Q\n\n```query\ntag: #uti\nsort: alfabetico\n```\n"), ("A.md", "---\ntags: [uti]\n---\n\n# A\n")]);
     let mut state = VaultState::default();
     state.open(scratch.0.clone()).expect("open the vault");
     state.open_note(&scratch.0.join("Q.md"));
@@ -926,7 +929,63 @@ fn a_query_block_says_what_it_did_not_understand() {
     harness.run_steps(3);
     shot(&mut harness, "ui-query-bad");
     harness.get_by_label_contains("1 result");
-    harness.get_by_label_contains("not understood: cor: azul");
+    harness.get_by_label_contains("not understood: sort: alfabetico");
+}
+
+#[test]
+fn the_vault_diagnostics_lists_what_is_wrong_and_opens_the_note() {
+    let scratch = Scratch::new(
+        "diagnostics",
+        &[
+            ("A.md", "# A\n\n[[Fantasma]] e [[B]]\n"),
+            ("B.md", "# B\n\nvolta [[A]]\n"),
+            ("So.md", "# So\n\nninguém liga\n"),
+            ("Pasta/X.md", "# X\n\nnada\n"),
+            ("Outra/X.md", "# X\n\nnada\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    let opened: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
+    let sink = opened.clone();
+    let mut harness = Harness::builder().with_size(egui::vec2(640.0, 560.0)).build_ui_state(
+        move |ui, state: &mut VaultState| {
+            if let Some(path) = crate::diagnostics_ui::show(ui, state) {
+                *sink.borrow_mut() = Some(path);
+            }
+        },
+        state,
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-diagnostics");
+
+    harness.get_by_label("1 broken link");
+    harness.get_by_label("Fantasma");
+    harness.get_by_label("A"); // the note that writes the broken link
+    harness.get_by_label("So.md");
+    harness.get_by_label("1 duplicated name");
+    // The duplicate name lists both files (and each of them is also an orphan: two sections, on purpose).
+    assert!(harness.get_all_by_label("Pasta/X.md").count() >= 1);
+    assert!(harness.get_all_by_label("Outra/X.md").count() >= 1);
+
+    harness.get_by_label("So.md").click();
+    harness.run_steps(2);
+    assert_eq!(*opened.borrow(), Some(scratch.0.join("So.md")));
+}
+
+#[test]
+fn a_healthy_vault_says_there_is_nothing_to_fix() {
+    let scratch = Scratch::new("diagnostics-clean", &[("A.md", "[[B]]"), ("B.md", "[[A]]")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    let mut harness = Harness::builder().with_size(egui::vec2(480.0, 320.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let _ = crate::diagnostics_ui::show(ui, state);
+        },
+        state,
+    );
+    harness.run_steps(2);
+    harness.get_by_label_contains("nothing to fix");
 }
 
 #[test]

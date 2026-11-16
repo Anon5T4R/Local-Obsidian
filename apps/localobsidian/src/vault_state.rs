@@ -637,6 +637,11 @@ impl VaultState {
         review::stats(&self.srs, &review::today())
     }
 
+    /// Broken links, orphans and duplicated names of the vault, from the index it already has.
+    pub fn diagnostics(&self) -> vault::Diagnostics {
+        vault::diagnose(&self.files, &self.index)
+    }
+
     /// The notes `source` (the text of a `query` fence) selects, with the mistakes it made.
     pub fn query_vault(&self, source: &str) -> QueryOutcome {
         const SHOWN: usize = 12;

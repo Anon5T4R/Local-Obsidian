@@ -15,6 +15,7 @@ mod app;
 mod calendar;
 mod completions;
 mod connections;
+mod diagnostics_ui;
 mod editor;
 mod editor_keys;
 mod fonts;

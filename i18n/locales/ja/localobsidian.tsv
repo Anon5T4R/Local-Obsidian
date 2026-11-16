@@ -57,6 +57,11 @@
 	Clear the tag	タグを解除
 	Deck	デッキ
 	Next in this session	このセッションの次のカード
+	Vault diagnostics	保管庫の診断
+	nothing to fix: every link lands and every note is reachable	直すところはありません: すべてのリンクが届き、すべてのノートに辿り着けます
+@plural	{n} broken link|{n} broken links	切れたリンク {n} 件
+@plural	{n} orphan note|{n} orphan notes	孤立したノート {n} 件
+@plural	{n} duplicated name|{n} duplicated names	重複した名前 {n} 件
 	query	クエリ
 	Open this note	このノートを開く
 	no note matches this query	このクエリに一致するノートはありません
