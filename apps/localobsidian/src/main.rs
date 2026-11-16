@@ -19,6 +19,7 @@ mod diagnostics_ui;
 mod editor;
 mod editor_keys;
 mod find;
+mod flashcards;
 mod fonts;
 mod history;
 mod i18n;

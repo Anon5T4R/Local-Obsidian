@@ -48,6 +48,28 @@
 	Close the find bar	Fechar a barra de busca
 	Random note	Nota aleatória
 	Open a note at random	Abrir uma nota aleatória
+	Create flashcards from this note	Criar flashcards desta nota
+	Create flashcards from the note being read	Criar flashcards da nota que está sendo lida
+	the app language	o idioma do app
+	Cards per section	Cards por seção
+	asking the model… {seconds}s	consultando o modelo… {seconds}s
+	Stop	Parar
+	A new note “{name}” will be created beside this one. The original is not changed.	Uma nota nova “{name}” será criada ao lado desta. A original não é alterada.
+	Created “{name}”	Criada “{name}”
+	Created “{name}” with {count} cards	Criada “{name}” com {count} cards
+	Undo	Desfazer
+	stopped before the model finished	parou antes de o modelo terminar
+	The model answered without cards. Try again.	O modelo respondeu sem cards. Tente de novo.
+	The note this action started on is gone.	A nota em que esta ação começou não existe mais.
+	could not create the note: {error}	não foi possível criar a nota: {error}
+	Removed “{name}”	Removida “{name}”
+	could not remove the note: {error}	não foi possível remover a nota: {error}
+	You write spaced-repetition flashcards for a study vault. Answer with JSON only, no prose:	Você escreve flashcards de repetição espaçada para um cofre de estudo. Responda só com JSON, sem prosa:
+	The question is short and specific, the answer is one sentence, and nothing that is not in the note is invented.	A pergunta é curta e específica, a resposta é uma frase, e nada que não esteja na nota é inventado.
+	In {language}, write about {count} flashcards per section of the note below. Reply with JSON only.	Em {language}, escreva cerca de {count} flashcards por seção da nota abaixo. Responda só com JSON.
+	Generated from [[{note}]] by the AI — check the facts.	Gerado de [[{note}]] pela IA — confira os fatos.
+	Show the rest of the results	Mostrar o resto dos resultados
+	show fewer	mostrar menos
 	Match the text as a regular expression	Tratar o texto como expressão regular
 	that pattern is not valid	esse padrão não é válido
 	no note matches	nenhuma nota corresponde
@@ -221,7 +243,7 @@
 	Ask about this note...	Pergunte sobre esta nota...
 	configure the connection first	configure a conexão primeiro
 	Send	Enviar
-	Stop	Parar
+	Not connected to a model - configure it in AI > Connection.	Sem conexão com um modelo - configure em IA > Conexão.
 	Insert into the note	Inserir na nota
 	Provider	Provedor
 	Base URL	URL base

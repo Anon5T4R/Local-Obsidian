@@ -60,6 +60,14 @@ fn demo_vault(tag: &str) -> (Scratch, VaultState) {
     (scratch, state)
 }
 
+/// The `+N more` toggle: what `app.rs` does when a query block asks for the rest (the test needs
+/// the same behavior without a whole window).
+fn toggle_query(state: &mut VaultState, source: String) {
+    if !state.query_expanded.remove(&source) {
+        state.query_expanded.insert(source);
+    }
+}
+
 /// A harness whose panel hands its action to the test.
 fn harness(state: VaultState) -> (Harness<'static, VaultState>, Rc<RefCell<PanelAction>>) {
     let action = Rc::new(RefCell::new(PanelAction::None));
@@ -1052,6 +1060,140 @@ fn a_note_with_no_match_says_zero_and_stays_open() {
     harness.get_by_label("x").click();
     harness.run_steps(2);
     assert!(!harness.state().0.find.open);
+}
+
+#[test]
+fn ai_flashcards_write_a_new_note_beside_and_leave_the_original_alone() {
+    // The action's contract: a new note next to the original, the original untouched, the cards in
+    // the schedule, and one undo that removes only what the action created.
+    let original = "---\ntipo: sistema\ntags: [uti]\n---\n\n# MOC\n\nCorpo da nota original.\n";
+    let scratch = Scratch::new("flashcards", &[("MOC.md", original)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("MOC.md"));
+
+    let mut action = crate::flashcards::Flashcards::default();
+    action.start(&state, None);
+    action.apply(&mut state, r#"Aqui vão: {"cards":[{"question":"O que é sepse?","answer":"Resposta do modelo."}]}"#);
+
+    let created = scratch.0.join("MOC AI.md");
+    assert!(created.exists(), "the new note is beside the original");
+    assert!(std::fs::read_to_string(&created).unwrap().contains("> [!card] O que é sepse?"));
+    let text = std::fs::read_to_string(&created).unwrap();
+    assert!(text.contains("> ==Resposta do modelo.=="), "the answer is the cloze term: {text}");
+    assert!(text.contains("flashcards-ai"), "the generated note carries its tag: {text}");
+    assert!(text.contains("tipo: sistema"), "the original's frontmatter comes along: {text}");
+
+    // The original is byte for byte what it was before the action.
+    assert_eq!(std::fs::read_to_string(scratch.0.join("MOC.md")).unwrap(), original);
+    // And the card reached the schedule (the review panel will offer it).
+    assert!(state.srs.cards.values().any(|card| card.q.contains("O que é sepse?")), "the card is in the schedule");
+
+    action.undo(&mut state);
+    assert!(!created.exists(), "undo removes the note the action created");
+    assert_eq!(std::fs::read_to_string(scratch.0.join("MOC.md")).unwrap(), original, "and never the original");
+}
+
+#[test]
+fn the_flashcards_dialog_names_the_note_it_will_create() {
+    let scratch = Scratch::new("flashcards-dialog", &[("MOC - Medicina.md", "# MOC\n\ncorpo\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("MOC - Medicina.md"));
+    let mut action = crate::flashcards::Flashcards::default();
+    action.start(&state, None);
+    let chat = crate::ai_ui::Chat::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 620.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, action, chat): &mut (VaultState, crate::flashcards::Flashcards, crate::ai_ui::Chat)| {
+            action.dialog(ui, state, chat);
+        },
+        (state, action, chat),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-flashcards");
+
+    // Destructividade zero, said before the action runs.
+    harness.get_by_label_contains("MOC - Medicina AI");
+    harness.get_by_label("Cards per section");
+    harness.get_by_label("Create");
+    harness.get_by_label("Cancel");
+}
+
+#[test]
+fn a_query_block_expands_when_asked() {
+    // Twenty notes match; the block shows a dozen and offers the rest, which is the one thing the
+    // Electron cannot do with its static "N results".
+    let mut notes: Vec<(String, String)> = vec![("Q.md".to_string(), "# Q\n\n```query\ntag: #big\n```\n".to_string())];
+    for index in 0..20 {
+        notes.push((format!("N{index:02}.md"), format!("---\ntags: [big]\n---\n\n# N{index:02}\n")));
+    }
+    let borrowed: Vec<(&str, &str)> = notes.iter().map(|(name, text)| (name.as_str(), text.as_str())).collect();
+    let scratch = Scratch::new("query-expand", &borrowed);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Q.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            if let crate::editor::EditorAction::ToggleQuery(source) = crate::editor::show(ui, state, images) {
+                toggle_query(state, source);
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-query-expand");
+
+    harness.get_by_label("20 results");
+    harness.get_by_label("N00");
+    assert!(harness.query_by_label("N19").is_none(), "the twelfth result is the last one shown");
+
+    harness.get_by_label_contains("+8 more").click();
+    harness.run_steps(2);
+    harness.get_by_label("N19");
+
+    harness.get_by_label("show fewer").click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label("N19").is_none(), "folded back");
+}
+
+#[test]
+fn a_link_to_a_note_is_a_link_and_one_that_points_at_nothing_is_not() {
+    // The affordance the reader asked for: the resolvable link is the accent (and the hand cursor),
+    // the one that names a note nobody wrote is underlined text that does not pretend to be a link.
+    let scratch = Scratch::new("links", &[("Nota.md", "# Nota\n\n[[Alvo]] e [[Fantasma]] e ==destaque==\n"), ("Alvo.md", "# Alvo\n\nnada\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let action = Rc::new(RefCell::new(crate::editor::EditorAction::None));
+    let sink = action.clone();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 420.0)).build_ui_state(
+        move |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let done = crate::editor::show(ui, state, images);
+            if done != crate::editor::EditorAction::None {
+                *sink.borrow_mut() = done;
+            }
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-links-dark");
+    harness.ctx.set_visuals(egui::Visuals::light());
+    harness.run_steps(2);
+    shot(&mut harness, "ui-links-light");
+
+    // The resolvable link navigates; the dangling one is not clickable at all.
+    harness.get_by_label("Fantasma").click();
+    harness.run_steps(2);
+    assert_eq!(*action.borrow(), crate::editor::EditorAction::None, "a dangling link does nothing");
+    harness.get_by_label("Alvo").click();
+    harness.run_steps(2);
+    assert_eq!(*action.borrow(), crate::editor::EditorAction::Navigate("Alvo".into()));
+    // The highlight is still a highlight (the link work did not touch `==`).
+    harness.get_by_label("destaque");
 }
 
 #[test]

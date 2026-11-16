@@ -32,6 +32,8 @@ pub enum EditorAction {
     Back,
     /// Walk the history one note forward.
     Forward,
+    /// A query block's `+N more` was clicked: show the rest (or fold it back).
+    ToggleQuery(String),
 }
 
 /// How a run of spans is drawn: the block's size, plus what the inline markers added.
@@ -376,6 +378,7 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
                         Hit::Link(target) => EditorAction::Navigate(target),
                         Hit::Tag(tag) => EditorAction::FilterTag(tag),
                         Hit::Task(index) => EditorAction::ToggleTask(index),
+                        Hit::ToggleQuery(source) => EditorAction::ToggleQuery(source),
                     };
                 }
             });
@@ -570,6 +573,8 @@ enum Hit {
     Tag(String),
     /// A task checkbox of the reading view: the ordinal of the checkbox in the note.
     Task(usize),
+    /// `+N more` on a query block: show the rest of its results (or fold them back).
+    ToggleQuery(String),
 }
 
 /// Draws blocks, returning what the user clicked. `target` is the section a link asked for: the
@@ -686,7 +691,12 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
                     }
                     if outcome.total > outcome.notes.len() {
                         let more = outcome.total - outcome.notes.len();
-                        ui.label(RichText::new(crate::i18n::trn(more as u64, "+{n} more", "+{n} more")).small().weak());
+                        let label = crate::i18n::trn(more as u64, "+{n} more", "+{n} more");
+                        if ui.small_button(label).on_hover_text(tl!("Show the rest of the results")).clicked() {
+                            hit = Some(Hit::ToggleQuery(source.clone()));
+                        }
+                    } else if state.query_expanded.contains(source) && ui.small_button(tl!("show fewer")).clicked() {
+                        hit = Some(Hit::ToggleQuery(source.clone()));
                     }
                 });
             ui.add_space(12.0);
@@ -1150,16 +1160,22 @@ fn show_link(ui: &mut egui::Ui, spans: &[Span], destination: &str, state: &Vault
     if let Some(target) = links::from_url(destination) {
         let parsed = localobsidian_md::parse_target(&target);
         let resolves = state.resolve(parsed.note).is_some();
-        // A link that resolves is the accent; one that points at a note nobody wrote is readable
-        // text with an underline - grey on a coloured callout was close to invisible.
-        let (color, underline) = if resolves { (ui.visuals().hyperlink_color, false) } else { (ui.visuals().text_color().gamma_multiply(0.9), true) };
-        let mut rich = style.colored(color).rich(text);
-        if underline {
-            rich = rich.underline();
-        }
-        let response = ui.add(egui::Label::new(rich).sense(egui::Sense::click()));
-        if resolves && response.clicked() {
-            return Some(Hit::Link(parsed.note.to_string()));
+        // A link that resolves is the accent and the hand cursor - the two signals that say
+        // "this goes somewhere" without turning the paragraph into decoration; one that points at a
+        // note nobody wrote is readable text with an underline (grey on a coloured callout was close
+        // to invisible) and does not pretend to be clickable.
+        let rich = if resolves {
+            style.colored(ui.visuals().hyperlink_color).rich(text)
+        } else {
+            style.colored(ui.visuals().text_color().gamma_multiply(0.9)).rich(text).underline()
+        };
+        let sense = if resolves { egui::Sense::click() } else { egui::Sense::hover() };
+        let response = ui.add(egui::Label::new(rich).sense(sense));
+        if resolves {
+            let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+            if response.clicked() {
+                return Some(Hit::Link(parsed.note.to_string()));
+            }
         }
         return None;
     }

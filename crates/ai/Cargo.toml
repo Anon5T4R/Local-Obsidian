@@ -16,3 +16,5 @@ workspace = true
 # user's own key in the OS keychain, and no server of ours.
 local-ai = { workspace = true }
 log = { workspace = true }
+# Reading the model's JSON answer (the flashcards contract). Already in the lock via the client.
+serde_json = { workspace = true }

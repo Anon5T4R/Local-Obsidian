@@ -48,6 +48,28 @@
 	Close the find bar	Cerrar la barra de búsqueda
 	Random note	Nota al azar
 	Open a note at random	Abrir una nota al azar
+	Create flashcards from this note	Crear tarjetas de esta nota
+	Create flashcards from the note being read	Crear tarjetas de la nota que se está leyendo
+	the app language	el idioma de la app
+	Cards per section	Tarjetas por sección
+	asking the model… {seconds}s	consultando al modelo… {seconds}s
+	Stop	Parar
+	A new note “{name}” will be created beside this one. The original is not changed.	Se creará una nota nueva “{name}” junto a esta. La original no se modifica.
+	Created “{name}”	Creada “{name}”
+	Created “{name}” with {count} cards	Creada “{name}” con {count} tarjetas
+	Undo	Deshacer
+	stopped before the model finished	se detuvo antes de que el modelo terminara
+	The model answered without cards. Try again.	El modelo respondió sin tarjetas. Inténtelo otra vez.
+	The note this action started on is gone.	La nota donde empezó esta acción ya no existe.
+	could not create the note: {error}	no se pudo crear la nota: {error}
+	Removed “{name}”	Eliminada “{name}”
+	could not remove the note: {error}	no se pudo eliminar la nota: {error}
+	You write spaced-repetition flashcards for a study vault. Answer with JSON only, no prose:	Escribes tarjetas de repetición espaciada para un cofre de estudio. Responde solo con JSON, sin prosa:
+	The question is short and specific, the answer is one sentence, and nothing that is not in the note is invented.	La pregunta es corta y concreta, la respuesta es una frase, y no se inventa nada que no esté en la nota.
+	In {language}, write about {count} flashcards per section of the note below. Reply with JSON only.	En {language}, escribe unas {count} tarjetas por sección de la nota de abajo. Responde solo con JSON.
+	Generated from [[{note}]] by the AI — check the facts.	Generado de [[{note}]] por la IA: compruebe los datos.
+	Show the rest of the results	Mostrar el resto de los resultados
+	show fewer	mostrar menos
 	Match the text as a regular expression	Tratar el texto como expresión regular
 	that pattern is not valid	ese patrón no es válido
 	no note matches	ninguna nota coincide
@@ -221,7 +243,7 @@
 	Ask about this note...	Pregunta sobre esta nota...
 	configure the connection first	configura la conexión primero
 	Send	Enviar
-	Stop	Detener
+	Not connected to a model - configure it in AI > Connection.	Sin conexión con un modelo - configúrela en IA > Conexión.
 	Insert into the note	Insertar en la nota
 	Provider	Proveedor
 	Base URL	URL base

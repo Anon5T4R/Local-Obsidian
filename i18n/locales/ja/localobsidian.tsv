@@ -48,6 +48,28 @@
 	Close the find bar	検索バーを閉じる
 	Random note	ランダムなノート
 	Open a note at random	ランダムにノートを開く
+	Create flashcards from this note	このノートからカードを作る
+	Create flashcards from the note being read	開いているノートからカードを作る
+	the app language	アプリの言語
+	Cards per section	セクションあたりのカード数
+	asking the model… {seconds}s	モデルに問い合わせ中… {seconds}s
+	Stop	停止
+	A new note “{name}” will be created beside this one. The original is not changed.	このノートの隣に新しいノート「{name}」を作ります。元のノートは変更しません。
+	Created “{name}”	「{name}」を作成しました
+	Created “{name}” with {count} cards	「{name}」を {count} 枚のカードで作成しました
+	Undo	元に戻す
+	stopped before the model finished	モデルの完了前に停止しました
+	The model answered without cards. Try again.	モデルがカードなしで応答しました。もう一度お試しください。
+	The note this action started on is gone.	この操作を始めたノートはもうありません。
+	could not create the note: {error}	ノートを作成できませんでした: {error}
+	Removed “{name}”	「{name}」を削除しました
+	could not remove the note: {error}	ノートを削除できませんでした: {error}
+	You write spaced-repetition flashcards for a study vault. Answer with JSON only, no prose:	学習用の間隔反復カードを書きます。文章ではなく JSON だけで答えてください:
+	The question is short and specific, the answer is one sentence, and nothing that is not in the note is invented.	質問は短く具体的に、答えは 1 文にし、ノートにない事実は作らないでください。
+	In {language}, write about {count} flashcards per section of the note below. Reply with JSON only.	{language} で、下のノートの各セクションにつき約 {count} 枚のカードを書いてください。JSON だけで答えてください。
+	Generated from [[{note}]] by the AI — check the facts.	[[{note}]] から AI が生成 — 事実を確認してください。
+	Show the rest of the results	残りの結果を表示
+	show fewer	表示を減らす
 	Match the text as a regular expression	テキストを正規表現として扱う
 	that pattern is not valid	そのパターンは正しくありません
 	no note matches	一致するノートはありません
@@ -221,7 +243,7 @@
 	Ask about this note...	このノートについて聞く...
 	configure the connection first	先に接続を設定してください
 	Send	送信
-	Stop	停止
+	Not connected to a model - configure it in AI > Connection.	モデルに接続していません - AI > 接続. で設定してください
 	Insert into the note	ノートに挿入
 	Provider	プロバイダー
 	Base URL	ベース URL

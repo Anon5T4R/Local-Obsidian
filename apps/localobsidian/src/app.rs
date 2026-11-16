@@ -57,6 +57,8 @@ pub struct LocalApp {
     images: Images,
     /// The review session and its statistics panel.
     review: Review,
+    /// The AI flashcards action (a new note beside the one it started on).
+    flashcards: crate::flashcards::Flashcards,
     /// Whether the vault diagnostics window is on screen.
     diagnostics_open: bool,
     /// Whether the connection map is on screen, and where it started.
@@ -119,6 +121,7 @@ impl LocalApp {
             review: Review::default(),
             connections_open: false,
             diagnostics_open: false,
+            flashcards: crate::flashcards::Flashcards::default(),
             connections: Map::default(),
             calendar_open: false,
             calendar_month: crate::calendar::today_iso(),
@@ -400,6 +403,12 @@ impl LocalApp {
                     self.chat.settings_open = true;
                     ui.close();
                 }
+                ui.separator();
+                let can = self.vault.active.is_some();
+                if ui.add_enabled(can, egui::Button::new(tl!("Create flashcards from this note"))).on_hover_text("Ctrl+Shift+K").clicked() {
+                    self.flashcards.start(&self.vault, None);
+                    ui.close();
+                }
             });
             ui.menu_button(tl!("Help"), |ui| {
                 if ui.button(tl!("Keyboard shortcuts and help")).clicked() {
@@ -440,6 +449,7 @@ impl LocalApp {
                     SidebarAction::OpenNote(path) => self.vault.open_note(&path),
                     SidebarAction::OpenBinary(path) => self.open_with_system(&path),
                     SidebarAction::RevealFolder(path) => self.reveal_folder(&path),
+                    SidebarAction::Flashcards(path) => self.flashcards.start(&self.vault, Some(&path)),
                 }
             });
         }
@@ -510,6 +520,11 @@ impl LocalApp {
             EditorAction::Navigate(target) => self.navigate(&target),
             EditorAction::ToggleTask(index) => {
                 self.vault.toggle_task(index);
+            }
+            EditorAction::ToggleQuery(source) => {
+                if !self.vault.query_expanded.remove(&source) {
+                    self.vault.query_expanded.insert(source);
+                }
             }
             EditorAction::FilterTag(tag) => {
                 self.vault.tag_filter = Some(tag);
@@ -1137,6 +1152,7 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
     shortcut(ui, "Ctrl+S", tl!("Save the note"));
     shortcut(ui, "Ctrl+F", tl!("Find in the note being read"));
     shortcut(ui, "Ctrl+R", tl!("Open a note at random"));
+    shortcut(ui, "Ctrl+Shift+K", tl!("Create flashcards from the note being read"));
     shortcut(ui, "Alt+Left / Alt+Right", tl!("Go back or forward between the notes you visited"));
     shortcut(ui, "Esc", tl!("Close the panel or the window in front"));
 
@@ -1345,6 +1361,12 @@ impl eframe::App for LocalApp {
             self.open_random_note();
             wake = true;
         }
+        // Flashcards from the note in front of the reader: the Ação-Artefato entry, same as the
+        // menu and the tree's context menu.
+        if ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::K)) && self.vault.active.is_some() {
+            self.flashcards.start(&self.vault, None);
+            wake = true;
+        }
         let mut escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
         if escape && self.vault.find.open {
             // The find bar closes before anything else looks at Escape.
@@ -1401,6 +1423,7 @@ impl eframe::App for LocalApp {
         }
         self.dialogs(ui);
         let _ = self.chat.settings(ui);
+        self.flashcards.dialog(ui, &mut self.vault, &self.chat);
         self.connections(ui);
         self.diagnostics(ui);
         self.calendar(ui);

@@ -21,6 +21,8 @@ pub enum SidebarAction {
     OpenBinary(PathBuf),
     /// Show a folder in the file manager.
     RevealFolder(PathBuf),
+    /// Make AI flashcards from this note (a new note beside it).
+    Flashcards(PathBuf),
 }
 
 /// Draws the sidebar. Returns the note the user clicked, if any.
@@ -116,9 +118,21 @@ fn show_nodes(ui: &mut egui::Ui, nodes: &[vault::Node], state: &VaultState) -> S
             }
             vault::Kind::File => {
                 let selected = state.active.as_deref() == Some(node.path.as_path());
-                if ui.selectable_label(selected, egui::RichText::new(&node.name)).clicked() {
+                let row = ui.selectable_label(selected, egui::RichText::new(&node.name));
+                if row.clicked() {
                     action = SidebarAction::OpenNote(node.path.clone());
                 }
+                // The note's own menu: what can be done to *this* note, where the note is.
+                row.context_menu(|ui| {
+                    if ui.button(tl!("Open")).clicked() {
+                        action = SidebarAction::OpenNote(node.path.clone());
+                        ui.close();
+                    }
+                    if ui.button(tl!("Create flashcards from this note")).clicked() {
+                        action = SidebarAction::Flashcards(node.path.clone());
+                        ui.close();
+                    }
+                });
             }
             vault::Kind::Binary => {
                 // A document the app does not edit: listed, muted, and opened by the desktop.

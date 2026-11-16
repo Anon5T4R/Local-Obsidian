@@ -96,6 +96,12 @@ impl Chat {
         self.connection.as_ref().map(|conn| conn.model.as_str()).unwrap_or_default()
     }
 
+    /// The connection in use, for the other AI actions of the app (the flashcards action sends its
+    /// own prompts and must not duplicate the settings).
+    pub fn connection(&self) -> Option<&ai::Connection> {
+        self.connection.as_ref()
+    }
+
     pub fn busy(&self) -> bool {
         self.stream.is_some()
     }

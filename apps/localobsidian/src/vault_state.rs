@@ -108,6 +108,8 @@ pub struct VaultState {
     pub pending_line: Option<usize>,
     /// The `[[wikilink` being typed, when the popup is open.
     pub completion: Option<crate::completions::Completion>,
+    /// Query blocks the reader expanded (`+N more`), keyed by the block's own text.
+    pub query_expanded: std::collections::BTreeSet<String>,
     /// The find bar of the reading view (where in this note).
     pub find: crate::find::Find,
     /// The notes already visited, for the two arrows of the note header.
@@ -154,6 +156,7 @@ impl Default for VaultState {
             pending_line: None,
             completion: None,
             history: crate::history::History::default(),
+            query_expanded: std::collections::BTreeSet::new(),
             find: crate::find::Find::default(),
             srs: review::SrsFile::default(),
             srs_dirty: false,
@@ -646,11 +649,16 @@ impl VaultState {
     }
 
     /// The notes `source` (the text of a `query` fence) selects, with the mistakes it made.
+    ///
+    /// A block shows its first dozen results; "`+N more`" asks for the rest, up to a ceiling that
+    /// keeps a giant query from drawing thousands of labels.
     pub fn query_vault(&self, source: &str) -> QueryOutcome {
         const SHOWN: usize = 12;
+        const EXPANDED: usize = 200;
         let query = vault::query::parse(source);
         let notes = vault::query::run(&self.files, &self.index, &query);
-        QueryOutcome { total: notes.len(), notes: notes.into_iter().take(SHOWN).cloned().collect(), mistakes: query.mistakes }
+        let shown = if self.query_expanded.contains(source) { EXPANDED } else { SHOWN };
+        QueryOutcome { total: notes.len(), notes: notes.into_iter().take(shown).cloned().collect(), mistakes: query.mistakes }
     }
 
     /// The statistics of the cards in `files` (the whole schedule when `None`).
