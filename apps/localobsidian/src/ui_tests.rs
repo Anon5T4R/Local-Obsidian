@@ -989,6 +989,72 @@ fn a_healthy_vault_says_there_is_nothing_to_fix() {
 }
 
 #[test]
+fn the_find_bar_walks_the_matches_of_the_note() {
+    // Find in the note being read: the counter says how many, and the bar walks them.
+    let scratch = Scratch::new(
+        "find-in-note",
+        &[("Nota.md", "# Sepse\n\nSepse é grave. Outra sepse aqui, e um [[Alvo]] no meio.\n"), ("Alvo.md", "# Alvo\n\nnada\n")],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    state.find.open();
+    state.find.query = "sepse".to_string();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 620.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let _ = crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    shot(&mut harness, "ui-find");
+
+    // The heading, the first word of the paragraph and the one after the comma: the bar counts them
+    // and starts on the first.
+    assert_eq!(harness.state().0.find.total, 3);
+    assert_eq!(harness.state().0.find.current, 0);
+
+    harness.get_by_label("Next match").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().0.find.current, 1);
+
+    harness.get_by_label("Previous match").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().0.find.current, 0);
+    harness.get_by_label("Previous match").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().0.find.current, 2, "before the first comes the last");
+    assert!(harness.state().0.find.open, "the bar stays open until it is closed");
+}
+
+#[test]
+fn a_note_with_no_match_says_zero_and_stays_open() {
+    let scratch = Scratch::new("find-none", &[("Nota.md", "# Nota\n\nnada aqui\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    state.find.open();
+    state.find.query = "inexistente".to_string();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 480.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            let _ = crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    assert_eq!(harness.state().0.find.total, 0, "nothing matches");
+    assert_eq!(harness.state().0.find.current, 0);
+    // The bar is still there to be corrected, and closes on its own ×.
+    harness.get_by_label("x").click();
+    harness.run_steps(2);
+    assert!(!harness.state().0.find.open);
+}
+
+#[test]
 fn the_sidebar_keeps_the_tree_the_tags_and_the_backlinks_apart() {
     // The three blocks used to be drawn in the same rectangle: nested panels reserve space for
     // themselves and not for what comes after, so the tree and the backlinks overlapped.

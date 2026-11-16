@@ -339,6 +339,20 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
         return EditorAction::None;
     }
     state.refresh_preview();
+    // The count comes from the note as it is now, so the bar can say "3 / 12" on the frame the
+    // query changes; the matches themselves are drawn below, in reading order.
+    let total = if crate::find::is_searching(&state.find) {
+        let query = state.find.query.trim().to_string();
+        count_matches(state.preview(), &query)
+    } else {
+        0
+    };
+    state.find.total = total;
+    state.find.seen.set(0);
+    if state.find.open {
+        find_bar(ui, state);
+        ui.separator();
+    }
     let section = state.pending_section.take();
     let zoom = state.zoom;
     let vault: &VaultState = state;
@@ -368,6 +382,69 @@ fn reading_pane(ui: &mut egui::Ui, state: &mut VaultState, images: &mut Images) 
         });
     });
     action
+}
+
+/// The find bar above the reading view: the query, how many matches, and the two arrows.
+fn find_bar(ui: &mut egui::Ui, state: &mut VaultState) {
+    ui.horizontal(|ui| {
+        let field = ui.add(egui::TextEdit::singleline(&mut state.find.query).hint_text(tl!("Find in this note")).desired_width(200.0));
+        if state.find.focus {
+            field.request_focus();
+            state.find.focus = false;
+        }
+        if field.changed() {
+            // A new query starts at the first match.
+            state.find.current = 0;
+        }
+        if field.has_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+            if ui.input(|input| input.modifiers.shift) {
+                state.find.previous();
+            } else {
+                state.find.next();
+            }
+        }
+        let total = state.find.total;
+        let shown = if total == 0 { 0 } else { state.find.current.min(total - 1) + 1 };
+        ui.label(egui::RichText::new(format!("{shown} / {total}")).small().weak());
+        if chevron_button(ui, total > 0, true, tl!("Previous match")).clicked() {
+            state.find.previous();
+        }
+        if chevron_button(ui, total > 0, false, tl!("Next match")).clicked() {
+            state.find.next();
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.small_button("x").on_hover_text(tl!("Close the find bar")).clicked() {
+                state.find.close();
+            }
+        });
+    });
+}
+
+/// How many times `needle` appears in the prose the reading view draws.
+///
+/// The same walk as the drawing: text runs (and the emphasis/link spans around them), list items and
+/// the bodies of quotes and callouts. Code blocks, tables and tags are drawn by their own widgets and
+/// are not searched.
+fn count_matches(blocks: &[Block], needle: &str) -> usize {
+    fn in_spans(list: &[Span], needle: &str) -> usize {
+        list.iter()
+            .map(|span| match span {
+                Span::Text(text) => crate::find::ranges(text, needle).len(),
+                Span::Strong(inner) | Span::Emphasis(inner) | Span::Strike(inner) => in_spans(inner, needle),
+                Span::Link { spans, .. } => in_spans(spans, needle),
+                _ => 0,
+            })
+            .sum()
+    }
+    blocks
+        .iter()
+        .map(|block| match block {
+            Block::Heading { spans, .. } | Block::Paragraph(spans) => in_spans(spans, needle),
+            Block::List { items, .. } => items.iter().map(|item| in_spans(item, needle)).sum(),
+            Block::Quote(inner) | Block::Callout { body: inner, .. } => count_matches(inner, needle),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// The note's own metadata, as a card at the top: `tipo: sistema`, `aliases: Lacunas, Gap`. The block
@@ -954,7 +1031,37 @@ fn show_spans(ui: &mut egui::Ui, spans: &[Span], state: &VaultState, style: Styl
 fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -> Option<Hit> {
     match span {
         Span::Text(text) => {
-            ui.label(style.rich(drawable(ui, text, style.size)));
+            // With the find bar looking for something, a text run is drawn in pieces so the matches
+            // can be lit - and the one the reader is on scrolls into view.
+            if !crate::find::is_searching(&state.find) {
+                ui.label(style.rich(drawable(ui, text, style.size)));
+                return None;
+            }
+            let needle = state.find.query.trim().to_string();
+            let ranges = crate::find::ranges(text, &needle);
+            if ranges.is_empty() {
+                ui.label(style.rich(drawable(ui, text, style.size)));
+                return None;
+            }
+            let accent = crate::theme::accent(ui.visuals().dark_mode);
+            let mut at = 0;
+            for (start, end) in ranges {
+                if start > at {
+                    ui.label(style.rich(drawable(ui, &text[at..start], style.size)));
+                }
+                let index = state.find.seen.get();
+                let current = index == state.find.current;
+                let fill = accent.gamma_multiply(if current { 0.55 } else { 0.22 });
+                let piece = ui.label(style.rich(drawable(ui, &text[start..end], style.size)).background_color(fill));
+                if current {
+                    ui.scroll_to_rect(piece.rect, Some(egui::Align::Center));
+                }
+                state.find.seen.set(index + 1);
+                at = end;
+            }
+            if at < text.len() {
+                ui.label(style.rich(drawable(ui, &text[at..], style.size)));
+            }
             None
         }
         Span::Code(text) => {

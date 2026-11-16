@@ -4,6 +4,7 @@
 //! The page is the sidebar plus the note pane; the vault's own state lives in
 //! [`crate::vault_state::VaultState`], and the views hand back what the user asked for.
 
+use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
 
 use craft_update::updater::{Action, Status, Updater};
@@ -326,6 +327,10 @@ impl LocalApp {
                 if ui.checkbox(&mut self.diagnostics_open, tl!("Vault diagnostics")).clicked() {
                     ui.close();
                 }
+                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Random note"))).on_hover_text("Ctrl+R").clicked() {
+                    self.open_random_note();
+                    ui.close();
+                }
                 if ui.checkbox(&mut self.calendar_open, tl!("Show the calendar")).clicked() {
                     ui.close();
                 }
@@ -637,6 +642,19 @@ impl LocalApp {
                 }
             }
         }
+    }
+
+    /// Opens a note picked at random, never the one already open.
+    fn open_random_note(&mut self) {
+        if self.vault.files.is_empty() {
+            return;
+        }
+        // No extra dependency for one number: the hasher's per-process seed is random enough here.
+        let seed = std::collections::hash_map::RandomState::new().build_hasher().finish();
+        let current = self.vault.active.as_ref().and_then(|path| self.vault.files.iter().position(|note| &note.path == path));
+        let index = random_pick(self.vault.files.len(), current, seed);
+        let path = self.vault.files[index].path.clone();
+        self.vault.open_note(&path);
     }
 
     /// The vault diagnostics, in its own window.
@@ -1117,6 +1135,8 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
     shortcut(ui, "Ctrl+Shift+O", tl!("Open a vault"));
     shortcut(ui, "Ctrl+Shift+F", tl!("Search the vault"));
     shortcut(ui, "Ctrl+S", tl!("Save the note"));
+    shortcut(ui, "Ctrl+F", tl!("Find in the note being read"));
+    shortcut(ui, "Ctrl+R", tl!("Open a note at random"));
     shortcut(ui, "Alt+Left / Alt+Right", tl!("Go back or forward between the notes you visited"));
     shortcut(ui, "Esc", tl!("Close the panel or the window in front"));
 
@@ -1157,6 +1177,21 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
         ui.label(egui::RichText::new(tl!("The full documentation is in the repository:")).small().weak());
         ui.hyperlink_to(egui::RichText::new(tl!("README")).small(), APP.repo_url());
     });
+}
+
+/// Which note a random open picks: any of them, never the one already open.
+///
+/// `seed` is only a number the caller brings (the clock or a hasher); the rule that the current note
+/// is skipped lives here, where it can be tested.
+fn random_pick(len: usize, current: Option<usize>, seed: u64) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    let index = (seed as usize) % len;
+    match current {
+        Some(current) if len > 1 && index == current => (index + 1) % len,
+        _ => index,
+    }
 }
 
 /// The widest a side panel may get: a share of the room left, never more than `absolute`.
@@ -1296,7 +1331,28 @@ impl eframe::App for LocalApp {
             self.vault.zoom = 1.0;
             wake = true;
         }
-        let escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
+        // Find in the note being read: `Ctrl+F` opens the bar over the reading view (`Ctrl+Shift+F`
+        // is the vault search). Nothing to scroll in the editor, so the key is ignored there.
+        if ctx.input(|input| input.modifiers.command && !input.modifiers.shift && input.key_pressed(egui::Key::F))
+            && self.vault.view.shows_reading()
+            && self.vault.active.is_some()
+        {
+            self.vault.find.open();
+            wake = true;
+        }
+        // A note at random: the reader's "get me somewhere I have not been today".
+        if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::R)) && self.vault.root.is_some() {
+            self.open_random_note();
+            wake = true;
+        }
+        let mut escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
+        if escape && self.vault.find.open {
+            // The find bar closes before anything else looks at Escape.
+            self.vault.find.close();
+            ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            escape = false;
+            wake = true;
+        }
         if escape && self.vault.search.open && !self.vault.search.query.is_empty() {
             // Escape clears the box first, closes the panel second: losing the query to a stray key
             // press is worse than one more key.
@@ -1379,5 +1435,23 @@ fn window_button(ui: &mut egui::Ui, button: craft_window::Button) {
             craft_window::Button::Close => egui::ViewportCommand::Close,
         };
         ui.ctx().send_viewport_cmd(command);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_random_note_is_never_the_one_already_open() {
+        // Every seed, on a vault of three: the note in front is skipped, and the pick stays in range.
+        for seed in 0..300u64 {
+            let pick = random_pick(3, Some(1), seed);
+            assert!(pick < 3, "seed {seed} left the vault");
+            assert_ne!(pick, 1, "seed {seed} picked the note already open");
+        }
+        assert_eq!(random_pick(1, Some(0), 7), 0, "one note: it is the only answer");
+        assert_eq!(random_pick(0, None, 7), 0, "no notes: nothing to break");
+        assert_eq!(random_pick(3, None, 7), 1, "no note open: any of them by the seed");
     }
 }

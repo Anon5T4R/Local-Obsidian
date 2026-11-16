@@ -41,6 +41,13 @@
 	Outline	Esquema
 	Show the outline	Mostrar el esquema
 	Search the vault	Buscar en el cofre
+	Find in this note	Buscar en esta nota
+	Find in the note being read	Buscar en la nota que se está leyendo
+	Previous match	Coincidencia anterior
+	Next match	Coincidencia siguiente
+	Close the find bar	Cerrar la barra de búsqueda
+	Random note	Nota al azar
+	Open a note at random	Abrir una nota al azar
 	Match the text as a regular expression	Tratar el texto como expresión regular
 	that pattern is not valid	ese patrón no es válido
 	no note matches	ninguna nota coincide

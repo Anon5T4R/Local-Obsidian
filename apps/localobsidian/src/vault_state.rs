@@ -108,6 +108,8 @@ pub struct VaultState {
     pub pending_line: Option<usize>,
     /// The `[[wikilink` being typed, when the popup is open.
     pub completion: Option<crate::completions::Completion>,
+    /// The find bar of the reading view (where in this note).
+    pub find: crate::find::Find,
     /// The notes already visited, for the two arrows of the note header.
     pub history: crate::history::History,
     /// The schedule in `.openobsidian/srs.json`, as the phone reads it.
@@ -152,6 +154,7 @@ impl Default for VaultState {
             pending_line: None,
             completion: None,
             history: crate::history::History::default(),
+            find: crate::find::Find::default(),
             srs: review::SrsFile::default(),
             srs_dirty: false,
             preview_cache: None,

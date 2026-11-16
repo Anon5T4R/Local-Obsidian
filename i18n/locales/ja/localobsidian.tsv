@@ -41,6 +41,13 @@
 	Outline	アウトライン
 	Show the outline	アウトラインを表示
 	Search the vault	保管庫を検索
+	Find in this note	このノート内を検索
+	Find in the note being read	開いているノート内を検索
+	Previous match	前の一致
+	Next match	次の一致
+	Close the find bar	検索バーを閉じる
+	Random note	ランダムなノート
+	Open a note at random	ランダムにノートを開く
 	Match the text as a regular expression	テキストを正規表現として扱う
 	that pattern is not valid	そのパターンは正しくありません
 	no note matches	一致するノートはありません

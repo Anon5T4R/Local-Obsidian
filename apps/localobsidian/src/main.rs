@@ -18,6 +18,7 @@ mod connections;
 mod diagnostics_ui;
 mod editor;
 mod editor_keys;
+mod find;
 mod fonts;
 mod history;
 mod i18n;
