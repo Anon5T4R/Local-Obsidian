@@ -355,3 +355,9 @@
 	Follow the system	システムに合わせる
 	Light	ライト
 	Dark	ダーク
+	Export the note as PDF...	ノートを PDF で書き出す...
+	A4 pages with selectable text. Pictures and links are the next phase.	選択できるテキストの A4 ページ。画像とリンクは次の段階です。
+	Export as PDF	PDF で書き出す
+	PDF document	PDF 文書
+	could not write the PDF	PDF を書き出せませんでした
+	{pages} pages written to {path}	{pages} ページを {path} に書き出しました

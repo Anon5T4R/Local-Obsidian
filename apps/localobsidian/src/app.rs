@@ -263,6 +263,14 @@ impl LocalApp {
                     self.ask_export(ui.ctx());
                     ui.close();
                 }
+                if ui
+                    .add_enabled(has_note && !self.pickers.busy(), egui::Button::new(tl!("Export the note as PDF...")))
+                    .on_hover_text(tl!("A4 pages with selectable text. Pictures and links are the next phase."))
+                    .clicked()
+                {
+                    self.ask_export_pdf(ui.ctx());
+                    ui.close();
+                }
                 ui.separator();
                 if ui.button(tl!("Quit Local Obsidian")).clicked() {
                     quit = true;
@@ -868,6 +876,35 @@ impl LocalApp {
         }
     }
 
+    /// Asks where to write the open note as a PDF.
+    fn ask_export_pdf(&mut self, ctx: &egui::Context) {
+        let Some(active) = self.vault.active.clone() else { return };
+        let name = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+        let name = if name.is_empty() { tl!("note").to_string() } else { name };
+        if !self.pickers.ask_pdf(ctx, tl!("Export as PDF"), &format!("{name}.pdf")) {
+            log::debug!("a picker is already open");
+        }
+    }
+
+    /// Writes the open note as a PDF and says how many pages it made.
+    fn export_pdf(&mut self, path: std::path::PathBuf) {
+        let Some(active) = self.vault.active.clone() else {
+            self.vault.message = Some(tl!("open a note first").to_string());
+            return;
+        };
+        let title = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+        self.vault.refresh_preview();
+        let blocks = self.vault.preview().to_vec();
+        match export_note_pdf(&blocks, &title, &path) {
+            Ok(report) => {
+                let pages = report.pages.to_string();
+                self.vault.message =
+                    Some(i18n::tr_fmt("{pages} pages written to {path}", &[("pages", &pages), ("path", &path.display().to_string())]));
+            }
+            Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not write the PDF"))),
+        }
+    }
+
     /// Writes the open note as one HTML page, and copies the pictures it shows beside it.
     ///
     /// The page is what the reading view draws: the same blocks, the same callouts, the stylesheet
@@ -1230,6 +1267,28 @@ pub(crate) fn apply_theme(ctx: &egui::Context, theme: crate::prefs::Theme) {
     ctx.set_theme(theme.preference());
 }
 
+/// The faces a PDF is written with: egui's bundled Latin pair, plus the craft-fonts faces the app
+/// already embeds (CJK, Arabic, Hebrew, Devanagari) as fallbacks.
+fn pdf_faces() -> localobsidian_pdf::Faces {
+    use localobsidian_pdf::Face;
+    let fallbacks = crate::fonts::CRAFT_FONTS.iter().map(|font| Face::new(font.bytes)).collect();
+    localobsidian_pdf::Faces {
+        regular: Face::new(epaint_default_fonts::UBUNTU_LIGHT),
+        mono: Face::new(epaint_default_fonts::HACK_REGULAR),
+        fallbacks,
+    }
+}
+
+/// Writes the reading view's blocks to `path` as a PDF: what the menu does, without the menu (the
+/// tests and the QA use it).
+pub(crate) fn export_note_pdf(
+    blocks: &[localobsidian_md::preview::Block],
+    title: &str,
+    path: &std::path::Path,
+) -> Result<localobsidian_pdf::Report, localobsidian_pdf::Error> {
+    localobsidian_pdf::export(blocks, title, &pdf_faces(), path)
+}
+
 /// Which note a random open picks: any of them, never the one already open.
 ///
 /// `seed` is only a number the caller brings (the clock or a hasher); the rule that the current note
@@ -1302,6 +1361,7 @@ impl eframe::App for LocalApp {
                 Pick::Document(path) => self.import_document(&path),
                 Pick::Anki(path) => self.import_anki(&path),
                 Pick::Save(path) => self.export_html(path),
+                Pick::SavePdf(path) => self.export_pdf(path),
             }
             wake = true;
         }

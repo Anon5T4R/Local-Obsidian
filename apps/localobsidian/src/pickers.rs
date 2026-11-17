@@ -22,8 +22,10 @@ pub enum Pick {
     Document(PathBuf),
     /// An Anki text export (`.txt`, `.tsv`, `.csv`).
     Anki(PathBuf),
-    /// Where the user wants a file written.
+    /// Where the user wants a file written (an HTML page).
     Save(PathBuf),
+    /// Where the user wants the note written as a PDF.
+    SavePdf(PathBuf),
 }
 
 /// The picker in flight, plus the picks waiting for the frame that consumes them.
@@ -72,6 +74,12 @@ impl Pickers {
     pub fn ask_save(&self, ctx: &egui::Context, title: &str, file_name: &str) -> bool {
         let dialog = rfd::AsyncFileDialog::new().set_title(title).set_file_name(file_name).add_filter(tl!("HTML page"), &["html"]);
         self.run(ctx, move || pollster::block_on(dialog.save_file()).map(|handle| Pick::Save(handle.path().to_path_buf())))
+    }
+
+    /// Asks where to write the note as a PDF, suggesting `file_name`. Same contract as [`Self::ask_folder`].
+    pub fn ask_pdf(&self, ctx: &egui::Context, title: &str, file_name: &str) -> bool {
+        let dialog = rfd::AsyncFileDialog::new().set_title(title).set_file_name(file_name).add_filter(tl!("PDF document"), &["pdf"]);
+        self.run(ctx, move || pollster::block_on(dialog.save_file()).map(|handle| Pick::SavePdf(handle.path().to_path_buf())))
     }
 
     /// Runs `dialog` on a worker thread; its result is queued, and the frame that asked is woken up.

@@ -107,6 +107,12 @@ que o mesmo cofre abra nos dois.
   estática, com o CSS embutido e a paleta seguindo o tema do sistema de quem abre. `[[Nota]]` vira
   `Nota.html` (relativo), callouts viram caixas coloridas por tipo, tabelas ganham cabeçalho e
   alinhamento, e as imagens que a nota mostra são copiadas para um `_attachments/` ao lado da página.
+- **Exportar PDF** (`Arquivo → Exportar a nota em PDF...`): a nota vira **páginas A4 com texto de
+  verdade** — os glifos vão com as fontes embutidas (subset) e o mapa Unicode, então selecionar,
+  buscar e copiar funcionam no leitor de PDF. Sai o que a leitura desenha: títulos, parágrafos com
+  negrito/itálico/riscado/código/destaque, listas e tarefas, citação, callout com a cor do tipo,
+  tabela com grade e colunas medidas, código em mono e o número da página. **Imagens** saem como
+  `[image: …]` e **links** ficam como texto (as anotações clicáveis são a fase seguinte).
 - **Ajuda** (`Ajuda → Atalhos e ajuda`): as teclas, a sintaxe que uma nota aceita e onde cada coisa
   mora no cofre, com link para esta documentação.
 - Interface em pt-br, es e ja.
@@ -128,9 +134,6 @@ que o mesmo cofre abra nos dois.
 
 ## Roadmap pós-1.0
 
-- **Export PDF**: o app de origem usa o `printToPDF` do Electron; aqui isso é um pipeline de
-  impressão próprio (é a mesma peça que os apps de escritório da suíte já têm), então é unidade
-  separada, não divergência.
 - **Import de `.apkg`** quando houver leitor SQLite puro-Rust maduro (ou um leitor de b-tree próprio).
 - **Math renderizado** (fontes + pintor).
 

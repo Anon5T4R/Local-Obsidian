@@ -1,0 +1,24 @@
+[package]
+name = "localobsidian-pdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+description = "Local Obsidian's PDF export: the reading view's blocks laid out on A4 pages and written as real, selectable text"
+
+[lints]
+workspace = true
+
+[dependencies]
+# The reading view's block model: what a note *is* (headings, spans, tables, callouts).
+localobsidian-md = { workspace = true }
+# The suite's PDF writer (Krilla): glyph runs with embedded, subsetted fonts and a Unicode map.
+craft-pdf = { workspace = true, features = ["write"] }
+# Glyph ids and advances for the embedded faces (already in the tree: epaint shapes with it).
+skrifa = { workspace = true }
+
+[dev-dependencies]
+# The faces the app ships (egui's bundled Latin pair), for the tests that write a real PDF.
+epaint_default_fonts = { path = "../../libs/egui/crates/epaint_default_fonts" }

@@ -1991,3 +1991,32 @@ fn the_panels_read_in_the_light_theme() {
     harness.run_steps(3);
     shot(&mut harness, "ui-light-ai-dialog");
 }
+
+#[test]
+fn the_open_note_exports_as_a_pdf_with_selectable_text() {
+    // The menu writes what the reader sees: the same blocks, on A4 pages, with the fonts embedded.
+    let scratch = Scratch::new("pdf", &[("Tudo.md", KITCHEN_SINK)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tudo.md"));
+    state.refresh_preview();
+    let path = std::env::temp_dir().join(format!("localobsidian-export-{}.pdf", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+
+    let report = crate::app::export_note_pdf(state.preview(), "Tudo", &path).expect("the export");
+    assert!(report.pages >= 2, "the kitchen sink does not fit on one page: {}", report.pages);
+    let bytes = std::fs::read(&path).expect("the file");
+    assert_eq!(bytes.len(), report.bytes);
+    assert!(bytes.starts_with(b"%PDF-"));
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("/ToUnicode"), "the glyphs carry a Unicode map (the text is selectable)");
+    assert!(text.contains("/FontFile2") || text.contains("/FontFile"), "the faces are embedded");
+
+    // The QA run keeps the file for the reviewer to open and look at.
+    if std::env::var_os("LOCALOBSIDIAN_QA_RENDER").is_some() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/qa-f7");
+        let _ = std::fs::create_dir_all(&directory);
+        let _ = std::fs::copy(&path, directory.join("export-note.pdf"));
+    }
+    let _ = std::fs::remove_file(&path);
+}

@@ -55,6 +55,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("convert", Class::Layer(2)),
     // Spaced repetition: SM-2, the cards a note declares, and the srs.json the phone shares.
     ("review", Class::Layer(2)),
+    // PDF export: the reading blocks laid out on A4 pages and written as real text.
+    ("pdf", Class::Layer(2)),
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later).

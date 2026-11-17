@@ -355,3 +355,9 @@
 	Follow the system	Seguir el sistema
 	Light	Claro
 	Dark	Oscuro
+	Export the note as PDF...	Exportar la nota en PDF...
+	A4 pages with selectable text. Pictures and links are the next phase.	Páginas A4 con texto seleccionable. Imágenes y enlaces quedan para la próxima fase.
+	Export as PDF	Exportar en PDF
+	PDF document	Documento PDF
+	could not write the PDF	no se pudo escribir el PDF
+	{pages} pages written to {path}	{pages} páginas escritas en {path}
