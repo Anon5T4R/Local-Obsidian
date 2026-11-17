@@ -55,7 +55,7 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Tarefa em lista (`/task`) | insere três itens, o cursor no segundo | um item só | três caixas vazias de uma vez é ruído; o Enter já continua a lista |
 | Tags no corpo (leitura) | texto | `#tag` vira chip na cor de acento; clicar filtra a barra lateral | é a mesma tag que o índice conhece (mesmas regras de caractere) |
 | Emoji | fonte colorida do sistema | sem fonte de emoji embarcada; pictograma sem glifo não é desenhado na leitura | decisão do João; ver o README |
-
+| Tema | modal de Configurações com dois botões (Claro/Escuro), padrão escuro | `Visualizar → Tema` com **três** opções — Sistema (padrão), Claro, Escuro — persistido em `prefs.json`; acento por tema e callout escurecido no claro | num app nativo seguir o desktop é o esperado (o Electron nunca teve "sistema"); o claro precisava da paleta revisada, não só de uma flag |
 ### Math: avaliação do RaTeX (pendente, unidade própria)
 
 O `ratex` do local-sheets (`crates/math`, 489 linhas) roda LaTeX → `MathList` (glifos, réguas,

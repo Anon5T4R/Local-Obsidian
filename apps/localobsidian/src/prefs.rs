@@ -17,6 +17,48 @@ use crate::vault_state::ViewMode;
 pub const SPLIT_MIN: f32 = 0.2;
 pub const SPLIT_MAX: f32 = 0.8;
 
+/// The interface theme: the system's choice, or the one the user pinned.
+///
+/// The app is a note app first: the greys belong to the desktop theme, and only the accent (links,
+/// tags, quotes) is ours. `System` is the default, so a machine in light mode opens in light mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    /// The key in `prefs.json`.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    /// The theme a key names; anything else (a hand-edited file, a value from the future) follows
+    /// the system.
+    pub fn from_key(key: &str) -> Self {
+        match key {
+            "light" => Self::Light,
+            "dark" => Self::Dark,
+            _ => Self::System,
+        }
+    }
+
+    /// What egui needs to resolve it.
+    pub fn preference(self) -> egui::ThemePreference {
+        match self {
+            Self::System => egui::ThemePreference::System,
+            Self::Light => egui::ThemePreference::Light,
+            Self::Dark => egui::ThemePreference::Dark,
+        }
+    }
+}
+
 /// The reading view's scale: small enough to fit a wide table, large enough to read from far away.
 pub const ZOOM_MIN: f32 = 0.8;
 pub const ZOOM_MAX: f32 = 1.6;
@@ -39,6 +81,8 @@ pub struct Prefs {
     pub zoom: f32,
     /// [`crate::i18n::AUTO`] or a language code.
     pub language: String,
+    /// The interface theme: the system's, or the one the user pinned.
+    pub theme: Theme,
 }
 
 impl Default for Prefs {
@@ -53,6 +97,7 @@ impl Default for Prefs {
             split: 0.5,
             zoom: 1.0,
             language: crate::i18n::AUTO.to_string(),
+            theme: Theme::default(),
         }
     }
 }
@@ -104,6 +149,9 @@ impl Prefs {
         if let Some(zoom) = value.get("zoom").and_then(|v| v.as_f64()) {
             prefs.zoom = (zoom as f32).clamp(ZOOM_MIN, ZOOM_MAX);
         }
+        if let Some(theme) = value.get("theme").and_then(|v| v.as_str()) {
+            prefs.theme = Theme::from_key(theme);
+        }
         if let Some(language) = value.get("language").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
             prefs.language = language.to_string();
         }
@@ -125,6 +173,7 @@ impl Prefs {
             "split": self.split,
             "zoom": self.zoom,
             "language": self.language,
+            "theme": self.theme.key(),
         })
     }
 }
@@ -178,6 +227,7 @@ mod tests {
             split: 0.62,
             zoom: 1.2,
             language: "pt-br".to_string(),
+            theme: Theme::Light,
         };
         let again = Prefs::from_json(&prefs.to_json());
         assert_eq!(again, prefs);
@@ -219,5 +269,23 @@ mod tests {
     #[test]
     fn an_unknown_sort_falls_back_to_name() {
         assert_eq!(Prefs::from_json(&serde_json::json!({"sort": "aleatorio"})).sort, Sort::Name);
+    }
+
+    #[test]
+    fn the_theme_follows_the_system_until_the_user_pins_one() {
+        assert_eq!(Prefs::default().theme, Theme::System, "a machine in light mode opens in light mode");
+        assert_eq!(Prefs::from_json(&serde_json::json!({})).theme, Theme::System);
+        for theme in [Theme::System, Theme::Light, Theme::Dark] {
+            assert_eq!(Prefs::from_json(&serde_json::json!({ "theme": theme.key() })).theme, theme);
+        }
+        assert_eq!(Prefs::from_json(&serde_json::json!({ "theme": "sepia" })).theme, Theme::System, "a value from the future follows the system");
+    }
+
+    #[test]
+    fn the_theme_maps_to_the_egui_preference() {
+        use egui::ThemePreference;
+        assert_eq!(Theme::System.preference(), ThemePreference::System);
+        assert_eq!(Theme::Light.preference(), ThemePreference::Light);
+        assert_eq!(Theme::Dark.preference(), ThemePreference::Dark);
     }
 }

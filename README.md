@@ -110,6 +110,10 @@ que o mesmo cofre abra nos dois.
 - **Ajuda** (`Ajuda → Atalhos e ajuda`): as teclas, a sintaxe que uma nota aceita e onde cada coisa
   mora no cofre, com link para esta documentação.
 - Interface em pt-br, es e ja.
+- **Tema** (`Visualizar → Tema`): **Sistema** (segue o claro/escuro do desktop, o padrão), **Claro** ou
+  **Escuro**, guardado nas preferências. Só o acento é nosso (o violeta do ícone, escurecido no branco
+  e clareado no escuro, para link, tag e citação); o resto do cinza é o do tema — e os callouts, que
+  têm cor própria, escurecem no claro para o título continuar legível.
 
 ## O que este port não faz (e por quê)
 

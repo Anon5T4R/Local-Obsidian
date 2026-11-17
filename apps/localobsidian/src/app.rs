@@ -87,16 +87,11 @@ pub struct LocalApp {
 impl LocalApp {
     pub fn new(cc: &eframe::CreationContext<'_>, frame: craft_window::Frame) -> Self {
         crate::fonts::install(&cc.egui_ctx);
-        // The one colour the note itself carries (links, tags, quotes): the icon's violet, darkened
-        // for a light background and lightened for a dark one so it stays readable either way.
-        cc.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {
-            style.visuals.hyperlink_color = crate::theme::ACCENT_DARK;
-        });
-        cc.egui_ctx.style_mut_of(egui::Theme::Light, |style| {
-            style.visuals.hyperlink_color = crate::theme::ACCENT_LIGHT;
-        });
+        install_styles(&cc.egui_ctx);
         let prefs = Prefs::load();
         i18n::set_language(&prefs.language);
+        // The theme the settings ask for: the system's (the default) or the one the user pinned.
+        apply_theme(&cc.egui_ctx, prefs.theme);
 
         let mut vault = VaultState::default();
         vault.sort = prefs.sort;
@@ -148,6 +143,12 @@ impl LocalApp {
         }
         if std::env::var_os("LOCALOBSIDIAN_QA_TAGS_OPEN").is_some() {
             app.vault.tags_open = true;
+        }
+        // `LOCALOBSIDIAN_QA_THEME=light|dark|system` picks the theme of the capture: the machine's
+        // own theme would make two runs (and two reviewers) disagree.
+        if let Ok(theme) = std::env::var("LOCALOBSIDIAN_QA_THEME") {
+            app.prefs.theme = crate::prefs::Theme::from_key(&theme);
+            apply_theme(&cc.egui_ctx, app.prefs.theme);
         }
         if let Some(vault) = std::env::var_os("LOCALOBSIDIAN_QA_VAULT") {
             app.restore_pending = false;
@@ -277,6 +278,20 @@ impl LocalApp {
                     for (mode, label) in [(ViewMode::Edit, tl!("Edit")), (ViewMode::Read, tl!("Read")), (ViewMode::Split, tl!("Split"))] {
                         if ui.radio(self.vault.view == mode, label).clicked() {
                             self.vault.view = mode;
+                            self.remember();
+                            ui.close();
+                        }
+                    }
+                });
+                ui.menu_button(tl!("Theme"), |ui| {
+                    for (theme, label) in [
+                        (crate::prefs::Theme::System, tl!("Follow the system")),
+                        (crate::prefs::Theme::Light, tl!("Light")),
+                        (crate::prefs::Theme::Dark, tl!("Dark")),
+                    ] {
+                        if ui.radio(self.prefs.theme == theme, label).clicked() {
+                            self.prefs.theme = theme;
+                            apply_theme(ui.ctx(), theme);
                             self.remember();
                             ui.close();
                         }
@@ -1194,6 +1209,25 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
         ui.label(egui::RichText::new(tl!("The full documentation is in the repository:")).small().weak());
         ui.hyperlink_to(egui::RichText::new(tl!("README")).small(), APP.repo_url());
     });
+}
+
+/// The one colour the note itself carries (links, tags, quotes): the icon's violet, darkened for a
+/// light background and lightened for a dark one so it stays readable either way.
+///
+/// Installed on **both** styles, so switching the theme never loses the accent.
+pub(crate) fn install_styles(ctx: &egui::Context) {
+    ctx.style_mut_of(egui::Theme::Dark, |style| {
+        style.visuals.hyperlink_color = crate::theme::ACCENT_DARK;
+    });
+    ctx.style_mut_of(egui::Theme::Light, |style| {
+        style.visuals.hyperlink_color = crate::theme::ACCENT_LIGHT;
+    });
+}
+
+/// Applies the theme the settings ask for. `System` follows the desktop's own light/dark choice; the
+/// per-theme accent (links, tags, quotes) is already installed on both styles in [`LocalApp::new`].
+pub(crate) fn apply_theme(ctx: &egui::Context, theme: crate::prefs::Theme) {
+    ctx.set_theme(theme.preference());
 }
 
 /// Which note a random open picks: any of them, never the one already open.

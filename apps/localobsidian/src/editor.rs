@@ -814,7 +814,7 @@ fn show_callout(
     target: &mut Option<&str>,
     zoom: f32,
 ) -> Option<Hit> {
-    let color = callout_color(kind);
+    let color = callout_color(kind, ui.visuals().dark_mode);
     let mut hit = None;
     egui::Frame::new()
         .fill(color.gamma_multiply(0.12))
@@ -837,8 +837,12 @@ fn show_callout(
 }
 
 /// The colour a callout type is drawn in: the types the ecosystem shares, and a neutral fallback.
-fn callout_color(kind: &str) -> Color32 {
-    match kind {
+///
+/// The table is tuned for a dark page (a light tint of the hue on near-black). On white the same
+/// saturated colours are too light to read as text - amber above all - so the light theme takes the
+/// same hue, darker: the callout keeps its identity and the title stays legible.
+fn callout_color(kind: &str, dark_mode: bool) -> Color32 {
+    let base = match kind {
         "note" | "abstract" | "summary" | "tldr" | "example" | "todo" | "embed" => Color32::from_rgb(99, 102, 241),
         "info" => Color32::from_rgb(59, 130, 246),
         "tip" | "hint" | "success" | "check" | "done" => Color32::from_rgb(16, 185, 129),
@@ -847,7 +851,15 @@ fn callout_color(kind: &str) -> Color32 {
         "question" | "help" | "faq" => Color32::from_rgb(139, 92, 246),
         "important" => Color32::from_rgb(236, 72, 153),
         _ => Color32::from_rgb(107, 114, 128),
-    }
+    };
+    if dark_mode { base } else { shade(base) }
+}
+
+/// The same hue, darker: what a saturated colour needs to be read as text on white.
+fn shade(color: Color32) -> Color32 {
+    let [red, green, blue, _] = color.to_array();
+    let dim = |channel: u8| (f32::from(channel) * 0.68).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(dim(red), dim(green), dim(blue))
 }
 
 /// Room around a cell's text.
@@ -1132,8 +1144,22 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
                 }
                 let index = state.find.seen.get();
                 let current = index == state.find.current;
-                let fill = accent.gamma_multiply(if current { 0.55 } else { 0.22 });
+                // A match is a *background*: pale in both themes, stronger for the one the bar is
+                // on. The dark page can take a 0.55 tint; on white that would bury the text.
+                let dark = ui.visuals().dark_mode;
+                let weight = match (current, dark) {
+                    (true, true) => 0.55,
+                    (true, false) => 0.30,
+                    (false, true) => 0.22,
+                    (false, false) => 0.14,
+                };
+                let fill = accent.gamma_multiply(weight);
                 let piece = ui.label(style.rich(drawable(ui, &text[start..end], style.size)).background_color(fill));
+                if current {
+                    // The current match is also *ringed*: the fill alone is too subtle on white, and
+                    // a heavier tint would bury the text.
+                    ui.painter().rect_stroke(piece.rect.expand(1.0), 2.0, egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+                }
                 if current && state.find.scroll_to_current.replace(false) {
                     // Once, when the bar moved the reader here — not on every frame, which would
                     // undo the wheel.
@@ -1258,4 +1284,39 @@ fn show_link(ui: &mut egui::Ui, spans: &[Span], destination: &str, state: &Vault
     }
     ui.label(style.rich(text));
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG relative luminance of a colour.
+    fn luminance(color: Color32) -> f32 {
+        let channel = |value: u8| {
+            let s = f32::from(value) / 255.0;
+            if s <= 0.039_28 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
+        };
+        let [red, green, blue, _] = color.to_array();
+        0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
+    /// WCAG contrast ratio between two colours.
+    fn contrast(one: Color32, other: Color32) -> f32 {
+        let (one, other) = (luminance(one), luminance(other));
+        (one.max(other) + 0.05) / (one.min(other) + 0.05)
+    }
+
+    #[test]
+    fn the_callout_titles_stay_readable_on_white() {
+        // The callout table is tuned for the dark page; in the light theme each hue is darkened so
+        // the title (15 px bold) keeps the 3:1 floor of large text on white. Amber is the worst one.
+        for kind in ["note", "info", "tip", "warning", "danger", "question", "important", "embed", "desconhecido"] {
+            let dark = callout_color(kind, true);
+            let light = callout_color(kind, false);
+            assert_eq!(light, shade(dark), "{kind}: the light theme is the same hue, darker");
+            let ratio = contrast(light, Color32::WHITE);
+            assert!(ratio >= 3.0, "{kind}: {ratio:.1}:1 on white is below the 3:1 floor");
+            assert!(contrast(light, Color32::WHITE) > contrast(dark, Color32::WHITE), "{kind}: the light shade must be the darker one");
+        }
+    }
 }

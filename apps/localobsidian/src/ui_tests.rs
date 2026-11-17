@@ -1794,3 +1794,200 @@ fn the_find_bar_does_not_fight_the_wheel() {
     // stay there: a hit highlighted by the find bar used to pull the reader back every frame.
     wheel_keep_position(&mut harness, egui::pos2(380.0, 300.0), "Paragrafo 60", 6.0);
 }
+
+/// Puts a harness in the light theme the real app would use (styles installed, preference pinned).
+fn light<State>(harness: &mut Harness<'_, State>) {
+    crate::app::install_styles(&harness.ctx);
+    harness.ctx.set_theme(egui::ThemePreference::Light);
+}
+
+#[test]
+fn the_theme_setting_reaches_the_context_and_the_accent() {
+    for (theme, expected) in [(crate::prefs::Theme::Light, egui::Theme::Light), (crate::prefs::Theme::Dark, egui::Theme::Dark)] {
+        let mut harness = Harness::builder().with_size(egui::vec2(320.0, 200.0)).build_ui_state(
+            move |ui, applied: &mut bool| {
+                if !*applied {
+                    crate::app::install_styles(ui.ctx());
+                    crate::app::apply_theme(ui.ctx(), theme);
+                    *applied = true;
+                }
+            },
+            false,
+        );
+        harness.run_steps(2);
+        assert_eq!(harness.ctx.theme(), expected, "{theme:?}");
+        let visuals = harness.ctx.style_of(expected).visuals.clone();
+        assert_eq!(visuals.dark_mode, expected == egui::Theme::Dark);
+        let accent = if visuals.dark_mode { crate::theme::ACCENT_DARK } else { crate::theme::ACCENT_LIGHT };
+        assert_eq!(visuals.hyperlink_color, accent, "{theme:?}: the accent installed on that style");
+    }
+}
+
+#[test]
+fn the_panels_read_in_the_light_theme() {
+    // Half the world runs its desktop in light mode, so the light palette is a release gate, not a
+    // taste: one shot per surface that carries a colour of its own.
+    let scratch = Scratch::new(
+        "light",
+        &[
+            ("Tudo.md", KITCHEN_SINK),
+            ("Nota similar 1.md", "# Nota similar 1\n\nVolta para [[Tudo]] e para [[Outra nota]].\n"),
+            ("Outra nota.md", "# Outra nota\n\n[[Tudo]]\n"),
+        ],
+    );
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tudo.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(1366.0, 900.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-reading");
+
+    // The review card (callout, accent, buttons).
+    let mut review = crate::review_ui::Review::default();
+    review.start(&harness.state().0, crate::review_ui::Deck::All);
+    let mut harness = Harness::builder().with_size(egui::vec2(620.0, 640.0)).build_ui_state(
+        |ui, (state, review, images): &mut (VaultState, crate::review_ui::Review, crate::images::Images)| review.ui(ui, state, images),
+        (harness.into_state().0, review, crate::images::Images::default()),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-review");
+
+    // The connection map (violet rings over the note).
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tudo.md"));
+    let mut map = crate::connections::Map::default();
+    map.start_from(&scratch.0.join("Tudo.md"));
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 640.0)).build_ui_state(
+        |ui, (state, map): &mut (VaultState, crate::connections::Map)| {
+            crate::connections::show(ui, state, map);
+        },
+        (state, map),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-connections");
+
+    // The calendar (today marked, the month grid).
+    let state = (crate::calendar::today_iso(), vec![crate::calendar::today_iso()]);
+    let mut harness = Harness::builder().with_size(egui::vec2(360.0, 420.0)).build_ui_state(
+        |ui, (month, marked): &mut (String, Vec<String>)| {
+            let days = marked.clone();
+            crate::calendar::show(ui, month, &|iso: &str| days.iter().any(|day| day == iso), "en");
+        },
+        state,
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-calendar");
+
+    // The chat panel (strip, composer, chip): the suite component in light.
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tudo.md"));
+    let mut chat = crate::ai_ui::Chat::default();
+    chat.open = true;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(460.0, 620.0))
+        .with_accessibility_check(false)
+        .build_ui_state(|ui, (state, chat): &mut (VaultState, crate::ai_ui::Chat)| chat.ui(ui, state), (state, chat));
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-chat");
+
+    // The editor (source) beside the reading view: the markdown layouter has colours of its own
+    // (links, tags, highlights, fences). A note without emoji: the editor draws the raw text, and the
+    // test fonts have no pictograms.
+    let source = "# Título\n\nParágrafo com **negrito**, *itálico*, `código`, ==destaque==, [[Nota similar 1]] e #qa.\n\n> citação com [[Tudo]]\n\n- item\n- [ ] tarefa\n\n```rust\nfn main() {}\n```\n";
+    let scratch = Scratch::new("light-editor", &[("Fonte.md", source)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Fonte.md"));
+    state.view = crate::vault_state::ViewMode::Split;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-editor");
+
+    // The find bar and the lit matches (a background over the text).
+    let mut body = String::from("# Longa\n\n");
+    for index in 1..=12 {
+        body.push_str(&format!("Paragrafo {index} com a palavra alvo no meio da linha.\n\n"));
+    }
+    let scratch = Scratch::new("light-find", &[("Longa.md", &body)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Longa.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    state.find.open();
+    state.find.query = "alvo".to_string();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 520.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-find");
+
+    // The vault search panel.
+    let (scratch2, mut state) = demo_vault("light-search");
+    state.open_note(&scratch2.0.join("Sepse.md"));
+    state.search.open = true;
+    state.search.query = "lactato".to_string();
+    state.run_search_now();
+    let mut harness = Harness::builder().with_size(egui::vec2(420.0, 560.0)).build_ui_state(
+        |ui, state: &mut VaultState| {
+            let _ = panels::search(ui, state);
+        },
+        state,
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-search");
+
+    // The AI connections dialog (a form: fields, hints, buttons).
+    let mut chat = crate::ai_ui::Chat::default();
+    chat.open = true;
+    chat.settings_open = true;
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Tudo.md"));
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, chat): &mut (VaultState, crate::ai_ui::Chat)| {
+            chat.ui(ui, state);
+            // The dialog is drawn by the app, outside the panel (as in `app.rs`).
+            let _ = chat.settings(ui);
+        },
+        (state, chat),
+    );
+    harness.run_steps(2);
+    light(&mut harness);
+    harness.run_steps(3);
+    shot(&mut harness, "ui-light-ai-dialog");
+}

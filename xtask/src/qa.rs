@@ -152,7 +152,7 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
         let wanted = if label == "real" { "Análise de Lacunas do Vault" } else { "Bloqueios - tudo em um" };
         let note = if vault.join(format!("{wanted}.md")).is_file() { Some(wanted.to_string()) } else { None };
         for (width, height) in [(1920, 1080), (1366, 768), (1024, 600), (800, 500)] {
-            let shot = shots.join(format!("vault-{label}-{width}x{height}.png"));
+            let shot = shots.join(format!("vault-{label}-{width}x{height}{}.png", theme_suffix()));
             shoot(&app, vault, note.as_deref(), width, height, &shot)?;
             written += 1;
         }
@@ -160,7 +160,7 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
         // so the archive has the table itself and not only the top of the kitchen sink.
         if label == "gerado" && vault.join("_qa/Tabela grande.md").is_file() {
             for (width, height) in [(1366, 768), (800, 500)] {
-                let shot = shots.join(format!("tabela-{width}x{height}.png"));
+                let shot = shots.join(format!("tabela-{width}x{height}{}.png", theme_suffix()));
                 shoot(&app, vault, Some("Tabela grande"), width, height, &shot)?;
                 written += 1;
             }
@@ -175,7 +175,7 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
                     continue;
                 }
                 let safe = fixture.replace(' ', "-");
-                let shot = shots.join(format!("real-{safe}-1366x768.png"));
+                let shot = shots.join(format!("real-{safe}-1366x768{}.png", theme_suffix()));
                 shoot(&app, vault, Some(fixture), 1366, 768, &shot)?;
                 written += 1;
             }
@@ -189,6 +189,15 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
+/// The `-light`/`-dark` suffix of the file names, when the run pinning the theme asks for one: a
+/// light capture must not overwrite the dark one (nor be compared against it).
+fn theme_suffix() -> String {
+    match std::env::var("LOCALOBSIDIAN_QA_THEME").ok().as_deref() {
+        Some(theme) if !theme.is_empty() && theme != "system" => format!("-{theme}"),
+        _ => String::new(),
+    }
+}
+
 /// One window of the app, one PNG. Blocks until the app has written the picture and closed.
 fn shoot(app: &Path, vault: &Path, note: Option<&str>, width: u32, height: u32, shot: &Path) -> Result<(), String> {
     let mut command = Command::new(app);
@@ -199,6 +208,10 @@ fn shoot(app: &Path, vault: &Path, note: Option<&str>, width: u32, height: u32, 
         .env("LOCALOBSIDIAN_QA_VIEW", "read")
         .env("LOCALOBSIDIAN_QA_SIZE", format!("{width}x{height}"))
         .env("LOCALOBSIDIAN_QA_FRAMES", "45");
+    // The theme of the capture follows the caller's, so a light run is reproducible on any machine.
+    if let Ok(theme) = std::env::var("LOCALOBSIDIAN_QA_THEME") {
+        command.env("LOCALOBSIDIAN_QA_THEME", theme);
+    }
     if let Some(note) = note {
         command.env("LOCALOBSIDIAN_QA_NOTE", note);
     }

@@ -23,6 +23,7 @@ commands:
   layers          enforce the crate dependency layering (see xtask/src/layers.rs)
   qa-vault [dir]  write the QA vault (every block type, 500+ notes, binaries) into target/qa-vault
   qa-shots [dir]  one window PNG per size (1920, 1366, 1024, 800 wide) into target/qa-f7
+                  (LOCALOBSIDIAN_QA_THEME=light|dark pins the theme and suffixes the files)
   qa-sample [n]   copy n notes from the user's own vault into target/qa-vault-real (read-only there)
   version [set X.Y.Z]
                   print the workspace version, or bump it (the single source) and refresh Cargo.lock
