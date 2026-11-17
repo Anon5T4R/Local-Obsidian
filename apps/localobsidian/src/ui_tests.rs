@@ -1516,3 +1516,153 @@ fn the_calendar_walks_the_months() {
     harness.run_steps(2);
     assert_eq!(harness.state().0, crate::calendar::add_months(&before, 1), "the arrow moves one month ahead");
 }
+
+#[test]
+fn enter_in_the_editor_starts_a_new_line() {
+    // The completion popup consumes Enter only while it has something to accept; with no link being
+    // typed, Enter belongs to the note.
+    let scratch = Scratch::new("enter", &[("Nota.md", "# Nota\n\ncorpo\n")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(700.0, 460.0))
+        // The editor has no accessible name of its own (the note's title is the label above it).
+        .with_accessibility_check(false)
+        .build_ui_state(
+            |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+                crate::editor::show(ui, state, images);
+            },
+            (state, images),
+        );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    let before = harness.state().0.buffer.matches('\n').count();
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+    let after = harness.state().0.buffer.matches('\n').count();
+    assert_eq!(after, before + 1, "Enter inserts one line break: {:?}", harness.state().0.buffer);
+}
+
+#[test]
+fn a_slash_command_at_the_start_of_a_line_opens_a_popup_that_inserts_a_block() {
+    let scratch = Scratch::new("slash", &[("Nota.md", "/tab")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    // The caret goes to the end of the line, right after the command being typed.
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    shot(&mut harness, "ui-slash");
+
+    // The popup explains the command it offers.
+    harness.get_by_label_contains("/table");
+    harness.get_by_label_contains("Table");
+
+    // Clicking it replaces the typed command with the block, and selects the first header cell.
+    harness.get_by_label_contains("/table").click();
+    harness.run_steps(2);
+    let buffer = &harness.state().0.buffer;
+    assert!(buffer.starts_with("| Col 1 | Col 2 | Col 3 |\n"), "{buffer:?}");
+    assert!(buffer.ends_with("| Cell | Cell | Cell |\n"), "{buffer:?}");
+}
+
+#[test]
+fn enter_takes_the_highlighted_slash_command_instead_of_breaking_the_line() {
+    let scratch = Scratch::new("slash-enter", &[("Nota.md", "# Nota\n\n/toc")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    harness.get_by_label_contains("/toc");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+
+    // Enter took the command: the contents replaces `/toc` and no line break was left behind.
+    let buffer = &harness.state().0.buffer;
+    assert_eq!(buffer, "# Nota\n\n- [[#Nota]]\n", "{buffer:?}");
+}
+
+#[test]
+fn a_bare_slash_lists_the_whole_catalogue() {
+    // The list is the app's insert menu: what a block, a snippet or a date looks like, in the order
+    // the popup shows it.
+    let scratch = Scratch::new("slash-all", &[("Nota.md", "# Nota\n\n/")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    shot(&mut harness, "ui-slash-all");
+    harness.ctx.set_visuals(egui::Visuals::light());
+    harness.run_steps(2);
+    shot(&mut harness, "ui-slash-all-light");
+
+    for name in ["/h1", "/bold", "/table", "/card"] {
+        harness.get_by_label_contains(name);
+    }
+}
+
+#[test]
+fn escape_dismisses_the_slash_popup_and_it_stays_closed_at_that_caret() {
+    let scratch = Scratch::new("slash-esc", &[("Nota.md", "/tab")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    harness.get_by_label_contains("/table");
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+
+    assert!(harness.query_by_label_contains("/table").is_none(), "Escape closes it, and it does not reopen on the same caret");
+    assert_eq!(harness.state().0.buffer, "/tab", "the note is untouched");
+}

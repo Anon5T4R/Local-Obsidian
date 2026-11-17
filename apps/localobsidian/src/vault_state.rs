@@ -108,6 +108,11 @@ pub struct VaultState {
     pub pending_line: Option<usize>,
     /// The `[[wikilink` being typed, when the popup is open.
     pub completion: Option<crate::completions::Completion>,
+    /// The `/command` being typed, when the popup is open.
+    pub slash: Option<crate::slash::Slash>,
+    /// The caret where the user dismissed a popup with `Escape`: the popup stays closed until the
+    /// caret moves (a popup that reopened on the same frame would never close).
+    pub popup_dismissed: Option<usize>,
     /// Query blocks the reader expanded (`+N more`), keyed by the block's own text.
     pub query_expanded: std::collections::BTreeSet<String>,
     /// The find bar of the reading view (where in this note).
@@ -155,6 +160,8 @@ impl Default for VaultState {
             pending_section: None,
             pending_line: None,
             completion: None,
+            slash: None,
+            popup_dismissed: None,
             history: crate::history::History::default(),
             query_expanded: std::collections::BTreeSet::new(),
             find: crate::find::Find::default(),
@@ -305,6 +312,8 @@ impl VaultState {
                 self.outline_cache = None;
                 self.properties.clear();
                 self.completion = None;
+                self.slash = None;
+                self.popup_dismissed = None;
                 true
             }
             Err(error) => {

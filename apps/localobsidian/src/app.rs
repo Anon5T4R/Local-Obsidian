@@ -1164,6 +1164,7 @@ pub(crate) fn help_body(ui: &mut egui::Ui) {
     shortcut(ui, "Tab / Shift+Tab", tl!("Indent or outdent the line"));
     shortcut(ui, "Ctrl+Enter", tl!("Tick or untick a task"));
     shortcut(ui, "[[", tl!("Link to another note, with completion"));
+    shortcut(ui, "/", tl!("A block at the start of a line: table, callout, code, task, contents, date"));
 
     section(ui, tl!("What a note holds"));
     for (syntax, what) in [

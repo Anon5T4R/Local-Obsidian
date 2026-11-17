@@ -324,3 +324,30 @@
 	The full documentation is in the repository:	詳しい説明はリポジトリにあります:
 	README	README
 	Tick it in the note	ノート側で切り替える
+	Heading 1	見出し1
+	Heading 2	見出し2
+	Heading 3	見出し3
+	Struck through	打ち消し線
+	Comment	コメント
+	Bullet list	箇条書き
+	Numbered list	番号付きリスト
+	Task	タスク
+	Table	表
+	Code block	コードブロック
+	Quote	引用
+	Horizontal rule	水平線
+	Link to another note	他のノートへのリンク
+	Embed another note	他のノートの埋め込み
+	Web link	Web リンク
+	Image	画像
+	Flashcard	フラッシュカード
+	Cloze flashcard	穴埋めフラッシュカード
+	Table of contents	目次
+	Callout	コールアウト
+	Tip	ヒント
+	Warning	警告
+	Danger	危険
+	Frontmatter	フロントマター
+	Today's date	今日の日付
+	Time	時刻
+	A block at the start of a line: table, callout, code, task, contents, date	行頭にブロックを挿入: 表、コールアウト、コード、タスク、目次、日付

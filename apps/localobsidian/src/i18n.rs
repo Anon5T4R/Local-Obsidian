@@ -133,6 +133,18 @@ mod tests {
     }
 
     #[test]
+    fn every_slash_command_hint_is_in_every_catalog() {
+        // The command table is data, so the audit that greps `tl!` cannot see its hints: without
+        // this gate a command would ship with its explanation in English in the other languages.
+        for command in crate::slash::COMMANDS {
+            for language in LANGUAGES.iter().filter(|language| language.code != "en") {
+                let Some(lang) = I18N.from_code(language.code) else { continue };
+                assert!(I18N.get(lang, "", command.hint).is_some(), "{:?} is missing from the {} catalog", command.hint, language.code);
+            }
+        }
+    }
+
+    #[test]
     fn a_count_uses_the_languages_plural() {
         set_language("en");
         assert_eq!(trn(1, "{n} card due", "{n} cards due"), "1 card due");

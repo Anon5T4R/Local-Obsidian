@@ -324,3 +324,30 @@
 	The full documentation is in the repository:	La documentación completa está en el repositorio:
 	README	README
 	Tick it in the note	Marcar en la nota
+	Heading 1	Título 1
+	Heading 2	Título 2
+	Heading 3	Título 3
+	Struck through	Tachado
+	Comment	Comentario
+	Bullet list	Lista con viñetas
+	Numbered list	Lista numerada
+	Task	Tarea
+	Table	Tabla
+	Code block	Bloque de código
+	Quote	Cita
+	Horizontal rule	Línea horizontal
+	Link to another note	Enlace a otra nota
+	Embed another note	Incrustar otra nota
+	Web link	Enlace web
+	Image	Imagen
+	Flashcard	Flashcard
+	Cloze flashcard	Flashcard cloze
+	Table of contents	Índice
+	Callout	Callout
+	Tip	Consejo
+	Warning	Advertencia
+	Danger	Peligro
+	Frontmatter	Frontmatter
+	Today's date	Fecha de hoy
+	Time	Hora
+	A block at the start of a line: table, callout, code, task, contents, date	Un bloque al inicio de la línea: tabla, callout, código, tarea, índice, fecha

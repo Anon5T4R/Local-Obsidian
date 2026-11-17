@@ -30,6 +30,7 @@ mod pickers;
 mod prefs;
 mod review_ui;
 mod sidebar;
+mod slash;
 mod suite_entry;
 mod templates;
 mod theme;

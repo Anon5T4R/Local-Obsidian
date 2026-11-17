@@ -231,30 +231,58 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
             crate::editor_keys::EditorKey::Save => action = EditorAction::Save,
         }
     }
-    if let Some(popup) = crate::completions::take_keys(ui)
-        && let Some(completion) = state.completion.clone()
+    // The popups' keys, consumed before the widget draws, so an `Enter` meant for the popup does
+    // not also reach the note. With no popup open the keys belong to the editor and are not touched.
+    if (state.completion.is_some() || state.slash.is_some())
+        && let Some(popup) = crate::completions::take_keys(ui)
     {
-        match popup {
-            crate::completions::PopupKey::Up => {
-                let mut completion = completion;
-                crate::completions::move_by(&mut completion, -1);
-                state.completion = Some(completion);
-            }
-            crate::completions::PopupKey::Down => {
-                let mut completion = completion;
-                crate::completions::move_by(&mut completion, 1);
-                state.completion = Some(completion);
-            }
-            crate::completions::PopupKey::Accept => {
-                if let Some(name) = completion.selected() {
-                    let (text, caret) = crate::completions::accept(&state.buffer, &completion, name);
-                    state.buffer = text;
-                    crate::editor_keys::place_caret(ui, &state.buffer, editor_id, caret);
-                    changed = true;
+        if let Some(completion) = state.completion.clone() {
+            match popup {
+                crate::completions::PopupKey::Up => {
+                    let mut completion = completion;
+                    crate::completions::move_by(&mut completion, -1);
+                    state.completion = Some(completion);
                 }
-                state.completion = None;
+                crate::completions::PopupKey::Down => {
+                    let mut completion = completion;
+                    crate::completions::move_by(&mut completion, 1);
+                    state.completion = Some(completion);
+                }
+                crate::completions::PopupKey::Accept => {
+                    if let Some(name) = completion.selected() {
+                        let (text, caret) = crate::completions::accept(&state.buffer, &completion, name);
+                        state.buffer = text;
+                        crate::editor_keys::place_caret(ui, &state.buffer, editor_id, caret);
+                        changed = true;
+                    }
+                    state.completion = None;
+                }
+                crate::completions::PopupKey::Dismiss => {
+                    state.popup_dismissed = Some(crate::editor_keys::caret_byte(ui, &state.buffer, editor_id));
+                    state.completion = None;
+                }
             }
-            crate::completions::PopupKey::Dismiss => state.completion = None,
+        } else if let Some(slash) = state.slash.clone() {
+            match popup {
+                crate::completions::PopupKey::Up => {
+                    let mut slash = slash;
+                    crate::slash::move_by(&mut slash, -1);
+                    state.slash = Some(slash);
+                }
+                crate::completions::PopupKey::Down => {
+                    let mut slash = slash;
+                    crate::slash::move_by(&mut slash, 1);
+                    state.slash = Some(slash);
+                }
+                crate::completions::PopupKey::Accept => {
+                    take_command(ui, state, editor_id, &slash, &mut changed);
+                    state.slash = None;
+                }
+                crate::completions::PopupKey::Dismiss => {
+                    state.popup_dismissed = Some(crate::editor_keys::caret_byte(ui, &state.buffer, editor_id));
+                    state.slash = None;
+                }
+            }
         }
     }
 
@@ -297,9 +325,23 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
         state.touch();
     }
 
-    // The popup: what the caret is typing now, drawn under it.
+    // The popups: what the caret is typing now, drawn under it. A popup dismissed with `Escape` at
+    // this same caret stays closed; moving or typing is what brings it back.
     let caret = crate::editor_keys::caret_byte(ui, &state.buffer, editor_id);
-    state.completion = crate::completions::for_caret(state, &state.buffer, caret);
+    let dismissed = state.popup_dismissed == Some(caret);
+    if state.popup_dismissed.is_some() && !dismissed {
+        state.popup_dismissed = None;
+    }
+    state.completion = if dismissed { None } else { crate::completions::for_caret(state, &state.buffer, caret) };
+    state.slash = if dismissed {
+        None
+    } else if crate::slash::maybe(&state.buffer, caret) {
+        state.refresh_outline();
+        let has_headings = !state.outline().is_empty();
+        crate::slash::for_caret(&state.buffer, caret, has_headings)
+    } else {
+        None
+    };
     if let (Some(completion), Some(rect)) = (&state.completion, caret_rect) {
         let at = egui::pos2(rect.left(), rect.bottom() + 2.0);
         if let Some(index) = crate::completions::show(ui, completion, at) {
@@ -310,8 +352,31 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
             state.completion = None;
             state.touch();
         }
+    } else if let (Some(slash), Some(rect)) = (&state.slash, caret_rect) {
+        let at = egui::pos2(rect.left(), rect.bottom() + 2.0);
+        if let Some(index) = crate::slash::show(ui, slash, at) {
+            let mut slash = slash.clone();
+            slash.index = index;
+            take_command(ui, state, editor_id, &slash, &mut changed);
+            state.slash = None;
+            state.touch();
+        }
     }
     action
+}
+
+/// Inserts the command `slash` is on: the text replaces `/typed` in place and the caret (or the
+/// selected placeholder) follows.
+fn take_command(ui: &egui::Ui, state: &mut VaultState, editor_id: egui::Id, slash: &crate::slash::Slash, changed: &mut bool) {
+    let Some(command) = slash.selected() else { return };
+    state.refresh_outline();
+    let headings = state.outline().to_vec();
+    let today = crate::calendar::today_iso();
+    let now = chrono::Local::now().format("%H:%M").to_string();
+    let Some((text, selection)) = crate::slash::accept(&state.buffer, slash, command, &headings, &today, &now) else { return };
+    state.buffer = text;
+    crate::editor_keys::place_selection(ui, &state.buffer, editor_id, selection);
+    *changed = true;
 }
 
 /// The byte offset where a 1-based line starts.

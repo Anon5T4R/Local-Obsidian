@@ -26,6 +26,13 @@ que o mesmo cofre abra nos dois.
 - **Editor**: texto puro com `Ctrl+B`/`I`/`E` (negrito/itálico/código), `Ctrl+Shift+E` (destaque),
   `Tab`/`Shift+Tab`, `Ctrl+Enter` (checkbox), lista que continua no Enter, autosave de 800 ms e
   `Ctrl+S`; escrita atômica (arquivo temporário + rename), nunca meio arquivo.
+- **Comandos de barra**: `/` no começo de uma palavra (início da linha ou depois de espaço, fora de
+  bloco de código) abre a lista do que se pode inserir — títulos `h1`/`h2`/`h3`, `bold`, `italic`,
+  `strike`, `highlight`, `inline`, `comment`, `list`, `numlist`, `task`, `table`, `code`, `quote`,
+  `hr`, `wikilink`, `embed`, `link`, `image`, `card`, `cloze`, `toc` (sumário montado dos títulos da
+  nota), `callout`/`tip`/`warning`/`danger`, `frontmatter`, `date` e `time`. `↑`/`↓` andam, `Enter`/`Tab`
+  aceitam, `Esc` dispensa; o trecho de exemplo vem **selecionado**, então digitar substitui, e um
+  bloco tomado no meio da linha ganha a linha própria antes.
 - **Leitura**: títulos, listas, citação, callouts (`> [!warning]`), tabelas alinhadas, blocos de
   código, imagens de `_attachments/` e links clicáveis; **Edit | Split | Read** num seletor sempre
   visível no cabeçalho da nota (o Split tem divisor arrastável, guardado nas preferências). Um

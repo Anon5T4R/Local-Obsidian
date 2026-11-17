@@ -120,6 +120,12 @@ pub fn place_caret(ui: &egui::Ui, buffer: &str, id: egui::Id, byte: usize) {
     set_selection(ui, buffer, id, Selection::caret(byte));
 }
 
+/// Puts the caret, or the selection, at a byte range: a snippet's placeholder is selected, so the
+/// typed text replaces it.
+pub fn place_selection(ui: &egui::Ui, buffer: &str, id: egui::Id, selection: Selection) {
+    set_selection(ui, buffer, id, selection);
+}
+
 /// The caret's byte offset.
 pub fn caret_byte(ui: &egui::Ui, buffer: &str, id: egui::Id) -> usize {
     selection_of(ui, buffer, id).end
