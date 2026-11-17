@@ -332,13 +332,17 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
     if state.popup_dismissed.is_some() && !dismissed {
         state.popup_dismissed = None;
     }
-    state.completion = if dismissed { None } else { crate::completions::for_caret(state, &state.buffer, caret) };
+    state.completion = if dismissed {
+        None
+    } else {
+        crate::completions::refreshed(state.completion.take(), crate::completions::for_caret(state, &state.buffer, caret))
+    };
     state.slash = if dismissed {
         None
     } else if crate::slash::maybe(&state.buffer, caret) {
         state.refresh_outline();
         let has_headings = !state.outline().is_empty();
-        crate::slash::for_caret(&state.buffer, caret, has_headings)
+        crate::slash::refreshed(state.slash.take(), crate::slash::for_caret(&state.buffer, caret, has_headings))
     } else {
         None
     };
@@ -352,9 +356,10 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
             state.completion = None;
             state.touch();
         }
-    } else if let (Some(slash), Some(rect)) = (&state.slash, caret_rect) {
+    } else if let (Some(slash), Some(rect)) = (&mut state.slash, caret_rect) {
         let at = egui::pos2(rect.left(), rect.bottom() + 2.0);
-        if let Some(index) = crate::slash::show(ui, slash, at) {
+        let clicked = crate::slash::show(ui, slash, at);
+        if let Some(index) = clicked {
             let mut slash = slash.clone();
             slash.index = index;
             take_command(ui, state, editor_id, &slash, &mut changed);
@@ -463,6 +468,7 @@ fn find_bar(ui: &mut egui::Ui, state: &mut VaultState) {
         if field.changed() {
             // A new query starts at the first match.
             state.find.current = 0;
+            state.find.scroll_to_current.set(true);
         }
         if field.has_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
             if ui.input(|input| input.modifiers.shift) {
@@ -1128,7 +1134,9 @@ fn show_span(ui: &mut egui::Ui, span: &Span, state: &VaultState, style: Style) -
                 let current = index == state.find.current;
                 let fill = accent.gamma_multiply(if current { 0.55 } else { 0.22 });
                 let piece = ui.label(style.rich(drawable(ui, &text[start..end], style.size)).background_color(fill));
-                if current {
+                if current && state.find.scroll_to_current.replace(false) {
+                    // Once, when the bar moved the reader here — not on every frame, which would
+                    // undo the wheel.
                     ui.scroll_to_rect(piece.rect, Some(egui::Align::Center));
                 }
                 state.find.seen.set(index + 1);

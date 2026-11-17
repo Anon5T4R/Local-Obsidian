@@ -1666,3 +1666,131 @@ fn escape_dismisses_the_slash_popup_and_it_stays_closed_at_that_caret() {
     assert!(harness.query_by_label_contains("/table").is_none(), "Escape closes it, and it does not reopen on the same caret");
     assert_eq!(harness.state().0.buffer, "/tab", "the note is untouched");
 }
+
+/// One notch of the wheel, as the app receives it: a small point delta that egui applies at once (a
+/// bigger one is smoothed over several frames, which would make a test about "it stayed" measure the
+/// animation instead of the fight).
+fn wheel_notch<State>(harness: &mut Harness<'_, State>, delta: f32) {
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::vec2(0.0, delta),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+/// **`wheel_keep_position`** — the house regression test for scroll surfaces: the wheel must move
+/// the area under the pointer and the area must **stay** where the reader left it.
+///
+/// It exists because of a real bug (`/` in v1.6.0): a `scroll_to_*` asked for on every frame wins
+/// against the wheel, and the list climbs back by itself. Every panel with a `ScrollArea` that also
+/// scrolls programmatically should call this with a row that stays visible before and after, and a
+/// pointer position inside the area. See `docs/planos/licoes-de-porta.md` §UI/scroll.
+///
+/// `probe` is a label inside the area; `delta` is one notch (negative scrolls the content up, i.e.
+/// the reader goes down).
+fn wheel_keep_position<State>(harness: &mut Harness<'_, State>, hover: egui::Pos2, probe: &str, delta: f32)
+where
+    State: 'static,
+{
+    harness.event(egui::Event::PointerMoved(hover));
+    harness.run_steps(1);
+    let before = harness.get_by_label_contains(probe).rect().top();
+    for _ in 0..4 {
+        wheel_notch(harness, delta);
+        harness.run_steps(1);
+    }
+    harness.run_steps(2);
+    let moved = harness.get_by_label_contains(probe).rect().top();
+    assert!((moved - before).abs() > 8.0, "the wheel did not move the area ({before} -> {moved}); the probe must be a visible row");
+
+    // The regression: the area must not climb back on its own after the wheel stopped.
+    harness.run_steps(10);
+    let later = harness.get_by_label_contains(probe).rect().top();
+    assert!((later - moved).abs() < 1.0, "the area fought the wheel: {moved} -> {later}");
+}
+
+#[test]
+fn the_arrow_keys_move_the_slash_highlight() {
+    // `Down` twice must highlight the third command and `Enter` must take *that* one: a popup that
+    // rebuilds its list every frame used to forget how far down the reader was.
+    let scratch = Scratch::new("slash-arrows", &[("Nota.md", "/")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run_steps(1);
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+
+    // h1, h2, h3: the third row is the heading 3.
+    assert_eq!(harness.state().0.buffer, "### ", "Enter took the third command, not the first");
+}
+
+#[test]
+fn the_wheel_is_not_fought_by_the_slash_popup() {
+    let scratch = Scratch::new("slash-wheel", &[("Nota.md", "/")]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.view = crate::vault_state::ViewMode::Edit;
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(3);
+    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+
+    // The regression: the wheel walks the list and the list stays there.
+    let hover_at = harness.get_by_label_contains("/bold").rect().center();
+    wheel_keep_position(&mut harness, hover_at, "/bold", -6.0);
+}
+
+#[test]
+fn the_find_bar_does_not_fight_the_wheel() {
+    let mut body = String::from("# Longa\n\n");
+    for index in 1..=60 {
+        body.push_str(&format!("Paragrafo {index} com texto suficiente para ocupar uma linha inteira.\n\n"));
+    }
+    body.push_str("Palavra alvo no fim.\n");
+    let scratch = Scratch::new("find-wheel", &[("Longa.md", &body)]);
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Longa.md"));
+    state.view = crate::vault_state::ViewMode::Read;
+    state.find.open();
+    state.find.query = "alvo".to_string();
+    let images = crate::images::Images::default();
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 520.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
+    harness.run_steps(4);
+    // The pointer is over the reading pane; the wheel goes up (away from the hit), and the view must
+    // stay there: a hit highlighted by the find bar used to pull the reader back every frame.
+    wheel_keep_position(&mut harness, egui::pos2(380.0, 300.0), "Paragrafo 60", 6.0);
+}

@@ -165,6 +165,10 @@ pub struct Slash {
     pub matches: Vec<&'static Command>,
     /// The command `Up`/`Down` is on.
     pub index: usize,
+    /// The keyboard moved the highlight: scroll it into view **once**, on this frame. A scroll asked
+    /// for on every frame is a scroll that wins against the wheel, and the list cannot be scrolled by
+    /// hand while it is open.
+    pub scroll: bool,
 }
 
 impl Slash {
@@ -215,7 +219,23 @@ pub fn for_caret(buffer: &str, caret: usize, has_headings: bool) -> Option<Slash
     if matches.is_empty() {
         return None;
     }
-    Some(Slash { range: editor::Selection::new(from, caret), typed: typed.to_string(), matches, index: 0 })
+    Some(Slash { range: editor::Selection::new(from, caret), typed: typed.to_string(), matches, index: 0, scroll: false })
+}
+
+/// The popup for the next frame, keeping the highlight the reader walked when the same command is
+/// still being typed.
+///
+/// The editor rebuilds the popup from the text on every frame; a rebuilt list without this would
+/// start at the first row again, so `Down` would never move anywhere.
+pub fn refreshed(previous: Option<Slash>, fresh: Option<Slash>) -> Option<Slash> {
+    match (previous, fresh) {
+        (Some(previous), Some(mut fresh)) if previous.range.start == fresh.range.start => {
+            fresh.index = previous.index.min(fresh.matches.len().saturating_sub(1));
+            fresh.scroll = previous.scroll;
+            Some(fresh)
+        }
+        (_, fresh) => fresh,
+    }
 }
 
 /// The commands `typed` could be, best first: a name that starts with it (any alias), then one whose
@@ -242,13 +262,15 @@ fn in_fence(buffer: &str, at: usize) -> bool {
     fences.count() % 2 == 1
 }
 
-/// Moves the highlight by `delta`, wrapping around the list.
+/// Moves the highlight by `delta`, wrapping around the list. Asks for the new row to be brought
+/// into view, once: the wheel is the reader's, the keyboard is ours.
 pub fn move_by(slash: &mut Slash, delta: isize) {
     let len = slash.matches.len();
     if len == 0 {
         return;
     }
     slash.index = (slash.index as isize + delta).rem_euclid(len as isize) as usize;
+    slash.scroll = true;
 }
 
 /// The text `command` inserts, and the selection it leaves (a caret, or the placeholder to type
@@ -320,8 +342,13 @@ pub fn accept(
 }
 
 /// Draws the popup at `at`. Returns the command the user clicked.
-pub fn show(ui: &egui::Ui, slash: &Slash, at: egui::Pos2) -> Option<usize> {
+///
+/// The selected row is scrolled into view only when the keyboard asked for it (the transient
+/// [`Slash::scroll`]), never on every frame: a scroll requested per frame overrides the wheel and
+/// the list cannot be scrolled by hand.
+pub fn show(ui: &egui::Ui, slash: &mut Slash, at: egui::Pos2) -> Option<usize> {
     let mut clicked = None;
+    let scroll = std::mem::take(&mut slash.scroll);
     egui::Area::new(ui.scope_id().with("slash-command")).order(egui::Order::Foreground).fixed_pos(at).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_min_width(320.0);
@@ -333,7 +360,7 @@ pub fn show(ui: &egui::Ui, slash: &Slash, at: egui::Pos2) -> Option<usize> {
                     let name = command.aliases.first().copied().unwrap_or(command.id);
                     let hint = crate::i18n::tr(command.hint);
                     let response = ui.selectable_label(index == slash.index, row(ui, name, hint));
-                    if index == slash.index {
+                    if scroll && index == slash.index {
                         // Walking the list with the keyboard keeps the highlighted row in view.
                         response.scroll_to_me(Some(egui::Align::Center));
                     }
@@ -488,6 +515,32 @@ mod tests {
         assert_eq!(today, "2026-11-17");
         let (now, _) = take("/time", "time");
         assert_eq!(now, "09:41");
+    }
+
+    #[test]
+    fn the_rebuilt_popup_keeps_the_highlight_and_the_scroll_request() {
+        // The editor rebuilds the list every frame from the text; the highlight walks with `Down`,
+        // so the rebuild must carry it (and the one-shot request to bring the row into view).
+        let mut walked = slash("/").expect("the whole list");
+        move_by(&mut walked, 2);
+        assert!(walked.scroll, "the keyboard asks for the new row to be seen");
+        let fresh = refreshed(Some(walked), slash("/")).expect("still open");
+        assert_eq!(fresh.index, 2, "the highlight survives the rebuild");
+        assert!(fresh.scroll, "and the request is carried for the frame that draws it");
+    }
+
+    #[test]
+    fn typing_narrows_the_list_and_clamps_the_highlight() {
+        let mut walked = slash("/").expect("the whole list");
+        move_by(&mut walked, 24);
+        let typed = slash("/h1").expect("a narrower list");
+        let kept = refreshed(Some(walked), Some(typed)).expect("open");
+        assert_eq!(kept.index, 0, "the highlight is clamped to the shorter list");
+        // A new command elsewhere in the note starts at the first row.
+        let mut other = slash("/").expect("the whole list");
+        move_by(&mut other, 3);
+        let elsewhere = for_caret("veja /", "veja /".len(), true).expect("another popup");
+        assert_eq!(refreshed(Some(other), Some(elsewhere)).map(|slash| slash.index), Some(0));
     }
 
     #[test]

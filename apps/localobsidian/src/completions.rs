@@ -67,6 +67,21 @@ fn candidates(state: &VaultState, typed: &str) -> Vec<String> {
     names.into_iter().take(MAX_CANDIDATES).map(|(_, name)| name).collect()
 }
 
+/// The popup for the next frame, keeping the highlight the reader moved when the same link is still
+/// being typed.
+///
+/// The editor rebuilds the completion from the text on every frame; a rebuilt list without this
+/// would start at the first candidate again, so `Down` would never move anywhere.
+pub fn refreshed(previous: Option<Completion>, fresh: Option<Completion>) -> Option<Completion> {
+    match (previous, fresh) {
+        (Some(previous), Some(mut fresh)) if previous.range.start == fresh.range.start => {
+            fresh.index = previous.index.min(fresh.candidates.len().saturating_sub(1));
+            Some(fresh)
+        }
+        (_, fresh) => fresh,
+    }
+}
+
 /// Moves the highlight by `delta`, wrapping around the list.
 pub fn move_by(completion: &mut Completion, delta: isize) {
     let len = completion.candidates.len();
@@ -199,6 +214,23 @@ mod tests {
     #[test]
     fn nothing_is_offered_once_the_link_is_closed() {
         assert!(complete("[[Sepse]]").is_none());
+    }
+
+    #[test]
+    fn the_rebuilt_popup_keeps_the_highlight() {
+        // The editor rebuilds the completion every frame from the text; the highlight walks with
+        // `Down`, so the rebuild must carry it.
+        let mut walked = complete("[[Sep").expect("a completion");
+        move_by(&mut walked, 1);
+        let fresh = refreshed(Some(walked), complete("[[Sep")).expect("still open");
+        assert_eq!(fresh.index, 1, "the highlight survives the rebuild");
+
+        // A link somewhere else in the note starts at the first candidate again.
+        let mut other = complete("[[Sep").expect("a completion");
+        move_by(&mut other, 1);
+        let elsewhere = complete("veja [[Sep");
+        assert!(elsewhere.is_some());
+        assert_eq!(refreshed(Some(other), elsewhere).map(|completion| completion.index), Some(0));
     }
 
     #[test]

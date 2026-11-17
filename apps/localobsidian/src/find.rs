@@ -17,6 +17,10 @@ pub struct Find {
     pub total: usize,
     /// Set when the bar opens: the field takes the keyboard once, and not every frame after.
     pub focus: bool,
+    /// The view must bring the current match into sight **once** (the bar opened, the query changed,
+    /// the reader walked the matches). Scrolling on every frame would win against the wheel, and a
+    /// note being read could not be scrolled while a match is highlighted.
+    pub scroll_to_current: Cell<bool>,
     /// The matches drawn so far this frame; the view walks the note once and this keeps count.
     pub seen: Cell<usize>,
 }
@@ -26,6 +30,7 @@ impl Find {
     pub fn open(&mut self) {
         self.open = true;
         self.focus = true;
+        self.scroll_to_current.set(true);
     }
 
     pub fn close(&mut self) {
@@ -38,6 +43,7 @@ impl Find {
     pub fn next(&mut self) {
         if self.total > 0 {
             self.current = (self.current + 1) % self.total;
+            self.scroll_to_current.set(true);
         }
     }
 
@@ -45,6 +51,7 @@ impl Find {
     pub fn previous(&mut self) {
         if self.total > 0 {
             self.current = (self.current + self.total - 1) % self.total;
+            self.scroll_to_current.set(true);
         }
     }
 }
@@ -109,6 +116,21 @@ mod tests {
         for (start, end) in found {
             assert_eq!(&text[start..end].to_lowercase(), "ação");
         }
+    }
+
+    #[test]
+    fn walking_the_matches_asks_the_view_to_follow_once() {
+        let mut find = Find { open: true, total: 3, ..Find::default() };
+        find.open();
+        assert!(find.scroll_to_current.replace(false), "opening brings the first match into sight");
+        assert!(!find.scroll_to_current.replace(false), "the view takes the request once, not every frame");
+        find.next();
+        assert!(find.scroll_to_current.replace(false), "going to the next match follows it");
+        find.previous();
+        assert!(find.scroll_to_current.replace(false));
+        find.total = 0;
+        find.next();
+        assert!(!find.scroll_to_current.replace(false), "nothing to walk, nothing to scroll");
     }
 
     #[test]
