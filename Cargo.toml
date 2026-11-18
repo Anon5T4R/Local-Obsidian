@@ -26,6 +26,9 @@ craft-update = { version = "=0.1.0", path = "libs/craft-libs/crates/update/", fe
 # Glyph ids and advances for the PDF export (the egui fork already shapes with it).
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 craft-window = { path = "libs/craft-libs/crates/window/", features = ["egui"] }
+# Linux: the desktop's light/dark choice reaches `ctx.system_theme()` (winit reports none there);
+# source of truth in local-libs, vendored here and replicated by its sync.ps1.
+craft-desktop-theme = { path = "libs/craft-libs/crates/desktop-theme/" }
 # BYOK AI: the suite's shared client (libs/local-ai), the same one local-office and local-pdf vendor.
 local-ai = { path = "libs/local-ai" }
 

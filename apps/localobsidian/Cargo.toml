@@ -17,6 +17,7 @@ craft-i18n = { workspace = true }
 craft-ai-ui = { workspace = true }
 craft-update = { workspace = true }
 craft-window = { workspace = true }
+craft-desktop-theme = { workspace = true }
 # Calendar days for the note calendar and the template placeholders.
 chrono = { workspace = true }
 localobsidian-editor = { workspace = true }

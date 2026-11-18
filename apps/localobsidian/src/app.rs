@@ -88,6 +88,8 @@ impl LocalApp {
     pub fn new(cc: &eframe::CreationContext<'_>, frame: craft_window::Frame) -> Self {
         crate::fonts::install(&cc.egui_ctx);
         install_styles(&cc.egui_ctx);
+        // Linux: the desktop's light/dark choice, which winit does not report.
+        craft_desktop_theme::follow(&cc.egui_ctx);
         let prefs = Prefs::load();
         i18n::set_language(&prefs.language);
         // The theme the settings ask for: the system's (the default) or the one the user pinned.
