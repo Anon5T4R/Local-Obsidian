@@ -26,7 +26,8 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
 - **Commit:** mensagem em português, sem Co-Authored-By, paths explícitos.
 - **Release:** `cargo xtask version set X.Y.Z` **antes** de toda tag → tag `vX.Y.Z` → o Actions
   builda e publica. Mínimo local.
-- **Disco local:** nunca deixe `target/` para trás — `cargo clean` após uso local.
+- **Disco:** no workspace do João vale a política de `target/` do dev-notes (`MEMORY.md` §4 — limpa o que
+  está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
 ## Estrutura
 - `apps/localobsidian` — o app: `main.rs` (args, ícone, janela), `app.rs` (barra de menus, About com
