@@ -39,14 +39,15 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
 - `assets/` — `app-icon/`, `craft-fonts/` vendored (build input `CRAFT_FONTS_DIR`), `ATTRIBUTION.md`
 - `i18n/locales/` — catálogos TSV `context⇥fonte EN⇥tradução`, embutidos pelo `build.rs`
 - `packaging/` — Windows (WiX/MSI), Linux (AppImage/deb/rpm/tar), Arch (PKGBUILD), minisign
-- `xtask/` — `fmt`, `assets`, `layers`, `version`, `ico`
+- `xtask/` — `ci`, `fmt`, `assets`, `layers`, `version`, `ico`
+- `scripts/check-mirror.sh` — confere as crates e os assets (`craft-fonts`) espelhados do `local-libs` contra a fonte (CI e `xtask ci`)
 
 ## Build
 ```
 cargo build --locked          # debug
-CRAFT_FONTS_DIR=assets/craft-fonts cargo build --locked   # com os CJK embutidos (como no CI)
-cargo test --locked
-cargo xtask fmt && cargo xtask assets && cargo xtask layers
+cargo test --locked           # as fontes vendored entram sempre (.cargo/config.toml), igual ao CI
+cargo xtask ci                # o gate local: o mesmo que o CI (fmt, clippy, build, assets, layers,
+                              # testes, cargo-deny, espelhos do local-libs)
 packaging/windows/package.ps1 # MSI + portable (Windows)
 packaging/linux/package.sh    # AppImage/deb/rpm/tar (Linux)
 ```

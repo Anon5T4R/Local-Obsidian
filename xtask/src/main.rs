@@ -16,6 +16,9 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
+  ci              the local gate, same checks as the CI: fmt, clippy -D warnings, build, tests, assets,
+                  layers, cargo-deny and the local-libs mirrors (deny/mirror skipped, with a note, when
+                  cargo-deny or bash is missing)
   assets          every image/icon/font file is attributed in assets/ATTRIBUTION.md; no Adobe assets
   fmt             fmt --check for the workspace's own packages (never the vendored trees in libs/)
   ico <out.ico> <in.png>...
@@ -40,6 +43,7 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("assets") => assets::run(&root()),
         Some("fmt") => cmd_fmt(),
+        Some("ci") => cmd_ci(),
         Some("qa-vault") => qa::vault(rest.first().copied()),
         Some("qa-shots") => qa::shots(rest.first().copied()),
         Some("qa-sample") => qa::sample(rest.first().copied()),
@@ -150,4 +154,40 @@ fn cmd_fmt() -> Result<(), String> {
     }
     c.args(["--", "--check"]);
     run(c, "cargo fmt -p <workspace members> -- --check")
+}
+
+/// `cargo xtask ci`: the local gate. The same checks as `.github/workflows/ci.yml`, in its order,
+/// stopping at the first failure (one local build at a time: `MEMORY.md` §4 of the dev notes).
+fn cmd_ci() -> Result<(), String> {
+    cmd_fmt()?;
+    let mut c = cargo();
+    c.args(["clippy", "--locked", "--workspace", "--all-targets", "--keep-going", "--", "-D", "warnings"]);
+    run(c, "cargo clippy --locked --workspace --all-targets -- -D warnings")?;
+    let mut c = cargo();
+    c.args(["build", "--locked"]);
+    run(c, "cargo build --locked")?;
+    assets::run(&root())?;
+    cmd_layers()?;
+    let mut c = cargo();
+    c.args(["test", "--locked"]);
+    run(c, "cargo test --locked")?;
+    let mut c = cargo();
+    c.args(["deny", "--version"]);
+    if c.output().is_ok_and(|o| o.status.success()) {
+        let mut c = cargo();
+        c.args(["deny", "--log-level", "error", "check", "bans", "licenses", "sources", "advisories"]);
+        run(c, "cargo deny check")?;
+    } else {
+        eprintln!("note: cargo-deny not installed (cargo install cargo-deny --locked): skipped, the CI runs it");
+    }
+    let mut c = Command::new("bash");
+    c.current_dir(root()).arg("scripts/check-mirror.sh");
+    match c.status() {
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => Err(format!("scripts/check-mirror.sh: exited with {status}")),
+        Err(e) => {
+            eprintln!("note: bash unavailable ({e}): mirror check skipped, the CI runs it");
+            Ok(())
+        }
+    }
 }
