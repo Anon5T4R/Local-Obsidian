@@ -15,11 +15,11 @@
 	File	ファイル
 	View	表示
 	Help	ヘルプ
-	Open a vault...	保管庫を開く...
-	New note...	新規ノート...
-	Rename note...	ノート名を変更...
+	Open a vault…	保管庫を開く…
+	New note…	新規ノート…
+	Rename note…	ノート名を変更…
 	Save	保存
-	Quit Local Obsidian	Local Obsidian を終了
+	Exit	終了
 	Show the sidebar	サイドバーを表示
 	Note view	ノートの表示
 	Reading view	閲覧ビュー
@@ -28,7 +28,7 @@
 	Name (Z to A)	名前 (Z→A)
 	Last modified	更新日時
 	Refresh the vault	保管庫を再読み込み
-	Check for Updates.	アップデートを確認。
+	Check for Updates…	アップデートを確認…
 	About Local Obsidian	Local Obsidian について
 	Local Obsidian	Local Obsidian
 	A vault is a folder of Markdown notes: no database, no lock-in.	保管庫は Markdown ノートのフォルダです。データベースも囲い込みもありません。
@@ -234,7 +234,7 @@
 	AI	AI
 	AI connection	AI 接続
 	Chat about the note	ノートについて話す
-	Connection...	接続...
+	Connection…	接続…
 	not configured	未設定
 	Settings	設定
 	Clear	消去
@@ -261,14 +261,14 @@
 	Stored in the system keychain, never in a file.	システムのキーチェーンに保存され、ファイルには残りません。
 	choose a model first	先にモデルを選んでください
 	You	あなた
-	Export the note as HTML...	ノートを HTML として書き出す...
+	Export the note as HTML…	ノートを HTML として書き出す…
 	Export as HTML	HTML として書き出す
 	HTML page	HTML ページ
 	exported to {file}	{file} に書き出しました
 @plural	{n} image copied|{n} images copied	画像 {n} 件をコピーしました
 	could not write the page	ページを書き出せませんでした
 	note	ノート
-	Import Anki cards (text)...	Anki のカードを読み込む（テキスト）...
+	Import Anki cards (text)…	Anki のカードを読み込む（テキスト）…
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Anki のテキスト書き出し（.txt・.tsv・.csv）。.apkg パッケージは読みません。
 	Anki text export	Anki のテキスト書き出し
 	Import an Anki deck	Anki のデッキを読み込む
@@ -282,7 +282,7 @@
 	Stop asking this card	このカードを出題しない
 	Study before the schedule asks; nothing is graded	予定より先に復習します。記録はされません
 	this note has no headings	このノートに見出しはありません
-	Import a Word or OpenDocument file...	Word または OpenDocument ファイルを読み込む...
+	Import a Word or OpenDocument file…	Word または OpenDocument ファイルを読み込む…
 	Reads a .docx or .odt into a note. Pictures are left out.	.docx または .odt をノートとして読み込みます。画像は含まれません。
 	Import a document	文書を読み込む
 	Word or OpenDocument text	Word または OpenDocument のテキスト
@@ -352,12 +352,25 @@
 	Time	時刻
 	A block at the start of a line: table, callout, code, task, contents, date	行頭にブロックを挿入: 表、コールアウト、コード、タスク、目次、日付
 	Theme	テーマ
-	Follow the system	システムに合わせる
 	Light	ライト
 	Dark	ダーク
-	Export the note as PDF...	ノートを PDF で書き出す...
+	Export the note as PDF…	ノートを PDF で書き出す…
 	A4 pages with selectable text. Pictures and links are the next phase.	選択できるテキストの A4 ページ。画像とリンクは次の段階です。
 	Export as PDF	PDF で書き出す
 	PDF document	PDF 文書
 	could not write the PDF	PDF を書き出せませんでした
 	{pages} pages written to {path}	{pages} ページを {path} に書き出しました
+	Automatic	自動
+	Theme: {mode}	テーマ: {mode}
+	Search commands ({shortcut})	コマンドを検索 ({shortcut})
+	Search commands	コマンドを検索
+	No command matches.	一致するコマンドはありません。
+	Settings…	設定…
+	Open a vault first	先に保管庫を開いてください
+	Finish the open dialog first	開いているファイルダイアログを先に閉じてください
+	No unsaved changes	保存する変更はありません
+	Note view: {view}	ノートの表示: {view}
+	Sort notes: {order}	ノートの並べ替え: {order}
+	Paste the API key first: this provider asks for one.	先に API キーを貼り付けてください。このプロバイダーには必要です。
+	Choose a provider or type its address first.	先にプロバイダーを選ぶか、そのアドレスを入力してください。
+	Choose a model first (List models shows them).	先にモデルを選んでください（「モデル一覧」で表示されます）。

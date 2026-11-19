@@ -15,11 +15,11 @@
 	File	Archivo
 	View	Ver
 	Help	Ayuda
-	Open a vault...	Abrir un cofre...
-	New note...	Nota nueva...
-	Rename note...	Renombrar nota...
+	Open a vault…	Abrir un cofre…
+	New note…	Nota nueva…
+	Rename note…	Renombrar nota…
 	Save	Guardar
-	Quit Local Obsidian	Salir de Local Obsidian
+	Exit	Salir
 	Show the sidebar	Mostrar la barra lateral
 	Note view	Vista de la nota
 	Reading view	Modo lectura
@@ -28,7 +28,7 @@
 	Name (Z to A)	Nombre (Z a A)
 	Last modified	Última modificación
 	Refresh the vault	Actualizar el cofre
-	Check for Updates.	Buscar actualizaciones.
+	Check for Updates…	Buscar actualizaciones…
 	About Local Obsidian	Acerca de Local Obsidian
 	Local Obsidian	Local Obsidian
 	A vault is a folder of Markdown notes: no database, no lock-in.	Un cofre es una carpeta de notas Markdown: sin base de datos, sin dependencias.
@@ -234,7 +234,7 @@
 	AI	IA
 	AI connection	Conexión de IA
 	Chat about the note	Conversar sobre la nota
-	Connection...	Conexión...
+	Connection…	Conexión…
 	not configured	sin configurar
 	Settings	Ajustes
 	Clear	Limpiar
@@ -261,14 +261,14 @@
 	Stored in the system keychain, never in a file.	Guardada en el llavero del sistema, nunca en un archivo.
 	choose a model first	elige un modelo primero
 	You	Tú
-	Export the note as HTML...	Exportar la nota como HTML...
+	Export the note as HTML…	Exportar la nota como HTML…
 	Export as HTML	Exportar como HTML
 	HTML page	Página HTML
 	exported to {file}	exportado a {file}
 @plural	{n} image copied|{n} images copied	{n} imagen copiada|{n} imágenes copiadas
 	could not write the page	no se pudo escribir la página
 	note	nota
-	Import Anki cards (text)...	Importar tarjetas de Anki (texto)...
+	Import Anki cards (text)…	Importar tarjetas de Anki (texto)…
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Una exportación de texto de Anki (.txt, .tsv, .csv). El paquete .apkg no se lee.
 	Anki text export	Exportación de texto de Anki
 	Import an Anki deck	Importar un mazo de Anki
@@ -282,7 +282,7 @@
 	Stop asking this card	Dejar de preguntar esta tarjeta
 	Study before the schedule asks; nothing is graded	Estudiar antes de que el repaso lo pida; no se registra nada
 	this note has no headings	esta nota no tiene títulos
-	Import a Word or OpenDocument file...	Importar un archivo Word u OpenDocument...
+	Import a Word or OpenDocument file…	Importar un archivo Word u OpenDocument…
 	Reads a .docx or .odt into a note. Pictures are left out.	Lee un .docx o .odt en una nota. Las imágenes quedan fuera.
 	Import a document	Importar un documento
 	Word or OpenDocument text	Texto Word u OpenDocument
@@ -352,12 +352,25 @@
 	Time	Hora
 	A block at the start of a line: table, callout, code, task, contents, date	Un bloque al inicio de la línea: tabla, callout, código, tarea, índice, fecha
 	Theme	Tema
-	Follow the system	Seguir el sistema
 	Light	Claro
 	Dark	Oscuro
-	Export the note as PDF...	Exportar la nota en PDF...
+	Export the note as PDF…	Exportar la nota en PDF…
 	A4 pages with selectable text. Pictures and links are the next phase.	Páginas A4 con texto seleccionable. Imágenes y enlaces quedan para la próxima fase.
 	Export as PDF	Exportar en PDF
 	PDF document	Documento PDF
 	could not write the PDF	no se pudo escribir el PDF
 	{pages} pages written to {path}	{pages} páginas escritas en {path}
+	Automatic	Automático
+	Theme: {mode}	Tema: {mode}
+	Search commands ({shortcut})	Buscar comandos ({shortcut})
+	Search commands	Buscar comandos
+	No command matches.	Ningún comando coincide.
+	Settings…	Configuración…
+	Open a vault first	Abre primero un cofre
+	Finish the open dialog first	Termina primero la ventana de archivo abierta
+	No unsaved changes	Nada que guardar
+	Note view: {view}	Vista de la nota: {view}
+	Sort notes: {order}	Ordenar notas: {order}
+	Paste the API key first: this provider asks for one.	Pega primero la clave de API: este proveedor la exige.
+	Choose a provider or type its address first.	Elige primero un proveedor o escribe su dirección.
+	Choose a model first (List models shows them).	Elige primero un modelo (Listar modelos muestra cuáles).

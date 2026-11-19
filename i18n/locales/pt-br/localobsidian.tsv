@@ -15,11 +15,11 @@
 	File	Arquivo
 	View	Exibir
 	Help	Ajuda
-	Open a vault...	Abrir um cofre...
-	New note...	Nova nota...
-	Rename note...	Renomear nota...
+	Open a vault…	Abrir um cofre…
+	New note…	Nova nota…
+	Rename note…	Renomear nota…
 	Save	Salvar
-	Quit Local Obsidian	Sair do Local Obsidian
+	Exit	Sair
 	Show the sidebar	Mostrar a barra lateral
 	Note view	Vista da nota
 	Reading view	Modo leitura
@@ -28,7 +28,7 @@
 	Name (Z to A)	Nome (Z a A)
 	Last modified	Última modificação
 	Refresh the vault	Atualizar o cofre
-	Check for Updates.	Verificar atualizações.
+	Check for Updates…	Verificar atualizações…
 	About Local Obsidian	Sobre o Local Obsidian
 	Local Obsidian	Local Obsidian
 	A vault is a folder of Markdown notes: no database, no lock-in.	Um cofre é uma pasta de notas Markdown: sem banco de dados, sem lock-in.
@@ -234,7 +234,7 @@
 	AI	IA
 	AI connection	Conexão de IA
 	Chat about the note	Conversar sobre a nota
-	Connection...	Conexão...
+	Connection…	Conexão…
 	not configured	não configurada
 	Settings	Configurações
 	Clear	Limpar
@@ -261,14 +261,14 @@
 	Stored in the system keychain, never in a file.	Guardada no keychain do sistema, nunca num arquivo.
 	choose a model first	escolha um modelo primeiro
 	You	Você
-	Export the note as HTML...	Exportar a nota como HTML...
+	Export the note as HTML…	Exportar a nota como HTML…
 	Export as HTML	Exportar como HTML
 	HTML page	Página HTML
 	exported to {file}	exportado para {file}
 @plural	{n} image copied|{n} images copied	{n} imagem copiada|{n} imagens copiadas
 	could not write the page	não foi possível gravar a página
 	note	nota
-	Import Anki cards (text)...	Importar cartões do Anki (texto)...
+	Import Anki cards (text)…	Importar cartões do Anki (texto)…
 	A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read.	Uma exportação de texto do Anki (.txt, .tsv, .csv). Pacote .apkg não é lido.
 	Anki text export	Exportação de texto do Anki
 	Import an Anki deck	Importar um baralho do Anki
@@ -282,7 +282,7 @@
 	Stop asking this card	Parar de perguntar este card
 	Study before the schedule asks; nothing is graded	Estudar antes do cronograma pedir; nada é registrado
 	this note has no headings	esta nota não tem títulos
-	Import a Word or OpenDocument file...	Importar um arquivo Word ou OpenDocument...
+	Import a Word or OpenDocument file…	Importar um arquivo Word ou OpenDocument…
 	Reads a .docx or .odt into a note. Pictures are left out.	Lê um .docx ou .odt numa nota. Imagens ficam de fora.
 	Import a document	Importar um documento
 	Word or OpenDocument text	Texto Word ou OpenDocument
@@ -352,12 +352,25 @@
 	Time	Hora
 	A block at the start of a line: table, callout, code, task, contents, date	Um bloco no início da linha: tabela, callout, código, tarefa, sumário, data
 	Theme	Tema
-	Follow the system	Seguir o sistema
 	Light	Claro
 	Dark	Escuro
-	Export the note as PDF...	Exportar a nota em PDF...
+	Export the note as PDF…	Exportar a nota em PDF…
 	A4 pages with selectable text. Pictures and links are the next phase.	Páginas A4 com texto selecionável. Imagens e links ficam para a próxima fase.
 	Export as PDF	Exportar em PDF
 	PDF document	Documento PDF
 	could not write the PDF	não foi possível escrever o PDF
 	{pages} pages written to {path}	{pages} páginas escritas em {path}
+	Automatic	Automático
+	Theme: {mode}	Tema: {mode}
+	Search commands ({shortcut})	Buscar comandos ({shortcut})
+	Search commands	Buscar comandos
+	No command matches.	Nenhum comando corresponde.
+	Settings…	Configurações…
+	Open a vault first	Abra um cofre primeiro
+	Finish the open dialog first	Termine a janela de arquivo aberta primeiro
+	No unsaved changes	Nada para salvar
+	Note view: {view}	Visualização da nota: {view}
+	Sort notes: {order}	Ordenar notas: {order}
+	Paste the API key first: this provider asks for one.	Cole a chave de API primeiro: este provedor exige uma.
+	Choose a provider or type its address first.	Escolha um provedor ou digite o endereço dele primeiro.
+	Choose a model first (List models shows them).	Escolha um modelo primeiro (Listar modelos mostra quais).

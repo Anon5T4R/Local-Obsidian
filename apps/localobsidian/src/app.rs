@@ -7,6 +7,7 @@
 use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
 
+use craft_icons::{Icon, ThemeMode};
 use craft_update::updater::{Action, Status, Updater};
 
 use crate::ai_ui::Chat;
@@ -24,6 +25,8 @@ use crate::suite_entry::APP;
 use crate::templates;
 use crate::tl;
 use crate::vault_state::{VaultState, ViewMode};
+
+mod commands;
 
 /// A small dialog the page opens on top of itself.
 enum Dialog {
@@ -47,6 +50,12 @@ pub struct LocalApp {
     /// Who draws the window frame (probed before the window was created).
     frame: craft_window::Frame,
     about_open: bool,
+    /// The Settings window (language and theme), opened by the gear and File > Settings….
+    settings_open: bool,
+    /// The command palette (Ctrl+K, or the search icon of the top bar).
+    palette: craft_palette::Palette,
+    /// Whether the settings are written to disk (off in the headless tests: they must not touch the user's file).
+    persist: bool,
     /// Whether the shortcuts window is on screen.
     help_open: bool,
     /// The `language` setting: [`i18n::AUTO`] or a code from [`i18n::LANGUAGES`].
@@ -92,8 +101,41 @@ impl LocalApp {
         craft_desktop_theme::follow(&cc.egui_ctx);
         let prefs = Prefs::load();
         i18n::set_language(&prefs.language);
+        Self::build(&cc.egui_ctx, frame, prefs)
+    }
+
+    /// The app the headless tests drive: no window, and nothing written to the user's settings file.
+    #[cfg(test)]
+    pub(crate) fn for_test(ctx: &egui::Context, prefs: Prefs) -> Self {
+        let mut app = Self::build(ctx, craft_window::Frame::Desktop, prefs);
+        app.persist = false;
+        app
+    }
+
+    /// Opens a vault the way the app does at start (the QA shots need a window with notes in it).
+    #[cfg(test)]
+    pub(crate) fn open_vault_for_test(&mut self, path: PathBuf) {
+        self.open_vault(path);
+    }
+
+    /// What the palette lists (the tests compare it with the menus).
+    #[cfg(test)]
+    pub(crate) fn palette_commands(&self, ctx: &egui::Context) -> Vec<craft_palette::Command> {
+        self.commands(ctx)
+    }
+
+    /// What the shell tests look at.
+    #[cfg(test)]
+    pub(crate) fn shell_state(&self) -> (ThemeMode, bool, bool) {
+        (self.prefs.theme, self.settings_open, self.palette.is_open())
+    }
+
+    /// The app over `prefs`, on a context whose fonts and styles are installed (the tests build it without a window).
+    fn build(ctx: &egui::Context, frame: craft_window::Frame, prefs: Prefs) -> Self {
+        // The SVG loader for the suite's icons (theme, settings, search).
+        egui_extras::install_image_loaders(ctx);
         // The theme the settings ask for: the system's (the default) or the one the user pinned.
-        apply_theme(&cc.egui_ctx, prefs.theme);
+        apply_theme(ctx, prefs.theme);
 
         let mut vault = VaultState::default();
         vault.sort = prefs.sort;
@@ -108,6 +150,9 @@ impl LocalApp {
             pickers: Pickers::default(),
             frame,
             about_open: false,
+            settings_open: false,
+            palette: craft_palette::Palette::default(),
+            persist: true,
             help_open: false,
             language: prefs.language.clone(),
             restore_pending: prefs.last_vault.is_some(),
@@ -149,8 +194,8 @@ impl LocalApp {
         // `LOCALOBSIDIAN_QA_THEME=light|dark|system` picks the theme of the capture: the machine's
         // own theme would make two runs (and two reviewers) disagree.
         if let Ok(theme) = std::env::var("LOCALOBSIDIAN_QA_THEME") {
-            app.prefs.theme = crate::prefs::Theme::from_key(&theme);
-            apply_theme(&cc.egui_ctx, app.prefs.theme);
+            app.prefs.theme = ThemeMode::from_id(&theme);
+            apply_theme(ctx, app.prefs.theme);
         }
         if let Some(vault) = std::env::var_os("LOCALOBSIDIAN_QA_VAULT") {
             app.restore_pending = false;
@@ -212,61 +257,155 @@ impl LocalApp {
         prefs.zoom = self.vault.zoom;
         prefs.sidebar_open = self.sidebar_open;
         prefs.language = self.language.clone();
-        prefs.save();
+        if self.persist {
+            prefs.save();
+        }
+    }
+
+    /// Switches to `mode`: the egui theme and the saved preference follow.
+    fn set_mode(&mut self, ctx: &egui::Context, mode: ThemeMode) {
+        self.prefs.theme = mode;
+        apply_theme(ctx, mode);
+        self.remember();
+    }
+
+    /// The suite's controls at the right of the top bar: the command palette, the theme (Automatic/Light/Dark) and the
+    /// gear that opens Settings. Called inside a right-to-left layout, so the gear is drawn first and ends up rightmost.
+    fn shell_buttons(&mut self, ui: &mut egui::Ui) {
+        // Off the window's edge, and a finger's width between them.
+        ui.add_space(8.0);
+        if craft_icons::ui::button(ui, Icon::Settings, tl!("Settings")).clicked() {
+            self.settings_open = true;
+        }
+        ui.add_space(6.0);
+        let mut mode = self.prefs.theme;
+        let tooltip = i18n::tr_fmt("Theme: {mode}", &[("mode", tl!(mode.label()))]);
+        if craft_icons::ui::theme_button(ui, &mut mode, &tooltip) {
+            self.set_mode(ui.ctx(), mode);
+        }
+        ui.add_space(6.0);
+        let shortcut = ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::K));
+        let search = i18n::tr_fmt("Search commands ({shortcut})", &[("shortcut", &shortcut)]);
+        if craft_icons::ui::button(ui, Icon::Search, &search).clicked() {
+            self.palette.open();
+        }
+    }
+
+    /// The command palette, when open: runs what the user picked.
+    fn palette(&mut self, ctx: &egui::Context) {
+        if !self.palette.is_open() {
+            return;
+        }
+        let commands = self.commands(ctx);
+        let labels = craft_palette::Labels { placeholder: tl!("Search commands"), empty: tl!("No command matches.") };
+        if let Some(id) = self.palette.show(ctx, &labels, &commands) {
+            self.run_command(ctx, &id);
+        }
+    }
+
+    /// Why a command that needs a vault cannot run right now, or `None` when it can.
+    fn needs_vault(&self) -> Option<&'static str> {
+        self.vault.root.is_none().then(|| tl!("Open a vault first"))
+    }
+
+    /// Why a command that needs the note in front cannot run right now.
+    fn needs_note(&self) -> Option<&'static str> {
+        self.vault.active.is_none().then(|| tl!("Open a note first"))
+    }
+
+    /// Why a command that opens a file dialog cannot run right now.
+    fn needs_free_dialog(&self) -> Option<&'static str> {
+        self.pickers.busy().then(|| tl!("Finish the open dialog first"))
+    }
+
+    /// File > New note…: the dialog that asks for the name.
+    fn begin_new_note(&mut self) {
+        self.dialog = Some(Dialog::NewNote { name: String::new(), template: String::new() });
+    }
+
+    /// File > Rename note…: the dialog, starting from the note's own name.
+    fn begin_rename(&mut self) {
+        let name = self.vault.active.as_ref().and_then(|path| path.file_stem()).map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+        self.dialog = Some(Dialog::Rename { name });
+    }
+
+    /// View > Zoom: one step of a tenth, or back to the middle.
+    fn step_zoom(&mut self, step: i32) {
+        self.vault.zoom = (self.vault.zoom + 0.1 * step as f32).clamp(crate::prefs::ZOOM_MIN, crate::prefs::ZOOM_MAX);
+        self.remember();
+    }
+
+    /// View > Show the connections: a checkbox that opens the map at the note in front of the reader.
+    fn set_connections(&mut self, open: bool) {
+        self.connections_open = open;
+        if open && let Some(active) = self.vault.active.clone() {
+            self.connections.start_from(&active);
+        }
+    }
+
+    /// AI > Create flashcards from this note (the shortcut and the palette do the same).
+    fn start_flashcards(&mut self) {
+        self.flashcards.start(&self.vault, None);
+    }
+
+    /// Review > the note in front, as a deck.
+    fn review_note(&mut self) {
+        let relative = self
+            .vault
+            .active
+            .as_ref()
+            .and_then(|path| self.vault.files.iter().find(|file| &file.path == path))
+            .map(|file| file.relative_path.clone());
+        if let Some(relative) = relative {
+            self.review.start(&self.vault, Deck::Note(relative));
+        }
     }
 
     /// The menu bar: the app's commands and Help.
     fn menus(&mut self, ui: &mut egui::Ui) {
         let mut quit = false;
-        let has_note = self.vault.active.is_some();
+        let ctx = ui.ctx().clone();
+        let (no_vault, no_note, busy) = (self.needs_vault(), self.needs_note(), self.needs_free_dialog());
+        let with_vault = no_vault.or(busy);
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(tl!("File"), |ui| {
-                if ui.add_enabled(!self.pickers.busy(), egui::Button::new(tl!("Open a vault..."))).clicked() {
+                if item(ui, tl!("Open a vault…"), "", busy).clicked() {
                     self.ask_vault(ui.ctx());
                     ui.close();
                 }
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("New note..."))).clicked() {
-                    self.dialog = Some(Dialog::NewNote { name: String::new(), template: String::new() });
+                if item(ui, tl!("New note…"), "", no_vault).clicked() {
+                    self.begin_new_note();
                     ui.close();
                 }
-                if ui
-                    .add_enabled(self.vault.root.is_some() && !self.pickers.busy(), egui::Button::new(tl!("Import a Word or OpenDocument file...")))
+                if item(ui, tl!("Import a Word or OpenDocument file…"), "", with_vault)
                     .on_hover_text(tl!("Reads a .docx or .odt into a note. Pictures are left out."))
                     .clicked()
                 {
                     self.ask_document(ui.ctx());
                     ui.close();
                 }
-                if ui
-                    .add_enabled(self.vault.root.is_some() && !self.pickers.busy(), egui::Button::new(tl!("Import Anki cards (text)...")))
+                if item(ui, tl!("Import Anki cards (text)…"), "", with_vault)
                     .on_hover_text(tl!("A text export from Anki (.txt, .tsv, .csv). A .apkg package is not read."))
                     .clicked()
                 {
                     self.ask_anki(ui.ctx());
                     ui.close();
                 }
-                if ui.add_enabled(has_note, egui::Button::new(tl!("Rename note..."))).clicked() {
-                    let name = self
-                        .vault
-                        .active
-                        .as_ref()
-                        .and_then(|path| path.file_stem())
-                        .map(|stem| stem.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    self.dialog = Some(Dialog::Rename { name });
+                if item(ui, tl!("Rename note…"), "", no_note).clicked() {
+                    self.begin_rename();
                     ui.close();
                 }
                 ui.separator();
-                if ui.add_enabled(has_note && self.vault.dirty, egui::Button::new(tl!("Save"))).clicked() {
+                let nothing_to_save = (!self.vault.dirty).then(|| tl!("No unsaved changes"));
+                if item(ui, tl!("Save"), &keys(&ctx, egui::Modifiers::COMMAND, egui::Key::S), no_note.or(nothing_to_save)).clicked() {
                     self.save();
                     ui.close();
                 }
-                if ui.add_enabled(has_note && !self.pickers.busy(), egui::Button::new(tl!("Export the note as HTML..."))).clicked() {
+                if item(ui, tl!("Export the note as HTML…"), "", no_note.or(busy)).clicked() {
                     self.ask_export(ui.ctx());
                     ui.close();
                 }
-                if ui
-                    .add_enabled(has_note && !self.pickers.busy(), egui::Button::new(tl!("Export the note as PDF...")))
+                if item(ui, tl!("Export the note as PDF…"), "", no_note.or(busy))
                     .on_hover_text(tl!("A4 pages with selectable text. Pictures and links are the next phase."))
                     .clicked()
                 {
@@ -274,7 +413,12 @@ impl LocalApp {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(tl!("Quit Local Obsidian")).clicked() {
+                if item(ui, tl!("Settings…"), "", None).clicked() {
+                    self.settings_open = true;
+                    ui.close();
+                }
+                ui.separator();
+                if item(ui, tl!("Exit"), "", None).clicked() {
                     quit = true;
                     ui.close();
                 }
@@ -294,15 +438,9 @@ impl LocalApp {
                     }
                 });
                 ui.menu_button(tl!("Theme"), |ui| {
-                    for (theme, label) in [
-                        (crate::prefs::Theme::System, tl!("Follow the system")),
-                        (crate::prefs::Theme::Light, tl!("Light")),
-                        (crate::prefs::Theme::Dark, tl!("Dark")),
-                    ] {
-                        if ui.radio(self.prefs.theme == theme, label).clicked() {
-                            self.prefs.theme = theme;
-                            apply_theme(ui.ctx(), theme);
-                            self.remember();
+                    for mode in ThemeMode::EVERY {
+                        if ui.radio(self.prefs.theme == mode, tl!(mode.label())).clicked() {
+                            self.set_mode(ui.ctx(), mode);
                             ui.close();
                         }
                     }
@@ -310,8 +448,7 @@ impl LocalApp {
                 ui.menu_button(tl!("Zoom"), |ui| {
                     for (label, step) in [(tl!("Zoom in"), 1), (tl!("Zoom out"), -1)] {
                         if ui.button(label).clicked() {
-                            self.vault.zoom = (self.vault.zoom + 0.1 * step as f32).clamp(crate::prefs::ZOOM_MIN, crate::prefs::ZOOM_MAX);
-                            self.remember();
+                            self.step_zoom(step);
                             ui.close();
                         }
                     }
@@ -335,7 +472,8 @@ impl LocalApp {
                     }
                 });
                 ui.separator();
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Search the vault"))).clicked() {
+                let search_keys = keys(&ctx, egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::F);
+                if item(ui, tl!("Search the vault"), &search_keys, no_vault).clicked() {
                     self.toggle_search();
                     ui.close();
                 }
@@ -343,19 +481,15 @@ impl LocalApp {
                     self.remember();
                     ui.close();
                 }
-                if ui.checkbox(&mut self.connections_open, tl!("Show the connections")).clicked() {
-                    if self.connections_open {
-                        // The map opens at the note in front of the reader.
-                        if let Some(active) = self.vault.active.clone() {
-                            self.connections.start_from(&active);
-                        }
-                    }
+                let mut connections_open = self.connections_open;
+                if ui.checkbox(&mut connections_open, tl!("Show the connections")).clicked() {
+                    self.set_connections(connections_open);
                     ui.close();
                 }
                 if ui.checkbox(&mut self.diagnostics_open, tl!("Vault diagnostics")).clicked() {
                     ui.close();
                 }
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Random note"))).on_hover_text("Ctrl+R").clicked() {
+                if item(ui, tl!("Random note"), &keys(&ctx, egui::Modifiers::COMMAND, egui::Key::R), no_vault).clicked() {
                     self.open_random_note();
                     ui.close();
                 }
@@ -363,13 +497,13 @@ impl LocalApp {
                     ui.close();
                 }
                 ui.separator();
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Refresh the vault"))).clicked() {
+                if item(ui, tl!("Refresh the vault"), "", no_vault).clicked() {
                     self.reload();
                     ui.close();
                 }
             });
             ui.menu_button(tl!("Review"), |ui| {
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(tl!("Review the whole vault"))).clicked() {
+                if item(ui, tl!("Review the whole vault"), "", no_vault).clicked() {
                     self.review.start(&self.vault, Deck::All);
                     ui.close();
                 }
@@ -383,11 +517,11 @@ impl LocalApp {
                     let cards = self.vault.deck_cards(Some(std::slice::from_ref(relative)));
                     let label = i18n::tr_fmt("Review “{note}” ({count} cards)", &[("note", name), ("count", &cards.to_string())]);
                     if ui.button(label).on_hover_text(tl!("Only the cards of the note that is open")).clicked() {
-                        self.review.start(&self.vault, Deck::Note(relative.clone()));
+                        self.review_note();
                         ui.close();
                     }
                 } else {
-                    ui.add_enabled(false, egui::Button::new(tl!("Review this note"))).on_hover_text(tl!("Open a note first"));
+                    ui.add_enabled(false, egui::Button::new(tl!("Review this note"))).on_disabled_hover_text(tl!("Open a note first"));
                 }
                 if let Some(tag) = self.vault.tag_filter.clone() {
                     let files: Option<Vec<String>> = self.vault.index.tags.get(&tag).map(|names| {
@@ -407,7 +541,7 @@ impl LocalApp {
                 ui.separator();
                 let all = self.vault.deck_cards(None);
                 let label = i18n::tr_fmt("Review the whole vault ({count} cards)", &[("count", &all.to_string())]);
-                if ui.add_enabled(self.vault.root.is_some(), egui::Button::new(label)).clicked() {
+                if item(ui, &label, "", no_vault).clicked() {
                     self.review.start(&self.vault, Deck::All);
                     ui.close();
                 }
@@ -424,14 +558,14 @@ impl LocalApp {
                 if ui.checkbox(&mut self.chat.open, tl!("Chat about the note")).clicked() {
                     ui.close();
                 }
-                if ui.button(tl!("Connection...")).clicked() {
+                if ui.button(tl!("Connection…")).clicked() {
                     self.chat.settings_open = true;
                     ui.close();
                 }
                 ui.separator();
-                let can = self.vault.active.is_some();
-                if ui.add_enabled(can, egui::Button::new(tl!("Create flashcards from this note"))).on_hover_text("Ctrl+Shift+K").clicked() {
-                    self.flashcards.start(&self.vault, None);
+                let flashcards_keys = keys(&ctx, egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::K);
+                if item(ui, tl!("Create flashcards from this note"), &flashcards_keys, no_note).clicked() {
+                    self.start_flashcards();
                     ui.close();
                 }
             });
@@ -441,7 +575,7 @@ impl LocalApp {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(tl!("Check for Updates.")).clicked() {
+                if ui.button(tl!("Check for Updates…")).clicked() {
                     // The outcome shows in the About window, which is where a check belongs.
                     self.about_open = true;
                     self.updater.check_now(ui.ctx());
@@ -565,7 +699,7 @@ impl LocalApp {
             ui.add_space(4.0);
             ui.label(tl!("A vault is a folder of Markdown notes: no database, no lock-in."));
             ui.add_space(12.0);
-            if ui.add_enabled(!self.pickers.busy(), egui::Button::new(tl!("Open a vault..."))).clicked() {
+            if ui.add_enabled(!self.pickers.busy(), egui::Button::new(tl!("Open a vault…"))).clicked() {
                 self.ask_vault(ui.ctx());
             }
             if let Some(message) = &self.vault.message {
@@ -1013,7 +1147,7 @@ impl LocalApp {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     let checking = matches!(self.updater.status(), Status::Checking);
-                    if ui.add_enabled(!checking, egui::Button::new(tl!("Check for Updates."))).clicked() {
+                    if ui.add_enabled(!checking, egui::Button::new(tl!("Check for Updates…"))).clicked() {
                         self.updater.check_now(ui.ctx());
                     }
                     match self.updater.status() {
@@ -1029,18 +1163,46 @@ impl LocalApp {
                         }
                     };
                 });
-                ui.add_space(8.0);
-                self.language_picker(ui);
             });
         self.about_open = open;
     }
 
-    /// The interface language, straight from [`i18n::LANGUAGES`].
+    /// Settings: the interface language and the theme (the suite keeps both here; the gear and File > Settings…
+    /// open it).
+    fn settings(&mut self, ui: &mut egui::Ui) {
+        let mut open = self.settings_open;
+        let mut mode = self.prefs.theme;
+        egui::Window::new(tl!("Settings"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ui.ctx(), |ui| {
+                egui::Grid::new("settings").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                    self.language_picker(ui);
+                    ui.end_row();
+                    ui.label(tl!("Theme"));
+                    ui.horizontal(|ui| {
+                        for choice in ThemeMode::EVERY {
+                            ui.selectable_value(&mut mode, choice, tl!(choice.label()));
+                        }
+                    });
+                    ui.end_row();
+                });
+            });
+        if mode != self.prefs.theme {
+            self.set_mode(ui.ctx(), mode);
+        }
+        self.settings_open = open;
+    }
+
+    /// The language row of Settings: the label, then the selector (two grid cells), straight from
+    /// [`i18n::LANGUAGES`].
     fn language_picker(&mut self, ui: &mut egui::Ui) {
+        ui.label(tl!("Language"));
         ui.horizontal(|ui| {
-            ui.label(tl!("Language"));
             let current = i18n::code();
-            egui::ComboBox::from_id_salt("language").selected_text(i18n::name_of(current)).show_ui(ui, |ui| {
+            let combo = egui::ComboBox::from_id_salt("language").selected_text(i18n::name_of(current)).show_ui(ui, |ui| {
                 for (code, name) in i18n::languages() {
                     if ui.selectable_label(code == current, name).clicked() && code != current {
                         self.language = code.to_string();
@@ -1049,6 +1211,8 @@ impl LocalApp {
                     }
                 }
             });
+            // A combo box with no label is a widget a screen reader cannot announce.
+            combo.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Language")));
             if self.language == i18n::AUTO {
                 ui.label(tl!("(following the system)"));
             }
@@ -1068,6 +1232,7 @@ impl LocalApp {
                     for button in layout.right.iter().rev() {
                         window_button(ui, *button);
                     }
+                    self.shell_buttons(ui);
                 });
             });
         });
@@ -1075,7 +1240,7 @@ impl LocalApp {
 
     fn ask_vault(&mut self, ctx: &egui::Context) {
         let start = self.prefs.last_vault.as_ref().map(|path| path.display().to_string());
-        if !self.pickers.ask_folder(ctx, tl!("Open a vault..."), start.as_deref()) {
+        if !self.pickers.ask_folder(ctx, tl!("Open a vault…"), start.as_deref()) {
             log::debug!("a folder picker is already open");
         }
     }
@@ -1265,8 +1430,12 @@ pub(crate) fn install_styles(ctx: &egui::Context) {
 
 /// Applies the theme the settings ask for. `System` follows the desktop's own light/dark choice; the
 /// per-theme accent (links, tags, quotes) is already installed on both styles in [`LocalApp::new`].
-pub(crate) fn apply_theme(ctx: &egui::Context, theme: crate::prefs::Theme) {
-    ctx.set_theme(theme.preference());
+pub(crate) fn apply_theme(ctx: &egui::Context, mode: ThemeMode) {
+    ctx.set_theme(match mode {
+        ThemeMode::System => egui::ThemePreference::System,
+        ThemeMode::Light => egui::ThemePreference::Light,
+        ThemeMode::Dark => egui::ThemePreference::Dark,
+    });
 }
 
 /// The faces a PDF is written with: egui's bundled Latin pair, plus the craft-fonts faces the app
@@ -1324,6 +1493,24 @@ fn centred(ctx: &egui::Context, size: egui::Vec2) -> egui::Pos2 {
     egui::pos2(middle.x - size.x / 2.0, middle.y - size.y / 2.0)
 }
 
+/// A shortcut as the menus and the palette show it (`Ctrl+S`, `⌘S`).
+fn keys(ctx: &egui::Context, modifiers: egui::Modifiers, key: egui::Key) -> String {
+    ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key))
+}
+
+/// A menu item: its name, the shortcut beside it, and - when it cannot run - why, as the hover of the greyed item.
+fn item(ui: &mut egui::Ui, label: &str, shortcut: &str, off: Option<&str>) -> egui::Response {
+    let mut button = egui::Button::new(label);
+    if !shortcut.is_empty() {
+        button = button.shortcut_text(shortcut);
+    }
+    let response = ui.add_enabled(off.is_none(), button);
+    match off {
+        Some(reason) => response.on_disabled_hover_text(reason),
+        None => response,
+    }
+}
+
 /// A section heading in the help window.
 fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(8.0);
@@ -1343,6 +1530,17 @@ impl eframe::App for LocalApp {
     /// Work that is not drawing: restoring the last vault, the update check, the pickers' answers,
     /// the autosave, and the shortcuts.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.run_logic(ctx);
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.show(ui);
+    }
+}
+
+impl LocalApp {
+    /// What `logic` does (a method of its own so the tests can run it without an `eframe::Frame`).
+    pub(crate) fn run_logic(&mut self, ctx: &egui::Context) {
         // Anything done here shows up on the *next* frame, and egui only redraws when asked to
         // (a static window waits for input). Opening the vault or a picked folder therefore has to
         // wake the window, or the welcome page would stay on screen until the mouse moves.
@@ -1460,8 +1658,15 @@ impl eframe::App for LocalApp {
         }
         // Flashcards from the note in front of the reader: the Ação-Artefato entry, same as the
         // menu and the tree's context menu.
-        if ctx.input(|input| input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::K)) && self.vault.active.is_some() {
-            self.flashcards.start(&self.vault, None);
+        // Consumed before Ctrl+K below: egui matches Ctrl+K with Shift held too, and that is the palette.
+        let flashcards_shortcut = ctx.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::K));
+        if flashcards_shortcut && self.vault.active.is_some() {
+            self.start_flashcards();
+            wake = true;
+        }
+        // The command palette: Ctrl+K opens it, and the same key closes it.
+        if craft_palette::Palette::shortcut_pressed(ctx) {
+            self.palette.toggle();
             wake = true;
         }
         let mut escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
@@ -1504,12 +1709,18 @@ impl eframe::App for LocalApp {
         }
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    /// What `ui` draws: the top bar, the page and the windows over it.
+    pub(crate) fn show(&mut self, ui: &mut egui::Ui) {
         match self.frame.clone() {
             craft_window::Frame::App(layout) => self.header_bar(ui, &layout),
             // The desktop draws the frame; the menus still need a strip inside the window.
             craft_window::Frame::Desktop => {
-                egui::Panel::top("menu_bar").show(ui, |ui| self.menus(ui));
+                egui::Panel::top("menu_bar").show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        self.menus(ui);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| self.shell_buttons(ui));
+                    });
+                });
             }
         }
 
@@ -1518,6 +1729,9 @@ impl eframe::App for LocalApp {
         if self.about_open {
             self.about(ui);
         }
+        if self.settings_open {
+            self.settings(ui);
+        }
         self.dialogs(ui);
         let _ = self.chat.settings(ui);
         self.flashcards.dialog(ui, &mut self.vault, &self.chat);
@@ -1525,6 +1739,7 @@ impl eframe::App for LocalApp {
         self.diagnostics(ui);
         self.calendar(ui);
         self.help(ui);
+        self.palette(ui.ctx());
 
         // The update prompt and its progress, drawn last so it sits above the window's content.
         match self.updater.show(ui.ctx()) {

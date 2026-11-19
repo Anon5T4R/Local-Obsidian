@@ -1057,7 +1057,7 @@ fn a_note_with_no_match_says_zero_and_stays_open() {
     assert_eq!(harness.state().0.find.total, 0, "nothing matches");
     assert_eq!(harness.state().0.find.current, 0);
     // The bar is still there to be corrected, and closes on its own ×.
-    harness.get_by_label("x").click();
+    harness.get_by_label("Close the find bar").click();
     harness.run_steps(2);
     assert!(!harness.state().0.find.open);
 }
@@ -1803,7 +1803,7 @@ fn light<State>(harness: &mut Harness<'_, State>) {
 
 #[test]
 fn the_theme_setting_reaches_the_context_and_the_accent() {
-    for (theme, expected) in [(crate::prefs::Theme::Light, egui::Theme::Light), (crate::prefs::Theme::Dark, egui::Theme::Dark)] {
+    for (theme, expected) in [(craft_icons::ThemeMode::Light, egui::Theme::Light), (craft_icons::ThemeMode::Dark, egui::Theme::Dark)] {
         let mut harness = Harness::builder().with_size(egui::vec2(320.0, 200.0)).build_ui_state(
             move |ui, applied: &mut bool| {
                 if !*applied {
@@ -2019,4 +2019,200 @@ fn the_open_note_exports_as_a_pdf_with_selectable_text() {
         let _ = std::fs::copy(&path, directory.join("export-note.pdf"));
     }
     let _ = std::fs::remove_file(&path);
+}
+
+// ---- The suite's shell: theme, Settings, the command palette --------------------------------------
+
+type Shell = Harness<'static, Option<crate::app::LocalApp>>;
+
+/// The whole window over a headless context: the real top bar, the menus and the windows, with nothing written to
+/// the user's settings file.
+fn shell(theme: craft_icons::ThemeMode) -> Shell {
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).build_ui_state(
+        move |ui, app: &mut Option<crate::app::LocalApp>| {
+            let app = app.get_or_insert_with(|| {
+                crate::app::install_styles(ui.ctx());
+                let prefs = crate::prefs::Prefs { theme, ..Default::default() };
+                crate::app::LocalApp::for_test(ui.ctx(), prefs)
+            });
+            app.run_logic(ui.ctx());
+            app.show(ui);
+        },
+        None,
+    );
+    harness.run();
+    harness
+}
+
+/// The theme, whether Settings is open and whether the palette is open.
+fn shell_state(harness: &Shell) -> (craft_icons::ThemeMode, bool, bool) {
+    harness.state().as_ref().expect("the app is built on the first frame").shell_state()
+}
+
+/// View > Theme > `choice`: a real click through the menus.
+fn pick_theme(harness: &mut Shell, choice: &str) {
+    harness.get_by_label("View").click();
+    harness.run();
+    harness.get_by_label("Theme").click();
+    harness.run();
+    harness.get_by_label(choice).click();
+    harness.run();
+}
+
+#[test]
+fn the_view_menu_changes_the_theme_to_each_of_the_suites_three() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::System);
+    assert_eq!(shell_state(&harness).0, ThemeMode::System);
+    pick_theme(&mut harness, "Dark");
+    assert_eq!(shell_state(&harness).0, ThemeMode::Dark);
+    assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+    pick_theme(&mut harness, "Light");
+    assert_eq!(shell_state(&harness).0, ThemeMode::Light);
+    assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+    pick_theme(&mut harness, "Automatic");
+    assert_eq!(shell_state(&harness).0, ThemeMode::System);
+    shot(&mut harness, "casca-theme-menu");
+}
+
+#[test]
+fn the_themes_button_walks_automatic_light_dark() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::System);
+    for expected in [ThemeMode::Light, ThemeMode::Dark, ThemeMode::System] {
+        harness.get_by_label_contains("Theme:").click();
+        harness.run();
+        assert_eq!(shell_state(&harness).0, expected);
+    }
+}
+
+#[test]
+fn the_gear_and_file_settings_open_settings_with_the_language_and_the_theme() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::Dark);
+    assert!(!shell_state(&harness).1);
+    harness.get_by_label("Settings").click();
+    harness.run();
+    assert!(shell_state(&harness).1, "the gear opens Settings");
+    assert!(harness.query_all_by_label("Language").next().is_some(), "the language lives in Settings");
+    assert!(harness.query_all_by_label("Theme").next().is_some(), "and so does the theme");
+    shot(&mut harness, "casca-settings");
+
+    // The theme row of Settings switches the mode too.
+    harness.get_by_label("Light").click();
+    harness.run();
+    assert_eq!(shell_state(&harness).0, ThemeMode::Light);
+
+    // Closed from its own X, then opened again from the File menu.
+    let mut harness = shell(ThemeMode::Dark);
+    harness.get_by_label("File").click();
+    harness.run();
+    harness.get_by_label("Settings…").click();
+    harness.run();
+    assert!(shell_state(&harness).1, "File > Settings… opens it too");
+}
+
+#[test]
+fn the_search_icon_and_ctrl_k_open_the_palette_and_run_a_command() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::Dark);
+    assert!(!shell_state(&harness).2);
+    harness.get_by_label_contains("Search commands").click();
+    harness.run();
+    assert!(shell_state(&harness).2, "the magnifier opens the palette");
+    shot(&mut harness, "casca-palette");
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+    assert!(!shell_state(&harness).2, "Escape closes it");
+
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
+    harness.run();
+    assert!(shell_state(&harness).2, "Ctrl+K opens it");
+
+    // Typing narrows the list and Enter runs the first match: the same Settings the gear opens.
+    harness.get_by_role(egui::accesskit::Role::TextInput).type_text("Settings");
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let (_, settings, palette) = shell_state(&harness);
+    assert!(settings, "the command ran through the menu's code");
+    assert!(!palette, "and the palette closed");
+}
+
+#[test]
+fn ctrl_shift_k_is_the_flashcards_shortcut_and_not_the_palette() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::Dark);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::K);
+    harness.run();
+    assert!(!shell_state(&harness).2, "egui matches Ctrl+K with Shift held; the flashcards key takes it first");
+}
+
+#[test]
+fn the_palette_lists_every_menu_and_greys_what_needs_a_vault() {
+    use craft_icons::ThemeMode;
+    let mut harness = shell(ThemeMode::Dark);
+    let commands = {
+        let app = harness.state().as_ref().expect("built");
+        app.palette_commands(&harness.ctx)
+    };
+    let find = |label: &str| commands.iter().find(|command| command.label == label).unwrap_or_else(|| panic!("{label} is not in the palette"));
+    for menu in ["File", "View", "Review", "AI", "Help"] {
+        assert!(commands.iter().any(|command| command.group == menu), "{menu} has commands in the palette");
+    }
+    assert!(find("Settings…").enabled);
+    assert!(find("Exit").enabled);
+    assert!(find("Check for Updates…").enabled);
+    assert!(!find("New note…").enabled, "no vault yet: listed but greyed, like the menu");
+    assert!(!find("Create flashcards from this note").enabled);
+    assert_eq!(find("Save").shortcut, harness.ctx.format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S)));
+    for theme in ["Theme: Automatic", "Theme: Light", "Theme: Dark"] {
+        assert!(find(theme).enabled);
+    }
+    harness.run();
+}
+
+/// Visual QA (ignored): the top bar, Settings and the palette in both themes, over a vault with notes. The PNGs land in
+/// `target/qa-casca/`; the render needs a GPU.
+#[test]
+#[ignore = "visual QA: renders the window with the suite's shell in both themes"]
+fn casca_shots() {
+    use craft_icons::ThemeMode;
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/qa-casca");
+    std::fs::create_dir_all(&directory).expect("the QA folder");
+    let (scratch, _state) = demo_vault("casca-shots");
+    for (name, mode) in [("light", ThemeMode::Light), ("dark", ThemeMode::Dark)] {
+        let take = |harness: &mut Shell, what: &str| {
+            harness.run();
+            let image = harness.render().expect("the render");
+            image.save(directory.join(format!("{name}-{what}.png"))).expect("the PNG");
+        };
+        let open = |harness: &mut Shell| {
+            if let Some(app) = harness.state_mut().as_mut() {
+                app.open_vault_for_test(scratch.0.clone());
+            }
+            harness.run();
+        };
+
+        let mut harness = shell(mode);
+        open(&mut harness);
+        take(&mut harness, "1-barra");
+
+        harness.get_by_label("File").click();
+        harness.run();
+        take(&mut harness, "2-menu-arquivo");
+        harness.key_press(egui::Key::Escape);
+
+        let mut harness = shell(mode);
+        open(&mut harness);
+        harness.get_by_label("Settings").click();
+        take(&mut harness, "3-configuracoes");
+
+        let mut harness = shell(mode);
+        open(&mut harness);
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
+        harness.run();
+        harness.get_by_role(egui::accesskit::Role::TextInput).type_text("re");
+        take(&mut harness, "4-paleta");
+    }
 }

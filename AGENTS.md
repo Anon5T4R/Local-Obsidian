@@ -30,8 +30,9 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
   está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
 ## Estrutura
-- `apps/localobsidian` — o app: `main.rs` (args, ícone, janela), `app.rs` (barra de menus, About com
-  update, a página), `i18n.rs`, `pickers.rs`, `fonts.rs`, `suite_entry.rs` (entrada no catálogo),
+- `apps/localobsidian` — o app: `main.rs` (args, ícone, janela), `app.rs` (barra de menus, botões da suíte —
+  paleta, tema, engrenagem —, Configurações, About com update, a página; a paleta de comandos fica em
+  `app/commands.rs`), `i18n.rs`, `pickers.rs`, `fonts.rs`, `suite_entry.rs` (entrada no catálogo),
   `build.rs` (ícone/VERSIONINFO, catálogos i18n, fontes)
 - `crates/localobsidian-*` — camadas (registradas em `xtask/src/layers.rs` `TABLE`); UI só em L5+
 - `libs/` — forks vendored: `craft-libs` (com `crates/update` espelhado do `local-libs`),
