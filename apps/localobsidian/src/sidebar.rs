@@ -40,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut VaultState) -> SidebarAction {
         // panel that holds it.
         let room = (ui.available_width() - 60.0).max(80.0);
         ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(tl!("Filter notes")).desired_width(room));
-        if !state.filter.is_empty() && ui.small_button("x").on_hover_text(tl!("Clear the filter")).clicked() {
+        if !state.filter.is_empty() && crate::panels::close_x(ui, tl!("Clear the filter")).clicked() {
             state.filter.clear();
         }
     });

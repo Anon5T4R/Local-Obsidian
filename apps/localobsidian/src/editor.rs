@@ -487,7 +487,7 @@ fn find_bar(ui: &mut egui::Ui, state: &mut VaultState) {
             state.find.next();
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.small_button("x").on_hover_text(tl!("Close the find bar")).clicked() {
+            if crate::panels::close_x(ui, tl!("Close the find bar")).clicked() {
                 state.find.close();
             }
         });

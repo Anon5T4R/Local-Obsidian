@@ -338,6 +338,10 @@ fn form_labels<'a>() -> ui::ConnectionsLabels<'a> {
         cancel: tl!("Cancel"),
         hint_url: tl!("Ollama and llama-server are a base URL and a model."),
         hint_key: tl!("Stored in the system keychain, never in a file."),
+        close: tl!("Close"),
+        needs_key: tl!("Paste the API key first: this provider asks for one."),
+        needs_url: tl!("Choose a provider or type its address first."),
+        needs_model: tl!("Choose a model first (List models shows them)."),
     }
 }
 

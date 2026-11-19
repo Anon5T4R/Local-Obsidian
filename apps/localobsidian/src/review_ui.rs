@@ -349,7 +349,7 @@ impl Review {
             // the deck of the session.
             combo.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Deck")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("x").on_hover_text(tl!("Close")).clicked() {
+                if crate::panels::close_x(ui, tl!("Close")).clicked() {
                     self.open = false;
                 }
                 // The statistics panel is one panel: this button opens and closes it, and shows
@@ -524,7 +524,7 @@ impl Review {
             // Same rule as the session header: the numbers belong to a named deck.
             ui.label(egui::RichText::new(self.deck.label(state)).small().weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("x").clicked() {
+                if crate::panels::close_x(ui, tl!("Close")).clicked() {
                     self.stats_open = false;
                 }
             });

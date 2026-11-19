@@ -15,6 +15,13 @@ use crate::vault_state::{SearchHit, VaultState};
 /// How many matching lines of a note the panel shows before "and N more".
 const VISIBLE_LINES: usize = 5;
 
+/// The suite's close X for a panel's header or a strip, announced to screen readers (and to the tests) by its tooltip.
+pub fn close_x(ui: &mut egui::Ui, tooltip: &str) -> egui::Response {
+    let response = craft_icons::ui::close_button(ui, tooltip);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), tooltip));
+    response
+}
+
 /// What a click in a panel asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PanelAction {
