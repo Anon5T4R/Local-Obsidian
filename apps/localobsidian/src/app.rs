@@ -1366,7 +1366,8 @@ const CARDS_PER_NOTE: usize = 100;
 /// function so the QA test can draw it without a whole window.
 pub(crate) fn help_body(ui: &mut egui::Ui) {
     section(ui, tl!("Getting around"));
-    shortcut(ui, "Ctrl+Shift+O", tl!("Open a vault"));
+    shortcut(ui, "Ctrl+K", tl!("Search commands"));
+    shortcut(ui, "Ctrl+Shift+O", tl!("Show the outline"));
     shortcut(ui, "Ctrl+Shift+F", tl!("Search the vault"));
     shortcut(ui, "Ctrl+S", tl!("Save the note"));
     shortcut(ui, "Ctrl+F", tl!("Find in the note being read"));
