@@ -18,10 +18,15 @@ repository = "https://github.com/Anon5T4R/Local-Obsidian"
 # Vendored craft libs (libs/craft-libs). `crates/update` comes from the suite's single source,
 # Anon5T4R/local-libs: the copy here is a mirror, never edited in place.
 # Not wired while nothing uses them (an unused workspace dependency is a cargo warning):
-# `craft-ui` (widgets/icons/theme), `egui_extras` (tables/images/svg), `serde`/`serde_json` (the
-# app's own settings). Add the line back when the first crate needs it.
+# `craft-ui` (widgets/icons/theme). Add the line back when the first crate needs it.
+# The suite's icons for shared concepts (theme, settings, help, AI...) and the theme button. Source: local-libs.
+craft-icons = { path = "libs/craft-libs/crates/icons/", features = ["egui"] }
+# The suite's command palette (Ctrl+K and the search icon). Source: local-libs.
+craft-palette = { path = "libs/craft-libs/crates/palette/" }
 craft-i18n = { path = "libs/craft-libs/crates/i18n/" }
 craft-ai-ui = { path = "libs/craft-libs/crates/ai-ui/" }
+# The SVG loader for the suite's icons (craft-icons): resvg, pure Rust. Vendored fork via [patch].
+egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
 craft-pdf = { path = "libs/craft-libs/crates/pdf/" }
 # egui's bundled Latin faces: what the PDF export embeds (the app ships no other Latin pair).
 epaint_default_fonts = { path = "libs/egui/crates/epaint_default_fonts/" }

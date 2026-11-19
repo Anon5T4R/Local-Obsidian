@@ -15,6 +15,8 @@ workspace = true
 [dependencies]
 craft-i18n = { workspace = true }
 craft-ai-ui = { workspace = true }
+craft-icons = { workspace = true }
+craft-palette = { workspace = true }
 craft-update = { workspace = true }
 craft-window = { workspace = true }
 craft-desktop-theme = { workspace = true }
@@ -32,6 +34,7 @@ localobsidian-vault = { workspace = true }
 # clipboard and cut/copy/paste, RequestPaste and the Wayland PRIMARY path are unavailable.
 eframe = { workspace = true, features = ["default_fonts", "clipboard", "wgpu", "glow", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
+egui_extras = { workspace = true }
 # Decoding the pictures a note shows (`![[foto.png]]`); craft-update already pulls `image` in for
 # the app icon, so these features cost no new package.
 image = { workspace = true }
