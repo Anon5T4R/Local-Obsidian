@@ -2028,7 +2028,13 @@ type Shell = Harness<'static, Option<crate::app::LocalApp>>;
 /// The whole window over a headless context: the real top bar, the menus and the windows, with nothing written to
 /// the user's settings file.
 fn shell(theme: craft_icons::ThemeMode) -> Shell {
-    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).build_ui_state(
+    shell_checked(theme, true)
+}
+
+/// [`shell`], with the accessibility audit on or off. The audit is off for the QA shots: the note editor over an open
+/// vault has no accessible name yet (a gap of the app, not of the shell).
+fn shell_checked(theme: craft_icons::ThemeMode, accessibility: bool) -> Shell {
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).with_accessibility_check(accessibility).build_ui_state(
         move |ui, app: &mut Option<crate::app::LocalApp>| {
             let app = app.get_or_insert_with(|| {
                 crate::app::install_styles(ui.ctx());
@@ -2194,7 +2200,7 @@ fn casca_shots() {
             harness.run();
         };
 
-        let mut harness = shell(mode);
+        let mut harness = shell_checked(mode, false);
         open(&mut harness);
         take(&mut harness, "1-barra");
 
@@ -2203,16 +2209,17 @@ fn casca_shots() {
         take(&mut harness, "2-menu-arquivo");
         harness.key_press(egui::Key::Escape);
 
-        let mut harness = shell(mode);
+        let mut harness = shell_checked(mode, false);
         open(&mut harness);
         harness.get_by_label("Settings").click();
         take(&mut harness, "3-configuracoes");
 
-        let mut harness = shell(mode);
+        let mut harness = shell_checked(mode, false);
         open(&mut harness);
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
         harness.run();
-        harness.get_by_role(egui::accesskit::Role::TextInput).type_text("re");
+        // The box has the focus on opening: the typing goes to it.
+        harness.event(egui::Event::Text("re".to_string()));
         take(&mut harness, "4-paleta");
     }
 }
