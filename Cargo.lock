@@ -2697,7 +2697,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "chrono",
  "craft-ai-ui",
@@ -2727,7 +2727,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-ai"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "local-ai",
  "log",
@@ -2736,7 +2736,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-convert"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "quick-xml 0.41.0",
  "zip",
@@ -2744,11 +2744,11 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-editor"
-version = "1.8.1"
+version = "1.8.2"
 
 [[package]]
 name = "localobsidian-md"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "pulldown-cmark",
  "saphyr",
@@ -2756,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-pdf"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "craft-pdf",
  "epaint_default_fonts",
@@ -2766,7 +2766,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-review"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "chrono",
  "log",
@@ -2775,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "localobsidian-vault"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "localobsidian-md",
  "log",
@@ -6167,7 +6167,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "serde_json",
 ]
