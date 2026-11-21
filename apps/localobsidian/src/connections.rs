@@ -354,6 +354,9 @@ pub fn show(ui: &mut egui::Ui, state: &VaultState, map: &mut Map) -> Action {
     let size = ui.available_size();
     let (response, painter) = ui.allocate_painter(size, egui::Sense::click());
     let canvas = response.rect.shrink2(egui::vec2(70.0, 34.0));
+    // The label lives in the whole painter area, not only the canvas: the margins beside the canvas
+    // exist for the labels of the notes on the edge, so they must count as room (4 pt of slack).
+    let label_area = response.rect.shrink(4.0);
     let hovered = response.hover_pos().and_then(|pointer| node_at(&nodes, canvas, pointer));
     let hovered_badge = response.hover_pos().filter(|pointer| nodes.iter().any(|node| badge_rect(canvas, node).contains(*pointer)));
 
@@ -419,8 +422,8 @@ pub fn show(ui: &mut egui::Ui, state: &VaultState, map: &mut Map) -> Action {
         let font = egui::FontId::proportional(if lit || is_origin { 13.0 } else { 12.0 });
         let outward = egui::vec2(centre.x - canvas.center().x, centre.y - canvas.center().y);
         let direction = if outward.length() < 1.0 { egui::vec2(0.0, -1.0) } else { outward.normalized() };
-        let label = fitted_label(&painter, &node.name, &font, colour, label_room(canvas, centre, radius, direction));
-        let corner = label_rect(canvas, centre, radius, direction, label.size()).min;
+        let label = fitted_label(&painter, &node.name, &font, colour, label_room(label_area, centre, radius, direction));
+        let corner = label_rect(label_area, centre, radius, direction, label.size()).min;
         painter.galley(corner, label, colour);
 
         // The badge: only where there is something to open or to close.
@@ -555,6 +558,26 @@ mod tests {
         });
         output.textures_delta.clear(); // headless: no renderer consumes the font atlas
         assert!(checked, "the frame ran");
+    }
+
+    /// A short name on an edge node shows whole in a narrow window: the label's room is the whole
+    /// painter area, including the margins the canvas leaves beside it (the item 8 of the 008
+    /// validation — the label vanished at 420 px because it was measured against the canvas only).
+    #[test]
+    fn a_short_label_on_the_edge_shows_whole_in_a_narrow_window() {
+        let area = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(420.0, 340.0));
+        let canvas = area.shrink2(egui::vec2(70.0, 34.0));
+        // The node sits on the canvas's right edge, like the outer ring does.
+        let centre = egui::pos2(canvas.right(), canvas.center().y);
+        let direction = egui::vec2(1.0, 0.0);
+        let room = label_room(area, centre, 9.0, direction);
+        assert!(room >= 45.0, "the margins count as room for the label, got {room}");
+        // "Bia" is short: it fits whole, stays beside the node and inside the area.
+        let size = egui::vec2(20.0, 14.0);
+        let node = egui::Rect::from_center_size(centre, egui::vec2(20.0, 20.0));
+        let placed = label_rect(area, centre, 9.0, direction, size);
+        assert!(!placed.intersects(node), "the label {placed:?} covers the node {node:?}");
+        assert!(area.contains_rect(placed), "the label {placed:?} leaves the area {area:?}");
     }
 
     #[test]
