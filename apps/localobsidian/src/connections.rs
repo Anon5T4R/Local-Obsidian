@@ -216,6 +216,73 @@ fn badge_rect(canvas: egui::Rect, node: &Placed) -> egui::Rect {
     egui::Rect::from_center_size(centre, egui::vec2(15.0, 15.0))
 }
 
+/// Where a node's label anchors, and how it grows from there: outward from the middle, so
+/// neighbours on the same ring never write over each other. A label that does not fit vertically
+/// between the node and the edge it points at (above/below the node, near the canvas edge) goes to
+/// the other side, where the rest of the map is.
+fn label_anchor(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: egui::Vec2, height: f32) -> (egui::Pos2, egui::Align2) {
+    if direction.x.abs() > 0.35 {
+        if direction.x > 0.0 {
+            (egui::pos2(centre.x + radius + 6.0, centre.y), egui::Align2::LEFT_CENTER)
+        } else {
+            (egui::pos2(centre.x - radius - 6.0, centre.y), egui::Align2::RIGHT_CENTER)
+        }
+    } else {
+        let above = (centre.y - radius - 5.0 - height) >= canvas.top();
+        let below = (centre.y + radius + 5.0 + height) <= canvas.bottom();
+        if (direction.y < 0.0 && above) || (!below && above) {
+            (egui::pos2(centre.x, centre.y - radius - 5.0), egui::Align2::CENTER_BOTTOM)
+        } else {
+            (egui::pos2(centre.x, centre.y + radius + 5.0), egui::Align2::CENTER_TOP)
+        }
+    }
+}
+
+/// How much width a node's label may take before the canvas clamp would push it back over its own
+/// node. Labels above/below the node may span the canvas: the vertical gap keeps them off it.
+fn label_room(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: egui::Vec2) -> f32 {
+    if direction.x.abs() > 0.35 {
+        if direction.x > 0.0 {
+            (canvas.right() - (centre.x + radius + 6.0)).max(0.0)
+        } else {
+            ((centre.x - radius - 6.0) - canvas.left()).max(0.0)
+        }
+    } else {
+        canvas.width()
+    }
+}
+
+/// A node's name as one line, shortened with "…" to fit `room`: a long name at the edge of the map
+/// shows less of itself, never the node under it.
+fn fitted_label(painter: &egui::Painter, name: &str, font: &egui::FontId, colour: egui::Color32, room: f32) -> std::sync::Arc<egui::Galley> {
+    let mut shown: String = name.to_string();
+    loop {
+        let label = painter.layout_no_wrap(shown.clone(), font.clone(), colour);
+        if label.size().x <= room || shown.is_empty() {
+            return label;
+        }
+        let shorter: String = shown.chars().take(shown.chars().count().saturating_sub(1)).collect();
+        shown = if shorter.is_empty() {
+            String::new()
+        } else {
+            format!("{shorter}…")
+        };
+    }
+}
+
+/// The label's place on the canvas: anchored by [`label_anchor`], then clamped inside the canvas.
+fn label_rect(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: egui::Vec2, size: egui::Vec2) -> egui::Rect {
+    let (anchor, align) = label_anchor(canvas, centre, radius, direction, size.y);
+    let placed = align.anchor_size(anchor, size);
+    egui::Rect::from_min_size(
+        egui::pos2(
+            placed.min.x.clamp(canvas.left(), (canvas.right() - placed.width()).max(canvas.left())),
+            placed.min.y.clamp(canvas.top(), (canvas.bottom() - placed.height()).max(canvas.top())),
+        ),
+        size,
+    )
+}
+
 /// A `+` or a `−`, painted: the fonts have neither glyph reliably, and a badge that renders as a
 /// box is worse than no badge.
 fn draw_sign(painter: &egui::Painter, rect: egui::Rect, open: bool, colour: egui::Color32) {
@@ -332,28 +399,14 @@ pub fn show(ui: &mut egui::Ui, state: &VaultState, map: &mut Map) -> Action {
 
         // The label goes outward from the middle, so neighbours on the same ring never write over
         // each other: right/left when the note is beside the centre, above/below when it is over or
-        // under it.
+        // under it. A label the side cannot hold is shortened with "…" — never pushed back over
+        // the node by the canvas clamp.
         let colour = if lit || is_origin { text } else { faint };
         let font = egui::FontId::proportional(if lit || is_origin { 13.0 } else { 12.0 });
-        let label = painter.layout_no_wrap(node.name.clone(), font, colour);
         let outward = egui::vec2(centre.x - canvas.center().x, centre.y - canvas.center().y);
         let direction = if outward.length() < 1.0 { egui::vec2(0.0, -1.0) } else { outward.normalized() };
-        let (anchor, align) = if direction.x.abs() > 0.35 {
-            if direction.x > 0.0 {
-                (egui::pos2(centre.x + radius + 6.0, centre.y), egui::Align2::LEFT_CENTER)
-            } else {
-                (egui::pos2(centre.x - radius - 6.0, centre.y), egui::Align2::RIGHT_CENTER)
-            }
-        } else if direction.y < 0.0 {
-            (egui::pos2(centre.x, centre.y - radius - 5.0), egui::Align2::CENTER_BOTTOM)
-        } else {
-            (egui::pos2(centre.x, centre.y + radius + 5.0), egui::Align2::CENTER_TOP)
-        };
-        let placed = align.anchor_size(anchor, label.size());
-        let corner = egui::pos2(
-            placed.min.x.clamp(canvas.left(), (canvas.right() - placed.width()).max(canvas.left())),
-            placed.min.y.clamp(canvas.top(), (canvas.bottom() - placed.height()).max(canvas.top())),
-        );
+        let label = fitted_label(&painter, &node.name, &font, colour, label_room(canvas, centre, radius, direction));
+        let corner = label_rect(canvas, centre, radius, direction, label.size()).min;
         painter.galley(corner, label, colour);
 
         // The badge: only where there is something to open or to close.
@@ -437,6 +490,30 @@ mod tests {
 
     fn names(nodes: &[Placed]) -> Vec<String> {
         nodes.iter().map(|node| node.name.clone()).collect()
+    }
+
+    /// A long name on a node at the edge of the map: its label never covers the node, whatever
+    /// the side it points at.
+    #[test]
+    fn a_long_label_at_the_edge_never_covers_its_node() {
+        let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+        let label = egui::vec2(300.0, 14.0);
+        for (centre, direction) in [
+            // Beside the centre, pointing at each edge; a long label is shortened to what the
+            // side holds (fitted_label) before label_rect places it.
+            (egui::pos2(380.0, 150.0), egui::vec2(1.0, 0.0)),
+            (egui::pos2(20.0, 150.0), egui::vec2(-1.0, 0.0)),
+            // Over/under the centre, at the top edge: the label flips below when it cannot fit.
+            (egui::pos2(200.0, 5.0), egui::vec2(0.0, -1.0)),
+            (egui::pos2(200.0, 295.0), egui::vec2(0.0, 1.0)),
+        ] {
+            let room = label_room(canvas, centre, 9.0, direction);
+            let size = egui::vec2(label.x.min(room), label.y);
+            let node = egui::Rect::from_center_size(centre, egui::vec2(20.0, 20.0));
+            let placed = label_rect(canvas, centre, 9.0, direction, size);
+            assert!(!placed.intersects(node), "at {centre:?} pointing {direction:?} the label {placed:?} covers the node {node:?}");
+            assert!(canvas.contains_rect(placed), "at {centre:?} the label {placed:?} leaves the canvas");
+        }
     }
 
     #[test]
