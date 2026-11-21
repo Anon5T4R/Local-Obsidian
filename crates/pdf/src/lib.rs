@@ -1491,8 +1491,9 @@ mod tests {
         png.extend_from_slice(&30_000u32.to_be_bytes());
         png.extend_from_slice(&[8, 6, 0, 0, 0]); // depth, colour, compression, filter, interlace
         png.extend_from_slice(&[0; 4]); // the CRC: nothing reads it, nothing decodes the pixels
-        assert_eq!(image_size(&png), Some((30_000, 30_000)), "the size comes from the header alone");
-        assert!(30_000u64 * 30_000 > MAX_IMAGE_PIXELS, "the fixture is past the ceiling");
+        let (width, height) = image_size(&png).expect("the header says the size");
+        assert_eq!((width, height), (30_000, 30_000), "the size comes from the header alone");
+        assert!(u64::from(width) * u64::from(height) > MAX_IMAGE_PIXELS, "the fixture is past the ceiling");
         assert!(decode_image(&Arc::new(png.clone())).is_none(), "the picture is refused before the decoder runs");
 
         let fonts = Loaded::new(&faces()).expect("the faces");
