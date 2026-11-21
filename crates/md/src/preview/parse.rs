@@ -2,7 +2,7 @@
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
-use super::{Align, Block, Span, Task};
+use super::{Align, Block, List, ListItem, Span, Task};
 
 /// What is open at this point of the parse. Inline containers are always on top of block ones.
 enum Open {
@@ -12,11 +12,16 @@ enum Open {
         spans: Vec<Span>,
     },
     Quote(Vec<Block>),
-    Item(Vec<Span>),
+    /// A list item being read: its inline text, its checkbox (the marker event arrives before the
+    /// text) and the list nested under it.
+    Item {
+        spans: Vec<Span>,
+        task: Option<Task>,
+        nested: Option<List>,
+    },
     List {
         ordered: bool,
-        items: Vec<Vec<Span>>,
-        tasks: Vec<Option<Task>>,
+        items: Vec<ListItem>,
     },
     Emphasis(Vec<Span>),
     Strong(Vec<Span>),
@@ -63,13 +68,13 @@ pub(super) fn parse(markdown: &str, options: Options) -> Vec<Block> {
 struct Builder {
     blocks: Vec<Block>,
     stack: Vec<Open>,
-    /// The checkbox of the item being read, waiting for its `Item` to close.
+    /// The checkbox of the item being read, when the marker did not find an open item under it.
+    /// Normally the marker is the first event inside its item and fills the item's own slot.
     pending_task: Option<Task>,
     /// How many checkboxes the note has declared so far, in document order.
     task_count: usize,
-    /// Blocks found inside a list item (a nested list, a table). An item holds only spans, so they
-    /// wait here and come out *after* the list that contains them - pushing them at once put the
-    /// nested list before its own parent, and the reading order came out inside out.
+    /// Blocks found inside a list item that the model has no room for (a table, a quote). They
+    /// wait here and come out *after* the list that contains them.
     deferred: Vec<Block>,
 }
 
@@ -83,11 +88,14 @@ impl Builder {
             Event::SoftBreak => self.text(" "),
             Event::HardBreak => self.text("\n"),
             Event::Rule => self.push_block(Block::Rule),
-            // A checkbox is drawn as a widget, not as `[x] ` text; the item it belongs to picks it
-            // up when it closes.
+            // A checkbox is drawn as a widget, not as `[x] ` text; it belongs to the item it opens.
             Event::TaskListMarker(done) => {
-                self.pending_task = Some(Task { done, index: self.task_count });
+                let task = Task { done, index: self.task_count };
                 self.task_count += 1;
+                match self.stack.last_mut() {
+                    Some(Open::Item { task: slot, .. }) => *slot = Some(task),
+                    _ => self.pending_task = Some(task),
+                }
             }
             Event::FootnoteReference(name) => self.text(&format!("[^{name}]")),
             Event::InlineMath(tex) | Event::DisplayMath(tex) => self.span(Span::Code(tex.to_string())),
@@ -102,8 +110,8 @@ impl Builder {
             Tag::Heading { level, .. } => Open::Heading { level: level_number(level), spans: Vec::new() },
             Tag::BlockQuote(_) => Open::Quote(Vec::new()),
             Tag::CodeBlock(kind) => Open::CodeBlock { language: language_of(&kind), text: String::new() },
-            Tag::List(start) => Open::List { ordered: start.is_some(), items: Vec::new(), tasks: Vec::new() },
-            Tag::Item => Open::Item(Vec::new()),
+            Tag::List(start) => Open::List { ordered: start.is_some(), items: Vec::new() },
+            Tag::Item => Open::Item { spans: Vec::new(), task: None, nested: None },
             Tag::Emphasis => Open::Emphasis(Vec::new()),
             Tag::Strong => Open::Strong(Vec::new()),
             Tag::Strikethrough => Open::Strike(Vec::new()),
@@ -166,25 +174,35 @@ impl Builder {
                 }
             }
             TagEnd::List(_) => {
-                if let Some(Open::List { ordered, items, tasks }) = self.stack.pop() {
-                    self.push_block(Block::List { ordered, items, tasks });
-                    // The blocks a nested item held follow the list itself: the reading order stays
-                    // the order of the source.
-                    for block in std::mem::take(&mut self.deferred) {
-                        self.push_block(block);
+                if let Some(Open::List { ordered, items }) = self.stack.pop() {
+                    let list = List { ordered, items };
+                    // A list closed right under an open item is that item's sub-list: it stays
+                    // where the author wrote it, under the item, at its own level.
+                    let under_item = matches!(self.stack.last(), Some(Open::Item { nested: None, .. }));
+                    if under_item {
+                        if let Some(Open::Item { nested, .. }) = self.stack.last_mut() {
+                            *nested = Some(list);
+                        }
+                    } else {
+                        self.push_block(Block::List { ordered: list.ordered, items: list.items });
+                        // The blocks a nested item held follow the list itself: the reading order
+                        // stays the order of the source.
+                        for block in std::mem::take(&mut self.deferred) {
+                            self.push_block(block);
+                        }
                     }
                 }
             }
             TagEnd::Item => {
-                if let Some(Open::Item(spans)) = self.stack.pop() {
-                    let task = self.pending_task.take();
-                    match self.stack.last_mut() {
-                        Some(Open::List { items, tasks, .. }) => {
-                            items.push(spans);
-                            tasks.push(task);
-                        }
-                        _ => self.push_block(Block::Paragraph(spans)),
+                let Some(Open::Item { spans, task, nested }) = self.stack.pop() else { return };
+                let item = ListItem { spans, task: task.or_else(|| self.pending_task.take()), nested: nested.map(Box::new) };
+                let in_list = matches!(self.stack.last(), Some(Open::List { .. }));
+                if in_list {
+                    if let Some(Open::List { items, .. }) = self.stack.last_mut() {
+                        items.push(item);
                     }
+                } else {
+                    self.push_block(Block::Paragraph(item.spans));
                 }
             }
             TagEnd::Emphasis => {
@@ -294,7 +312,7 @@ impl Builder {
         let Some(open) = self.stack.last_mut() else { return };
         let spans = match open {
             Open::Paragraph(spans)
-            | Open::Item(spans)
+            | Open::Item { spans, .. }
             | Open::Emphasis(spans)
             | Open::Strong(spans)
             | Open::Strike(spans)
@@ -313,7 +331,7 @@ impl Builder {
     /// Blocks go to the nearest block container above the block level (a quote), else to the root.
     /// A block found inside a list item is deferred: it belongs after the list, not before it.
     fn push_block(&mut self, block: Block) {
-        if !matches!(block, Block::Paragraph(_)) && self.stack.iter().any(|open| matches!(open, Open::Item(_))) {
+        if !matches!(block, Block::Paragraph(_)) && self.stack.iter().any(|open| matches!(open, Open::Item { .. })) {
             self.deferred.push(block);
             return;
         }
@@ -336,7 +354,7 @@ impl Builder {
                 Open::Paragraph(spans) => self.push_block(Block::Paragraph(spans)),
                 Open::Heading { level, spans } => self.push_block(Block::Heading { level, spans }),
                 Open::Quote(blocks) => self.push_block(Block::Quote(blocks)),
-                Open::List { ordered, items, tasks } => self.push_block(Block::List { ordered, items, tasks }),
+                Open::List { ordered, items } => self.push_block(Block::List { ordered, items }),
                 Open::CodeBlock { language, text } => self.push_block(Block::Code { language, text: text.trim_end_matches('\n').to_string() }),
                 Open::Table { aligns, headers, rows, .. } => self.push_block(Block::Table { headers, rows, aligns }),
                 _ => {}

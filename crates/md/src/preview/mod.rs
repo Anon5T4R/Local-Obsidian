@@ -24,12 +24,10 @@ pub enum Block {
         spans: Vec<Span>,
     },
     Paragraph(Vec<Span>),
+    /// A list; each item carries its own text, its checkbox and the list nested under it.
     List {
         ordered: bool,
-        items: Vec<Vec<Span>>,
-        /// The task state of each item, in the same order as `items`. Empty for a plain list; an
-        /// item that is not a task is `None` in a checklist that mixes both.
-        tasks: Vec<Option<Task>>,
+        items: Vec<ListItem>,
     },
     Code {
         language: String,
@@ -67,6 +65,45 @@ pub struct Task {
     /// Which task of the note this is, counting from zero: the reading view says "this one", and
     /// the editor finds it by the same count, so no offsets have to survive [`prepare`].
     pub index: usize,
+}
+
+/// One item of a list: the text the author wrote, its checkbox when it is a task, and the list
+/// written under it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListItem {
+    pub spans: Vec<Span>,
+    /// `Some` for a `- [ ]` / `- [x]` item, `None` in a plain list (and for a plain line in a
+    /// checklist that mixes both).
+    pub task: Option<Task>,
+    /// The sub-list of this item (`- pai` / `  - filho`), with its own items and checkboxes.
+    pub nested: Option<Box<List>>,
+}
+
+impl ListItem {
+    /// The item's text, the nested list under it included (tests, search previews).
+    pub fn plain(&self) -> String {
+        let mut text: String = self.spans.iter().map(Span::plain).collect();
+        if let Some(nested) = &self.nested {
+            text.push('\n');
+            text.push_str(&nested.plain());
+        }
+        text
+    }
+}
+
+/// A list's items: what [`Block::List`] holds at the top level, and what an item holds when it
+/// carries a sub-list. The same shape at every level, so a renderer walks it by recursion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct List {
+    pub ordered: bool,
+    pub items: Vec<ListItem>,
+}
+
+impl List {
+    /// The list's text, one item per line (tests, search previews).
+    pub fn plain(&self) -> String {
+        self.items.iter().map(ListItem::plain).collect::<Vec<_>>().join("\n")
+    }
 }
 
 /// A block's horizontal alignment, from the table's separator row.
@@ -116,7 +153,7 @@ impl Block {
         let join = |spans: &[Span]| spans.iter().map(Span::plain).collect::<String>();
         match self {
             Block::Heading { spans, .. } | Block::Paragraph(spans) => join(spans),
-            Block::List { items, .. } => items.iter().map(|item| join(item)).collect::<Vec<_>>().join("\n"),
+            Block::List { items, .. } => items.iter().map(ListItem::plain).collect::<Vec<_>>().join("\n"),
             Block::Code { text, .. } => text.clone(),
             Block::Query { source } => source.clone(),
             Block::Quote(inner) | Block::Callout { body: inner, .. } => inner.iter().map(Block::plain).collect::<Vec<_>>().join("\n"),
@@ -339,18 +376,42 @@ mod tests {
     }
 
     #[test]
-    fn a_nested_list_comes_after_its_parent() {
-        // The nested list is a block of its own (an item holds spans only) and has to land *after*
-        // the list that contains it - before this it came out inside out, child list first.
+    fn a_nested_list_stays_under_the_item_that_holds_it() {
+        // The child list belongs to `pai`: it is the item's own sub-list, not a block of its own
+        // after the parent list (before this the model had no nesting, and the reading view
+        // showed the parent's items and the child's side by side).
         let blocks = blocks("- pai\n  - filho\n- irmão");
-        let lists: Vec<&Block> = blocks.iter().filter(|block| matches!(block, Block::List { .. })).collect();
-        assert_eq!(lists.len(), 2, "{blocks:?}");
-        let Block::List { items, .. } = lists[0] else { panic!() };
-        assert_eq!(items.len(), 2, "the parent keeps its items: {items:?}");
-        let Block::List { items, .. } = lists[1] else { panic!() };
-        assert_eq!(items.len(), 1, "the nested one holds the child: {items:?}");
-        assert!(lists[0].plain().contains("pai") && lists[0].plain().contains("irmão"), "{lists:?}");
-        assert!(lists[1].plain().contains("filho"));
+        assert_eq!(blocks.len(), 1, "{blocks:?}");
+        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        assert_eq!(items.len(), 2, "the parent keeps its two items: {items:?}");
+        assert_eq!(items[0].plain(), "pai\nfilho");
+        assert_eq!(items[1].plain(), "irmão");
+        let nested = items[0].nested.as_ref().expect("the child list under the first item");
+        assert_eq!(nested.items.len(), 1, "{nested:?}");
+        assert_eq!(nested.items[0].plain(), "filho");
+        assert!(items[1].nested.is_none(), "{items:?}");
+    }
+
+    #[test]
+    fn each_level_of_a_list_nests_again() {
+        let blocks = blocks("- um\n  - dois\n    - três");
+        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        let second = items[0].nested.as_ref().expect("the second level");
+        assert_eq!(second.items[0].plain(), "dois\ntrês");
+        let third = second.items[0].nested.as_ref().expect("the third level");
+        assert_eq!(third.items.len(), 1, "{third:?}");
+        assert_eq!(third.items[0].plain(), "três");
+    }
+
+    #[test]
+    fn a_nested_list_keeps_its_own_numbering_style() {
+        let blocks = blocks("1. primeiro\n   1. dentro\n   2. também\n2. segundo");
+        let Block::List { ordered, items } = &blocks[0] else { panic!("{blocks:?}") };
+        assert!(*ordered);
+        assert_eq!(items.len(), 2, "{items:?}");
+        let nested = items[0].nested.as_ref().expect("the numbered sub-list");
+        assert!(nested.ordered, "the sub-list is numbered too");
+        assert_eq!(nested.items.len(), 2, "{nested:?}");
     }
 
     #[test]
@@ -372,19 +433,31 @@ mod tests {
     #[test]
     fn a_checkbox_keeps_its_state_and_its_place_in_the_note() {
         let blocks = blocks("- [x] feito\n- [ ] pendente");
-        let Block::List { items, tasks, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
         // The marker is a widget, not text: the item's text starts after the box.
-        assert_eq!(items[0].iter().map(Span::plain).collect::<String>(), "feito");
-        assert_eq!(items[1].iter().map(Span::plain).collect::<String>(), "pendente");
-        assert_eq!(tasks[0], Some(Task { done: true, index: 0 }));
-        assert_eq!(tasks[1], Some(Task { done: false, index: 1 }));
+        assert_eq!(items[0].spans.iter().map(Span::plain).collect::<String>(), "feito");
+        assert_eq!(items[1].spans.iter().map(Span::plain).collect::<String>(), "pendente");
+        assert_eq!(items[0].task, Some(Task { done: true, index: 0 }));
+        assert_eq!(items[1].task, Some(Task { done: false, index: 1 }));
     }
 
     #[test]
     fn a_plain_list_has_no_tasks() {
         let blocks = blocks("- um\n- dois");
-        let Block::List { tasks, .. } = &blocks[0] else { panic!("{blocks:?}") };
-        assert_eq!(tasks, &vec![None, None]);
+        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        assert!(items.iter().all(|item| item.task.is_none()), "{items:?}");
+    }
+
+    #[test]
+    fn a_checklist_nested_under_a_task_keeps_both_states() {
+        // The inner marker used to overwrite the outer one (a single slot for the whole parse), so
+        // the parent item came out as plain text. Each item owns its box now.
+        let blocks = blocks("- [ ] pai\n  - [x] filho");
+        let Block::List { items, .. } = &blocks[0] else { panic!("{blocks:?}") };
+        assert_eq!(items[0].task, Some(Task { done: false, index: 0 }));
+        let nested = items[0].nested.as_ref().expect("the sub-list");
+        assert_eq!(nested.items[0].task, Some(Task { done: true, index: 1 }));
+        assert_eq!(nested.items[0].plain(), "filho");
     }
 
     #[test]
@@ -392,8 +465,8 @@ mod tests {
         let blocks = blocks("- [ ] um\n\n1. [x] dois");
         let mut indexes = Vec::new();
         for block in &blocks {
-            if let Block::List { tasks, .. } = block {
-                indexes.extend(tasks.iter().flatten().map(|task| (task.index, task.done)));
+            if let Block::List { items, .. } = block {
+                indexes.extend(items.iter().filter_map(|item| item.task).map(|task| (task.index, task.done)));
             }
         }
         assert_eq!(indexes, [(0, false), (1, true)]);

@@ -17,7 +17,7 @@
 
 use crate::links;
 use crate::outline::slug;
-use crate::preview::{Align, Block, Span};
+use crate::preview::{Align, Block, ListItem, Span};
 
 /// The whole page: the note's title, the reader's language and the stylesheet, in one file.
 pub fn document(title: &str, language: &str, blocks: &[Block]) -> String {
@@ -79,23 +79,7 @@ fn block_html(block: &Block) -> String {
         }
         // An exported page has no vault behind it to ask: the query shows as it was written.
         Block::Query { source } => format!("<pre class=\"query\">{}</pre>", escape(source)),
-        Block::List { ordered, items, tasks } => {
-            let (open, close) = if *ordered { ("ol", "ol") } else { ("ul", "ul") };
-            let mut out = format!("<{open}>");
-            for (index, item) in items.iter().enumerate() {
-                let task = tasks.get(index).copied().flatten();
-                match task {
-                    Some(task) => {
-                        let checked = if task.done { " checked" } else { "" };
-                        let class = if task.done { "task done" } else { "task" };
-                        out.push_str(&format!("<li class=\"{class}\"><input type=\"checkbox\" disabled{checked}> {}</li>", spans_html(item)));
-                    }
-                    None => out.push_str(&format!("<li>{}</li>", spans_html(item))),
-                }
-            }
-            out.push_str(&format!("</{close}>"));
-            out
-        }
+        Block::List { ordered, items } => list_html(*ordered, items),
         Block::Code { language, text } => {
             let class =
                 if language.trim().is_empty() { String::new() } else { format!(" class=\"language-{}\"", escape(&language.trim().to_lowercase())) };
@@ -136,6 +120,26 @@ fn block_html(block: &Block) -> String {
         }
         Block::Rule => "<hr>".to_string(),
     }
+}
+
+/// A list as HTML, the sub-list of an item inside that item's `<li>`: the browser numbers and
+/// indents it the way the source did.
+fn list_html(ordered: bool, items: &[ListItem]) -> String {
+    let (open, close) = if ordered { ("ol", "ol") } else { ("ul", "ul") };
+    let mut out = format!("<{open}>");
+    for item in items {
+        let nested = item.nested.as_deref().map(|list| list_html(list.ordered, &list.items)).unwrap_or_default();
+        match item.task {
+            Some(task) => {
+                let checked = if task.done { " checked" } else { "" };
+                let class = if task.done { "task done" } else { "task" };
+                out.push_str(&format!("<li class=\"{class}\"><input type=\"checkbox\" disabled{checked}> {}{nested}</li>", spans_html(&item.spans)));
+            }
+            None => out.push_str(&format!("<li>{}{nested}</li>", spans_html(&item.spans))),
+        }
+    }
+    out.push_str(&format!("</{close}>"));
+    out
 }
 
 fn row_html(cells: &[Vec<Span>], aligns: &[Align], tag: &str) -> String {
@@ -464,8 +468,16 @@ mod tests {
     #[test]
     fn a_task_that_came_from_the_model_is_drawn_once() {
         // The model carries the box separately from the text; the export must not repeat it.
-        let blocks =
-            vec![Block::List { ordered: false, items: vec![vec![Span::Text("feito".into())]], tasks: vec![Some(Task { done: true, index: 0 })] }];
+        let blocks = vec![Block::List {
+            ordered: false,
+            items: vec![ListItem { spans: vec![Span::Text("feito".into())], task: Some(Task { done: true, index: 0 }), nested: None }],
+        }];
         assert_eq!(body(&blocks), "<ul><li class=\"task done\"><input type=\"checkbox\" disabled checked> feito</li></ul>");
+    }
+
+    #[test]
+    fn a_nested_list_is_drawn_inside_its_item() {
+        let html = page("- pai\n  - filho\n- irmão");
+        assert!(html.contains("<ul><li>pai<ul><li>filho</li></ul></li><li>irmão</li></ul>"), "{html}");
     }
 }
