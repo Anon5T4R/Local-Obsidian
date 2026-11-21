@@ -3,29 +3,34 @@
 //! The text is glyph runs with embedded (subsetted) fonts and a Unicode mapping taken from the
 //! original string, so a PDF reader can select, search and copy what it shows. What it draws, in
 //! this phase: headings, paragraphs with the inline styles (bold, italic, strike, code, highlight,
-//! tags, links), lists and checklists, quotes, callouts, tables with a grid, code blocks, rules and
-//! a page number. What it does not draw yet: pictures (they print as `[image: …]`) and link
-//! annotations - the next phase.
+//! tags, links), lists and checklists with their sub-lists indented by level, quotes, callouts,
+//! tables with a grid, code blocks, rules, the pictures the caller can read (embedded as images,
+//! else a `[image: …]` placeholder) and a page number. Links to the web become clickable
+//! annotations; a vault link (`#wikilink:…`) has no place outside the app and stays text.
 //!
 //! The crate owns layout and drawing, not policy: the app brings the faces (its own regular and
-//! mono, plus the craft-fonts fallbacks) and the blocks. The page is what print has used for a
-//! century: A4, 56 pt margins (about 20 mm), a 483 pt measure.
+//! mono, plus the craft-fonts fallbacks), the blocks, and the bytes of each picture it wants
+//! printed. The page is what print has used for a century: A4, 56 pt margins (about 20 mm), a 483 pt
+//! measure.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
 use craft_pdf::write::{self, Metadata, Writer, backend as krilla};
+use krilla::annotation::LinkAnnotation;
 use krilla::color::rgb;
-use krilla::geom::{PathBuilder, Point, Rect as PdfRect, Size, Transform};
+use krilla::geom::{PathBuilder, Point, Quadrilateral, Rect as PdfRect, Size, Transform};
+use krilla::image::Image;
 use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
-use localobsidian_md::preview::{Align, Block, Span};
+use localobsidian_md::preview::{Align, Block, ListItem, Span};
 use skrifa::instance::{LocationRef, Size as SkSize};
 use skrifa::{FontRef, MetadataProvider};
 
@@ -36,6 +41,18 @@ pub const MARGIN: f32 = 56.0;
 const CONTENT: f32 = PAGE.0 - 2.0 * MARGIN;
 const BODY: f32 = 10.5;
 const LINE: f32 = 15.6;
+/// One step of a nested list's indentation, and the room the marker takes before the text.
+const LIST_INDENT: f32 = 14.0;
+const LIST_MARKER: f32 = 18.0;
+/// How tall a picture may get on the page: past this it stops being a picture and starts being a
+/// page of its own.
+const IMAGE_CEILING: f32 = 320.0;
+/// The biggest picture embedded in a document. A vault can hold a TIFF-sized scan; the export
+/// leaves anything past this as the placeholder instead of carrying it into the PDF.
+pub const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
+
+/// The bytes of one picture the document embeds, as the caller reads them from wherever they live.
+pub type ImageBytes = Arc<Vec<u8>>;
 
 /// Text on paper.
 const INK: Rgb = Rgb(0.13, 0.13, 0.15);
@@ -95,11 +112,16 @@ impl std::error::Error for Error {}
 
 /// Lays `blocks` out on A4 pages and writes them to `path` as a PDF titled `title`.
 ///
+/// `images` answers the bytes of a picture the note embeds, given the destination as the note
+/// wrote it (`_attachments/foto.png`): the crate knows nothing about the vault, so the app resolves
+/// the path. A destination the caller has no bytes for, or bytes in a format the writer cannot
+/// decode, print as the `[image: …]` placeholder - a missing picture never fails the export.
+///
 /// The file is written atomically: a failure leaves no half document behind.
-pub fn export(blocks: &[Block], title: &str, faces: &Faces, path: &Path) -> Result<Report, Error> {
+pub fn export(blocks: &[Block], title: &str, faces: &Faces, images: &dyn Fn(&str) -> Option<ImageBytes>, path: &Path) -> Result<Report, Error> {
     let loaded = Loaded::new(faces)?;
     let mut sheet = Sheet::new(title.to_string());
-    sheet.blocks(blocks, MARGIN, CONTENT, &loaded);
+    sheet.blocks(blocks, MARGIN, CONTENT, &loaded, images);
     let pages = sheet.pages.len();
     let bytes = sheet.write(&loaded)?;
     if let Some(folder) = path.parent() {
@@ -220,6 +242,9 @@ struct Piece {
     accent: bool,
     underline: bool,
     color: Rgb,
+    /// The destination of a link, as the note wrote it: `write` turns the web ones into a clickable
+    /// annotation and leaves the vault ones (`#wikilink:…`) as text.
+    link: Option<String>,
 }
 
 impl Piece {
@@ -236,6 +261,7 @@ impl Piece {
             accent: false,
             underline: false,
             color: INK,
+            link: None,
         }
     }
 }
@@ -264,6 +290,17 @@ enum Op {
         color: Rgb,
         width: f32,
     },
+    /// A clickable area over a link's run on one line, in the surface's own coordinates (top-left
+    /// origin), with the URL the note wrote.
+    Link {
+        rect: PdfRect,
+        url: String,
+    },
+    /// A picture, in the rectangle it was fitted to.
+    Image {
+        rect: PdfRect,
+        image: Image,
+    },
 }
 
 struct Page {
@@ -278,11 +315,14 @@ struct Sheet {
     /// The tinted band a quote's or a callout's lines are drawn over: set while its body is laid
     /// out, so every line of it carries the same background and the same left bar.
     band: Option<Rgb>,
+    /// The pictures already decoded, by destination: `None` is a destination that could not be
+    /// embedded, asked once (a note that repeats a picture does not decode it twice).
+    pictures: HashMap<String, Option<Image>>,
 }
 
 impl Sheet {
     fn new(title: String) -> Self {
-        Self { title, pages: vec![Page { ops: Vec::new() }], y: MARGIN, band: None }
+        Self { title, pages: vec![Page { ops: Vec::new() }], y: MARGIN, band: None, pictures: HashMap::new() }
     }
 
     fn page(&mut self) -> &mut Page {
@@ -301,7 +341,7 @@ impl Sheet {
         top
     }
 
-    fn blocks(&mut self, blocks: &[Block], x: f32, width: f32, fonts: &Loaded) {
+    fn blocks(&mut self, blocks: &[Block], x: f32, width: f32, fonts: &Loaded, images: &dyn Fn(&str) -> Option<ImageBytes>) {
         for block in blocks {
             match block {
                 Block::Heading { level, spans } => {
@@ -325,49 +365,14 @@ impl Sheet {
                     self.flow(&pieces, x, width, LINE, fonts, None);
                     self.y += 5.0;
                 }
-                Block::List { ordered, items, tasks } => {
-                    for (index, item) in items.iter().enumerate() {
-                        let task = tasks.get(index).copied().flatten();
-                        // A nested item keeps its indentation in the text the parser hands over.
-                        let spaces = leading_spaces(item);
-                        let level = (spaces / 2).min(6);
-                        let inset = f32::from(level as u16) * 14.0;
-                        let marker = match task {
-                            Some(_) => String::new(),
-                            None if *ordered => format!("{}.", index + 1),
-                            None => "•".to_string(),
-                        };
-                        let top = self.room(LINE);
-                        let baseline = top + LINE * 0.76;
-                        if let Some(task) = task {
-                            self.checkbox(x + inset + 1.0, top + 4.0, task.done);
-                        } else {
-                            let mut piece = Piece::plain(marker, BODY);
-                            piece.color = WEAK;
-                            self.run(&piece, x + inset, baseline, fonts);
-                        }
-                        let mut pieces = inline(item);
-                        for piece in &mut pieces {
-                            piece.size = BODY;
-                            piece.text = piece.text.trim_start().to_string();
-                        }
-                        let lines = wrap(&pieces, width - 18.0 - inset, fonts);
-                        for (line_index, line) in lines.iter().enumerate() {
-                            let baseline = if line_index == 0 {
-                                baseline
-                            } else {
-                                let top = self.room(LINE);
-                                top + LINE * 0.76
-                            };
-                            self.line(line, x + 18.0 + inset, baseline, fonts);
-                        }
-                    }
+                Block::List { ordered, items } => {
+                    self.items(*ordered, items, 0, x, width, fonts);
                     self.y += 3.0;
                 }
                 Block::Quote(body) => {
                     let saved = self.band;
                     self.band = Some(Rgb(0.62, 0.62, 0.72));
-                    self.blocks(body, x + 14.0, width - 14.0, fonts);
+                    self.blocks(body, x + 14.0, width - 14.0, fonts, images);
                     self.band = saved;
                     self.y += 2.0;
                 }
@@ -382,7 +387,7 @@ impl Sheet {
                         piece.color = color;
                         self.flow(&[piece], x + 14.0, width - 20.0, 15.5, fonts, Some((color, 0.10)));
                     }
-                    self.blocks(body, x + 14.0, width - 20.0, fonts);
+                    self.blocks(body, x + 14.0, width - 20.0, fonts, images);
                     self.band = saved;
                     self.y += 8.0;
                 }
@@ -392,15 +397,7 @@ impl Sheet {
                 }
                 Block::Code { language, text } => self.code(language, text, x, width, fonts),
                 Block::Query { source } => self.code("query", source, x, width, fonts),
-                Block::Image { destination, alt } => {
-                    let text = alt.iter().map(Span::plain).collect::<String>();
-                    let label = if text.trim().is_empty() { format!("[image: {destination}]") } else { format!("[image: {text}]") };
-                    let mut piece = Piece::plain(label, BODY);
-                    piece.color = WEAK;
-                    piece.italic = true;
-                    self.flow(&[piece], x, width, LINE, fonts, None);
-                    self.y += 5.0;
-                }
+                Block::Image { destination, alt } => self.image(destination, alt, x, width, fonts, images),
                 Block::Rule => {
                     let top = self.room(10.0);
                     let y = top + 4.0;
@@ -409,6 +406,74 @@ impl Sheet {
                 }
             }
         }
+    }
+
+    /// One list, and the list under each item, one indentation step per level.
+    fn items(&mut self, ordered: bool, items: &[ListItem], level: usize, x: f32, width: f32, fonts: &Loaded) {
+        let inset = level as f32 * LIST_INDENT;
+        for (index, item) in items.iter().enumerate() {
+            let top = self.room(LINE);
+            let baseline = top + LINE * 0.76;
+            match item.task {
+                Some(task) => self.checkbox(x + inset + 1.0, top + 4.0, task.done),
+                None => {
+                    let marker = if ordered { format!("{}.", index + 1) } else { "•".to_string() };
+                    let mut piece = Piece::plain(marker, BODY);
+                    piece.color = WEAK;
+                    self.run(&piece, x + inset, baseline, fonts);
+                }
+            }
+            let mut pieces = inline(&item.spans);
+            for piece in &mut pieces {
+                piece.size = BODY;
+                piece.text = piece.text.trim_start().to_string();
+            }
+            let lines = wrap(&pieces, width - LIST_MARKER - inset, fonts);
+            for (line_index, line) in lines.iter().enumerate() {
+                let baseline = if line_index == 0 {
+                    baseline
+                } else {
+                    let top = self.room(LINE);
+                    top + LINE * 0.76
+                };
+                self.line(line, x + LIST_MARKER + inset, baseline, fonts);
+            }
+            if let Some(nested) = &item.nested {
+                self.items(nested.ordered, &nested.items, level + 1, x, width, fonts);
+            }
+        }
+    }
+
+    /// A picture, embedded when the caller has bytes the writer can decode; else the placeholder
+    /// the export has always printed for one.
+    fn image(&mut self, destination: &str, alt: &[Span], x: f32, width: f32, fonts: &Loaded, images: &dyn Fn(&str) -> Option<ImageBytes>) {
+        let picture = self.picture(destination, images);
+        let fitted = picture.as_ref().and_then(|picture| fitted_size(picture.size(), width));
+        if let (Some(picture), Some((picture_width, picture_height))) = (picture, fitted) {
+            let top = self.room(picture_height);
+            if let Some(rect) = PdfRect::from_xywh(x, top, picture_width, picture_height) {
+                self.page().ops.push(Op::Image { rect, image: picture });
+            }
+            self.y += 5.0;
+            return;
+        }
+        let text = alt.iter().map(Span::plain).collect::<String>();
+        let label = if text.trim().is_empty() { format!("[image: {destination}]") } else { format!("[image: {text}]") };
+        let mut piece = Piece::plain(label, BODY);
+        piece.color = WEAK;
+        piece.italic = true;
+        self.flow(&[piece], x, width, LINE, fonts, None);
+        self.y += 5.0;
+    }
+
+    /// The picture at `destination`, decoded once per document.
+    fn picture(&mut self, destination: &str, images: &dyn Fn(&str) -> Option<ImageBytes>) -> Option<Image> {
+        if let Some(cached) = self.pictures.get(destination) {
+            return cached.clone();
+        }
+        let decoded = images(destination).as_ref().and_then(decode_image);
+        self.pictures.insert(destination.to_string(), decoded.clone());
+        decoded
     }
 
     /// One paragraph: wraps the pieces and draws each line, with an optional tinted band behind.
@@ -452,6 +517,46 @@ impl Sheet {
             }
             at += width;
         }
+        self.links(line, x, baseline, fonts);
+    }
+
+    /// Registers the clickable rectangles of a laid-out line: the words of one link are a single
+    /// area, and a link that wraps gets one area per line.
+    ///
+    /// The destination goes through the writer's own allow-list: an `http(s)`/`mailto` URL becomes
+    /// an annotation, and a vault link (`#wikilink:…`) has nowhere to go outside the app, so it is
+    /// left as the underlined text it already is.
+    fn links(&mut self, line: &[Piece], x: f32, baseline: f32, fonts: &Loaded) {
+        let mut run: Option<(String, f32, f32, f32)> = None;
+        let mut at = x;
+        for piece in line {
+            let width = advance(piece, fonts);
+            let continues = matches!((&piece.link, &run), (Some(url), Some((current, ..))) if current == url);
+            if !continues {
+                if let Some((url, from, to, size)) = run.take() {
+                    self.link_rect(&url, from, to, baseline, size);
+                }
+                if let Some(url) = &piece.link {
+                    run = Some((url.clone(), at, at + width, piece.size));
+                }
+            } else if let Some((_, _, to, size)) = run.as_mut() {
+                *to = at + width;
+                *size = piece.size;
+            }
+            at += width;
+        }
+        if let Some((url, from, to, size)) = run {
+            self.link_rect(&url, from, to, baseline, size);
+        }
+    }
+
+    /// One clickable area over `[from, to]` of a line, when the writer would accept its target.
+    fn link_rect(&mut self, url: &str, from: f32, to: f32, baseline: f32, size: f32) {
+        if to <= from || write::uri_target(url).is_none() {
+            return;
+        }
+        let Some(rect) = PdfRect::from_xywh(from, baseline - size * 0.86, to - from, size * 1.24) else { return };
+        self.page().ops.push(Op::Link { rect, url: url.to_string() });
     }
 
     /// One run of glyphs, split by face so a CJK character inside a Latin word keeps its font.
@@ -644,13 +749,15 @@ impl Sheet {
                     Align::Left => 0.0,
                 };
                 let baseline = top + cell_line * (line_index as f32 + 0.85);
-                let mut pen = cursor + 5.0 + offset.max(0.0);
+                let start = cursor + 5.0 + offset.max(0.0);
+                let mut pen = start;
                 for piece in line {
                     let mut piece = piece.clone();
                     piece.bold |= bold;
                     self.run(&piece, pen, baseline, fonts);
                     pen += advance(&piece, fonts);
                 }
+                self.links(line, start, baseline, fonts);
             }
             cursor += width_of;
         }
@@ -680,20 +787,31 @@ impl Sheet {
             let document = writer.document_mut();
             for (index, page) in self.pages.iter().enumerate() {
                 let mut started = document.start_page_with(PageSettings::new(size));
-                let mut surface = started.surface();
-                for op in &page.ops {
-                    draw(&mut surface, op, fonts);
+                {
+                    let mut surface = started.surface();
+                    for op in &page.ops {
+                        draw(&mut surface, op, fonts);
+                    }
+                    let mut number = Piece::plain(format!("{} / {total}", index + 1), 8.0);
+                    number.color = WEAK;
+                    let baseline = PAGE.1 - MARGIN + 22.0;
+                    let width = advance(&number, fonts);
+                    let mut run = glyphs_for(&number.text, 0, Slot::Regular, number.size, fonts);
+                    let at = Point::from_xy((PAGE.0 - width) / 2.0, baseline);
+                    surface.set_stroke(None);
+                    surface.set_fill(Some(fill(WEAK, 1.0)));
+                    run.shrink_to_fit();
+                    surface.draw_glyphs(at, &run, fonts.regular.pdf.clone(), &number.text, number.size, false);
                 }
-                let mut number = Piece::plain(format!("{} / {total}", index + 1), 8.0);
-                number.color = WEAK;
-                let baseline = PAGE.1 - MARGIN + 22.0;
-                let width = advance(&number, fonts);
-                let mut run = glyphs_for(&number.text, 0, Slot::Regular, number.size, fonts);
-                let at = Point::from_xy((PAGE.0 - width) / 2.0, baseline);
-                surface.set_stroke(None);
-                surface.set_fill(Some(fill(WEAK, 1.0)));
-                run.shrink_to_fit();
-                surface.draw_glyphs(at, &run, fonts.regular.pdf.clone(), &number.text, number.size, false);
+                // The link areas are annotations, not drawing: they go on the page once the
+                // surface has been written. The writer refuses a target it would not open, so a
+                // vault link simply has no annotation.
+                for op in &page.ops {
+                    let Op::Link { rect, url } = op else { continue };
+                    let Some(target) = write::uri_target(url) else { continue };
+                    let quad = Quadrilateral::from(*rect);
+                    started.add_annotation(LinkAnnotation::new_with_quad_points(vec![quad], target).into());
+                }
             }
         }
         writer.finish().map_err(|error| Error::Pdf(format!("{error}")))
@@ -741,6 +859,15 @@ fn draw(surface: &mut Surface, op: &Op, fonts: &Loaded) {
                 surface.pop();
             }
         }
+        Op::Image { rect, image } => {
+            let Some(size) = Size::from_wh(rect.width(), rect.height()) else { return };
+            surface.push_transform(&Transform::from_translate(rect.left(), rect.top()));
+            surface.draw_image(image.clone(), size);
+            surface.pop();
+        }
+        // A link is an annotation, added to the page once the surface is written: the words are
+        // drawn by their own glyph run, and there is nothing of the area to paint.
+        Op::Link { .. } => {}
     }
 }
 
@@ -797,7 +924,7 @@ fn push_span(span: &Span, size: f32, look: &Look, out: &mut Vec<Piece>) {
         Span::Code(text) => out.push(Piece { text: text.clone(), code: true, color: Rgb(0.30, 0.18, 0.42), ..base }),
         Span::Highlight(text) => out.push(Piece { text: text.clone(), highlight: true, ..base }),
         Span::Tag(tag) => out.push(Piece { text: format!("#{tag}"), accent: true, ..base }),
-        Span::Link { spans, .. } => {
+        Span::Link { spans, destination } => {
             let mut pieces = Vec::new();
             for span in spans {
                 push_span(span, size, look, &mut pieces);
@@ -805,6 +932,7 @@ fn push_span(span: &Span, size: f32, look: &Look, out: &mut Vec<Piece>) {
             for mut piece in pieces {
                 piece.accent = true;
                 piece.underline = true;
+                piece.link = Some(destination.clone());
                 out.push(piece);
             }
         }
@@ -835,20 +963,36 @@ fn height_of(lines: &[Vec<Vec<Piece>>], cell_line: f32) -> f32 {
     count as f32 * cell_line + 5.0
 }
 
-/// How many spaces a list item starts with (its nesting, as the parser hands it over).
-fn leading_spaces(spans: &[Span]) -> usize {
-    for span in spans {
-        match span {
-            Span::Text(text) => {
-                let spaces = text.chars().take_while(|character| *character == ' ').count();
-                if spaces > 0 || !text.is_empty() {
-                    return spaces;
-                }
-            }
-            _ => return 0,
-        }
+/// The picture in `bytes`: PNG, JPEG, GIF and WebP are the formats the writer decodes itself, and
+/// each one says which it is in its own header. Anything else, and anything bigger than
+/// [`MAX_IMAGE_BYTES`], is not embedded (the caller sees the placeholder instead).
+fn decode_image(bytes: &ImageBytes) -> Option<Image> {
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return None;
     }
-    0
+    let data = krilla::Data::from(bytes.clone());
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Image::from_png(data, true).ok()
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Image::from_jpeg(data, true).ok()
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Image::from_gif(data, true).ok()
+    } else if bytes.len() > 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Image::from_webp(data, true).ok()
+    } else {
+        None
+    }
+}
+
+/// The size a picture takes on the page: its pixels at most 1 pt each (a picture is not upscaled),
+/// fitted to the measure and under [`IMAGE_CEILING`], with its proportions kept.
+fn fitted_size(pixels: (u32, u32), width: f32) -> Option<(f32, f32)> {
+    let (pixels_w, pixels_h) = (pixels.0 as f32, pixels.1 as f32);
+    if pixels_w <= 0.0 || pixels_h <= 0.0 {
+        return None;
+    }
+    let scale = (width / pixels_w).min(IMAGE_CEILING / pixels_h).min(1.0);
+    Size::from_wh(pixels_w * scale, pixels_h * scale).map(|size| (size.width(), size.height()))
 }
 
 /// Greedy wrapping: the spaces stay with the word before them, so a line never starts with one.
@@ -969,11 +1113,24 @@ mod tests {
         preview::blocks(markdown)
     }
 
+    /// A document whose pictures have no bytes behind them: every image prints the placeholder.
+    fn no_images(_: &str) -> Option<ImageBytes> {
+        None
+    }
+
+    /// A 2×2 PNG (red, blue, green, white), small enough to be embedded in a test.
+    const PIXELS: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 1, 115, 82,
+        71, 66, 0, 174, 206, 28, 233, 0, 0, 0, 4, 103, 65, 77, 65, 0, 0, 177, 143, 11, 252, 97, 5, 0, 0, 0, 9, 112, 72, 89, 115, 0, 0, 14, 195, 0, 0,
+        14, 195, 1, 199, 111, 168, 100, 0, 0, 0, 21, 73, 68, 65, 84, 24, 87, 99, 248, 207, 192, 0, 66, 255, 25, 24, 26, 24, 254, 131, 0, 0, 70, 79,
+        9, 120, 162, 165, 206, 247, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+
     #[test]
     fn a_note_becomes_a_pdf_with_real_text() {
         let note = "# Sepse\n\nParágrafo com **negrito**, *itálico*, `código`, ==destaque== e [[Outra nota]].\n\n- um item\n- [x] feito\n- [ ] pendente\n\n> citação\n\n> [!warning] Cuidado\n> O corpo do aviso.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```rust\nfn main() {}\n```\n\n---\n";
         let path = scratch("note");
-        let report = export(&blocks(note), "Sepse", &faces(), &path).expect("the export");
+        let report = export(&blocks(note), "Sepse", &faces(), &no_images, &path).expect("the export");
         assert!(report.pages >= 1);
         let bytes = std::fs::read(&path).expect("the file");
         assert_eq!(report.bytes, bytes.len());
@@ -992,13 +1149,13 @@ mod tests {
             note.push_str(&format!("Paragrafo {index} com uma frase suficientemente longa para ocupar a linha inteira da pagina.\n\n"));
         }
         let mut sheet = Sheet::new("Longa".to_string());
-        sheet.blocks(&blocks(&note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"));
+        sheet.blocks(&blocks(&note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"), &no_images);
         assert!(sheet.pages.len() > 2, "120 paragraphs do not fit on one page");
         for page in &sheet.pages {
             for op in &page.ops {
                 let (top, bottom) = match op {
                     Op::Glyphs { at, size, .. } => (at.y - size, at.y),
-                    Op::Rect { rect, .. } => (rect.top(), rect.bottom()),
+                    Op::Rect { rect, .. } | Op::Link { rect, .. } | Op::Image { rect, .. } => (rect.top(), rect.bottom()),
                     Op::Line { from, to, .. } => (from.y.min(to.y), from.y.max(to.y)),
                 };
                 assert!(top >= MARGIN - 1.0, "something was drawn above the margin: {top}");
@@ -1025,7 +1182,7 @@ mod tests {
     #[test]
     fn an_empty_note_is_one_blank_page() {
         let path = scratch("empty");
-        let report = export(&[], "", &faces(), &path).expect("the export");
+        let report = export(&[], "", &faces(), &no_images, &path).expect("the export");
         assert_eq!(report.pages, 1);
         assert!(report.bytes > 0);
         let _ = std::fs::remove_file(&path);
@@ -1036,7 +1193,7 @@ mod tests {
         // No fallback face here: the characters have no glyph, and the page says so by drawing the
         // notdef box - the export must not fail, and the text is still there for a reader.
         let path = scratch("cjk");
-        let report = export(&blocks("# 日本語\n\n本文です。\n"), "日本語", &faces(), &path).expect("the export");
+        let report = export(&blocks("# 日本語\n\n本文です。\n"), "日本語", &faces(), &no_images, &path).expect("the export");
         assert!(report.pages >= 1);
         let _ = std::fs::remove_file(&path);
     }
@@ -1048,7 +1205,7 @@ mod tests {
             note.push_str(&format!("| {index} | valor {index} |\n"));
         }
         let mut sheet = Sheet::new("Tabela".to_string());
-        sheet.blocks(&blocks(&note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"));
+        sheet.blocks(&blocks(&note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"), &no_images);
         assert!(sheet.pages.len() > 1, "80 rows do not fit on one page");
         for page in &sheet.pages {
             for op in &page.ops {
@@ -1065,7 +1222,7 @@ mod tests {
         // fit the measure, and no run may be drawn past it.
         let note = "| Coluna curta | Uma coluna com nome bem mais longo | N | Outra |\n|---|---|---|---|\n| a | texto medio na celula | 1 | 2 |\n";
         let mut sheet = Sheet::new("Tabela".to_string());
-        sheet.blocks(&blocks(note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"));
+        sheet.blocks(&blocks(note), MARGIN, CONTENT, &Loaded::new(&faces()).expect("the faces"), &no_images);
         let right = MARGIN + CONTENT;
         for page in &sheet.pages {
             for op in &page.ops {
@@ -1075,5 +1232,164 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Where a word was drawn, by its run's text.
+    fn drawn_at(sheet: &Sheet, word: &str) -> f32 {
+        for page in &sheet.pages {
+            for op in &page.ops {
+                if let Op::Glyphs { at, text, .. } = op
+                    && text == word
+                {
+                    return at.x;
+                }
+            }
+        }
+        panic!("no run for {word:?}");
+    }
+
+    fn sheet_of(note: &str, faces: &Loaded) -> Sheet {
+        let mut sheet = Sheet::new("Teste".to_string());
+        sheet.blocks(&blocks(note), MARGIN, CONTENT, faces, &no_images);
+        sheet
+    }
+
+    #[test]
+    fn a_nested_list_is_indented_one_step_per_level() {
+        // The level is what the model says, not the leading spaces of the text: `filho` sits one
+        // indent inside `pai`, and `neto` one more inside `filho`.
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let sheet = sheet_of("- pai\n  - filho\n    - neto", &fonts);
+        let pai = drawn_at(&sheet, "pai");
+        let filho = drawn_at(&sheet, "filho");
+        let neto = drawn_at(&sheet, "neto");
+        assert!((filho - pai - LIST_INDENT).abs() < 0.01, "the child is one step in (pai {pai}, filho {filho})");
+        assert!((neto - filho - LIST_INDENT).abs() < 0.01, "the grandchild is another step in (filho {filho}, neto {neto})");
+    }
+
+    #[test]
+    fn an_ordered_list_numbers_each_level_on_its_own() {
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let sheet = sheet_of("1. um\n2. dois\n   1. dentro", &fonts);
+        let markers: Vec<&str> = sheet
+            .pages
+            .iter()
+            .flat_map(|page| &page.ops)
+            .filter_map(|op| match op {
+                Op::Glyphs { text, .. } if text.ends_with('.') => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(markers, ["1.", "2.", "1."], "the sub-list restarts its own count");
+    }
+
+    #[test]
+    fn an_external_link_becomes_a_link_annotation() {
+        // The text keeps being selectable text; the annotation is what makes it clickable.
+        let path = scratch("link");
+        export(&blocks("veja [a página](https://example.com/nota)"), "Link", &faces(), &no_images, &path).expect("the export");
+        let bytes = std::fs::read(&path).expect("the file");
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("/Link"), "the link annotation was written: {text}");
+        assert!(text.contains("https://example.com/nota"), "the target is in the file");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_vault_link_has_no_annotation() {
+        // `#wikilink:` only means something inside the app: the words are drawn, the file has no
+        // clickable area pointing nowhere.
+        let path = scratch("wikilink");
+        export(&blocks("veja [[Outra nota]]"), "Nota", &faces(), &no_images, &path).expect("the export");
+        let bytes = std::fs::read(&path).expect("the file");
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(!text.contains("/Link"), "a vault link is not an annotation: {text}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_link_run_gets_one_area_with_the_url() {
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let sheet = sheet_of("veja [a página certa](https://example.com) agora", &fonts);
+        let links: Vec<(&str, PdfRect)> = sheet
+            .pages
+            .iter()
+            .flat_map(|page| &page.ops)
+            .filter_map(|op| match op {
+                Op::Link { rect, url } => Some((url.as_str(), *rect)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(links.len(), 1, "the three words of the link are one annotation: {links:?}");
+        assert_eq!(links[0].0, "https://example.com");
+        assert!(links[0].1.width() > 0.0 && links[0].1.height() > 0.0, "{:?}", links[0].1);
+    }
+
+    #[test]
+    fn a_picture_is_embedded_and_its_bytes_reach_the_file() {
+        let picture = |_: &str| Some(Arc::new(PIXELS.to_vec()));
+        let path = scratch("image");
+        export(&blocks("![uma foto](_attachments/foto.png)"), "Foto", &faces(), &picture, &path).expect("the export");
+        let bytes = std::fs::read(&path).expect("the file");
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("/Subtype /Image") || text.contains("/Subtype/Image"), "the image XObject was written");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_picture_is_fitted_to_the_measure_and_keeps_its_proportions() {
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let mut sheet = Sheet::new("Foto".to_string());
+        // 4×2 pixels at 1 pt each: small, so the picture is drawn at its own size.
+        let picture = |_: &str| Some(Arc::new(PIXELS.to_vec()));
+        sheet.blocks(&blocks("![foto](foto.png)"), MARGIN, CONTENT, &fonts, &picture);
+        let rect = sheet.pages.iter().flat_map(|page| &page.ops).find_map(|op| match op {
+            Op::Image { rect, .. } => Some(*rect),
+            _ => None,
+        });
+        let rect = rect.expect("the picture was drawn");
+        assert!((rect.width() - 2.0).abs() < 0.01 && (rect.height() - 2.0).abs() < 0.01, "the 2×2 picture is 2×2 pt: {rect:?}");
+        assert!(rect.left() >= MARGIN - 0.01 && rect.right() <= MARGIN + CONTENT + 0.01, "inside the measure: {rect:?}");
+    }
+
+    #[test]
+    fn a_picture_the_writer_cannot_decode_is_a_placeholder() {
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let garbage = |_: &str| Some(Arc::new(b"isto nao e uma imagem".to_vec()));
+        let mut sheet = Sheet::new("Foto".to_string());
+        sheet.blocks(&blocks("![quebrada](quebrada.png)"), MARGIN, CONTENT, &fonts, &garbage);
+        let mut placeholder = false;
+        for op in sheet.pages.iter().flat_map(|page| &page.ops) {
+            assert!(!matches!(op, Op::Image { .. }), "nothing is embedded");
+            if let Op::Glyphs { text, .. } = op
+                && text.starts_with("[image:")
+            {
+                placeholder = true;
+            }
+        }
+        assert!(placeholder, "the placeholder the export always printed is still there");
+    }
+
+    #[test]
+    fn a_picture_too_big_to_embed_is_a_placeholder() {
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let huge = vec![0u8; MAX_IMAGE_BYTES + 1];
+        let too_big = move |_: &str| Some(Arc::new(huge.clone()));
+        let mut sheet = Sheet::new("Foto".to_string());
+        sheet.blocks(&blocks("![enorme](enorme.png)"), MARGIN, CONTENT, &fonts, &too_big);
+        assert!(
+            !sheet.pages.iter().flat_map(|page| &page.ops).any(|op| matches!(op, Op::Image { .. })),
+            "a picture past the limit is not carried into the PDF"
+        );
+    }
+
+    #[test]
+    fn the_fitted_size_never_upscales_and_never_overflows() {
+        assert_eq!(fitted_size((40, 20), CONTENT), Some((40.0, 20.0)), "a small picture keeps its pixels");
+        let (width, height) = fitted_size((4000, 2000), CONTENT).expect("a big picture fits the measure");
+        assert!((width - CONTENT).abs() < 0.01 && (height - CONTENT / 2.0).abs() < 0.01, "{width}×{height}");
+        let (_, height) = fitted_size((200, 4000), CONTENT).expect("a tall picture fits the ceiling");
+        assert!(height <= IMAGE_CEILING + 0.01, "{height}");
+        assert_eq!(fitted_size((0, 10), CONTENT), None, "a picture with no pixels is not drawn");
     }
 }
