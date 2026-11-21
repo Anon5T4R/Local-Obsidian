@@ -35,12 +35,12 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
   `app/commands.rs`), `i18n.rs`, `pickers.rs`, `fonts.rs`, `suite_entry.rs` (entrada no catálogo),
   `build.rs` (ícone/VERSIONINFO, catálogos i18n, fontes)
 - `crates/localobsidian-*` — camadas (registradas em `xtask/src/layers.rs` `TABLE`); UI só em L5+
-- `libs/` — forks vendored: `craft-libs` (com `crates/update` espelhado do `local-libs`),
-  `egui` 6d518fc, `winit` a517b38, `winprint.rs`, `rustls-rustcrypto`
+- `libs/` — forks vendored: `craft-libs` (com `crates/update` espelhado do `local-libs`), `egui` 6d518fc,
+  `winit` a517b38, `winprint.rs`, `rustls-rustcrypto`, `local-ai` (o cliente BYOK da suíte, conforme)
 - `assets/` — `app-icon/`, `craft-fonts/` vendored (build input `CRAFT_FONTS_DIR`), `ATTRIBUTION.md`
 - `i18n/locales/` — catálogos TSV `context⇥fonte EN⇥tradução`, embutidos pelo `build.rs`
 - `packaging/` — Windows (WiX/MSI), Linux (AppImage/deb/rpm/tar), Arch (PKGBUILD), minisign
-- `xtask/` — `ci`, `fmt`, `assets`, `layers`, `version`, `ico`
+- `xtask/` — `ci`, `fmt`, `assets`, `layers`, `version`, `ico`, `qa-vault`/`qa-shots`/`qa-sample`
 - `scripts/check-mirror.sh` — confere as crates e os assets (`craft-fonts`) espelhados do `local-libs` contra a fonte (CI e `xtask ci`)
 
 ## Build

@@ -21,14 +21,13 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Backlinks com âncora | só `backlinks[nomeDaNota]` (um `[[Nota#Seção]]` não aparece) | conta também (`parse_target` compara a nota) | menção é menção; era um buraco do upstream, não uma decisão |
 | Âncoras de heading | `slugify` ASCII (`\w`), ids persistidos no HTML | slug Unicode (mantém acentos), id só para casar `[[Nota#Seção]]` | id não vai a arquivo; manter a letra evita `seção`→`seco` |
 | Callout com formatação no título | HTML com ênfase | título em texto puro, corpo preserva ênfase | o modelo de blocos não tem spans no título |
-| Checkbox na leitura | clique alterna a caixa | `Ctrl+Enter` no editor | o índice do checkbox por fonte não mapeia 1:1 com a leitura (embeds/listas aninhadas) |
 | Escrita | autosave 800 ms + `safe-write` | igual (temp + rename, retry no Windows) | — |
 | Busca | `toLowerCase` + `includes` (limitação #1 Keep) | igual, **sem** folding de acento e **sem** stemming | decisão do upstream mantida |
 | Regex na busca | `new RegExp` do JS | crate `regex` (mesmo `.*`), sintaxe do Rust | JS tem backreference/lookahead; Rust não (diferença anotada) |
 | Embed | injeta `<div class="embed">` no HTML | vira callout `> [!embed] Nota › Seção` | sem pipeline HTML |
 | Watcher de arquivos | chokidar (`awaitWriteFinish`, eventos por tipo) | `notify` 8, recursivo, com debounce de 300 ms; `.saving`/dotfiles/`.openobsidian` descartados; **a nota aberta vence** (buffer sujo não é sobrescrito, avisa na status bar) | o do upstream não filtra as escritas do próprio app nem o `srs.json`; aqui o "próprio write" é reconhecido por path + instante, não por tempo de settle |
 | Math | KaTeX | TeX em monoespaçado (pendente) | ver nota abaixo |
-| Binários (PDF/DOCX/EPUB/ODT) na árvore | aparecem | fora da árvore | listar o que não abre é pior que não listar |
+| Binários (`.pdf`/`.docx`/`.odt`/`.epub`/`.txt`) na árvore | aparecem | aparecem apagados entre as notas e as pastas e abrem no app do sistema; não são notas — busca, wikilinks e backlinks não os veem | um documento do cofre não pode sumir da árvore só por não ser editável |
 | SRS/flashcards | `srs.ts` + `cards.ts` + main/IPC (`srs.json`) | crate `localobsidian-review` (SM-2 + extração + arquivo) + painel Review | mesmo algoritmo e **mesmo arquivo**; o app só lê/escreve `.openobsidian/srs.json` |
 | Estado do SRS em memória | cache por vault no processo main | `VaultState.srs`, re-sincronizado no reload e depois de cada save | o Electron precisa do cache porque o renderer é outro processo; aqui é um `BTreeMap` no mesmo dono do buffer |
 | Import `.apkg` | `main/apkg.ts` (zip + SQLite) | **adiado** (F5, com o João) | ler `.apkg` pede SQLite (dep com C) ou um parser de banco próprio; fora da regra pure-Rust |
@@ -38,7 +37,7 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Nota diária | nome `YYYY-MM-DD` na raiz + template `daily` | igual | — |
 | ODT/DOCX | `odtToHtml` + mammoth → HTML → turndown (`.md` ao lado do arquivo) | crate `localobsidian-convert`: ZIP + XML → **Markdown direto**; a nota vai para a pasta da nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
 | Export ODT/DOCX | **não existe** no upstream (só export HTML/PDF) | também não | não se inventa direção que o spec não tem |
-| Conversão de documento | botão na barra, com o arquivo já na árvore | item de menu + seletor nativo; o binário fica fora da árvore | a árvore lista só `.md` (decisão do port) |
+| Conversão de documento | botão na barra, com o arquivo já na árvore | item de menu + seletor nativo, porque a árvore agora lista os binários e um botão ali só serviria à nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
 | Checkbox na leitura | clicável (CodeMirror resolve a posição) | clicável: a leitura conta qual caixa é (`n`-ésima) e `toggle_task` acha a mesma linha no fonte | `prepare` reescreve o texto, então deslocamento de byte não sobrevive; a contagem sim |
 | Import Anki `.apkg` | `sql.js` (SQLite em WASM) + `fzstd` para a mídia | **não** — só a exportação de texto | ver a nota abaixo |
 | Import Anki texto | `srs:anki-pick` → `srs:anki-write`, 100 cartões por nota | igual (mesmo `chunk_cards`, mesma colisão de nome com sufixo numérico); notas soltas, não uma pasta por baralho | o upstream cria uma pasta por baralho quando a exportação passa de 100; aqui as notas ficam na raiz com sufixo |
@@ -81,13 +80,12 @@ cliques) e o import dela está implementado. O `.apkg` fica como limitação no 
 
 ### Pendências herdadas do escopo
 
-- Autocomplete do `[[` existe e é testado; falta só o fuzzy por alias (hoje é `contains`).
+- Autocomplete do `[[`: nome e alias por `contains` (sem fuzzy de distância nem ranking por uso).
 - O painel de busca não tem histórico de queries (o upstream tampouco).
-- Sem IA (o port é files-only, por contrato) e sem sistema de plugins: o do upstream era JS no
-  renderer, e aqui não há renderer — divergência estrutural, documentada no README.
+- Sem sistema de plugins: o do upstream era JS no renderer, e aqui não há renderer — divergência
+  estrutural, documentada no README.
 - Import de `.apkg` adiado (precisa de SQLite; ver a nota acima).
 - Math/TeX renderizado segue em unidade própria (fontes matemáticas + pintor); hoje é monoespaçado.
-- **Export PDF** no roadmap pós-1.0 (pipeline de impressão; o upstream usa `printToPDF` do Electron).
 
 ### Decisão do arquiteto 2026-11-15: limitações #4 e #5 do upstream
 

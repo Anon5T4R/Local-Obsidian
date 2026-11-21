@@ -9,7 +9,7 @@ Port do **OpenObsidian** para a família craft: o comportamento vem do app Elect
 estrutura é do padrão craft. O contrato de vault é o mesmo do OpenObsidianAndroid (files-only), para
 que o mesmo cofre abra nos dois.
 
-## O que funciona hoje (v1.2.0)
+## O que funciona hoje
 
 - **Cofre**: abrir/escolher a pasta (o último cofre volta no próximo start), árvore com notas antes
   das pastas e ordenação por nome ou modificação, filtro instantâneo por nome/tag/alias, **chips de
@@ -112,8 +112,9 @@ que o mesmo cofre abra nos dois.
   buscar e copiar funcionam no leitor de PDF. Sai o que a leitura desenha: títulos, parágrafos com
   negrito/itálico/riscado/código/destaque, listas e tarefas com as sub-listas indentadas por nível,
   citação, callout com a cor do tipo, tabela com grade e colunas medidas, código em mono, as
-  imagens do cofre embutidas (até 16 MB; sem o arquivo, ou num formato que o escritor não lê, fica
-  o `[image: …]`) e o número da página. **Links** para a web viram áreas clicáveis no leitor; um
+  imagens do cofre embutidas (até 16 MB e 64 MP — o tamanho sai do cabeçalho do arquivo, então um
+  PNG gigante vira o `[image: …]` sem nunca ser decodificado; sem o arquivo, ou num formato que o
+  escritor não lê, fica o mesmo marcador) e o número da página. **Links** para a web viram áreas clicáveis no leitor; um
   `[[wikilink]]` fica texto, porque só existe dentro do app.
 - **Ajuda** (`Ajuda → Atalhos e ajuda`): as teclas, a sintaxe que uma nota aceita e onde cada coisa
   mora no cofre, com link para esta documentação.
@@ -150,7 +151,7 @@ que o mesmo cofre abra nos dois.
 | Seletor nativo de arquivo assíncrono (rfd 0.17 + pollster, sem travar o frame) | `apps/localobsidian/src/pickers.rs` |
 | Fontes craft-fonts embutidas (CJK/árabe/hebraico/devanágari) | `assets/craft-fonts/`, `apps/localobsidian/src/fonts.rs`, `build.rs` |
 | CI (ubuntu + windows + Arch + guardião de `git+`) e release por tag com minisign | `.github/workflows/` |
-| xtask: `fmt`, `assets`, `layers`, `version`, `ico` | `xtask/` |
+| xtask: `ci`, `fmt`, `assets`, `layers`, `version`, `ico`, `qa-vault`/`qa-shots`/`qa-sample` | `xtask/` |
 
 ## Estrutura
 
@@ -162,7 +163,7 @@ assets/              app-icon/, craft-fonts/ (vendored), ATTRIBUTION.md
 i18n/locales/        catálogos de tradução (context ⇥ fonte EN ⇥ tradução)
 libs/                forks vendored: craft-libs, egui, winit, rustls-rustcrypto, winprint.rs
 packaging/           env.sh, fonts.sh, icons.sh, minisign.pub, linux/, arch/, windows/
-xtask/               fmt, assets, layers, version, ico
+xtask/               ci, fmt, assets, layers, version, ico, qa-vault/qa-shots/qa-sample
 ```
 
 Camadas: crie `crates/localobsidian-<nome>` e registre em `xtask/src/layers.rs` (`TABLE`) — o gate
@@ -188,6 +189,8 @@ CI; o teste de layout roda sempre.
 ```
 cargo build --locked                  # debug (CRAFT_FONTS_DIR=assets/craft-fonts para as fontes CJK)
 cargo test --locked                   # testes
+cargo xtask ci                        # o gate local: o mesmo que o CI (fmt, clippy, build, assets,
+                                      # layers, testes, cargo-deny, espelhos do local-libs)
 cargo xtask fmt                       # fmt --check só dos membros (libs/ fica como veio)
 cargo xtask assets                    # todo asset tem linha em assets/ATTRIBUTION.md
 cargo xtask layers                    # camadas de crate
