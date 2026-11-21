@@ -1499,10 +1499,7 @@ mod tests {
         let huge = move |_: &str| Some(Arc::new(png.clone()));
         let mut sheet = Sheet::new("Foto".to_string());
         sheet.blocks(&blocks("![enorme](enorme.png)"), MARGIN, CONTENT, &fonts, &huge);
-        assert!(
-            !sheet.pages.iter().flat_map(|page| &page.ops).any(|op| matches!(op, Op::Image { .. })),
-            "the note prints the placeholder instead"
-        );
+        assert!(!sheet.pages.iter().flat_map(|page| &page.ops).any(|op| matches!(op, Op::Image { .. })), "the note prints the placeholder instead");
     }
 
     #[test]

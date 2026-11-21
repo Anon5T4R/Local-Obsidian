@@ -486,16 +486,14 @@ fn the_reading_column_fills_the_pane_when_the_pane_is_narrow() {
     state.view = crate::vault_state::ViewMode::Split;
     let pane = Rc::new(Cell::new(egui::Rect::NOTHING));
     let pane_sink = pane.clone();
-    let mut harness = Harness::builder()
-        .with_size(egui::vec2(1366.0, 768.0))
-        .build_ui_state(
-            move |ui, state: &mut VaultState| {
-                pane_sink.set(ui.max_rect());
-                let mut images = crate::images::Images::default();
-                let _ = crate::editor::show(ui, state, &mut images);
-            },
-            state,
-        );
+    let mut harness = Harness::builder().with_size(egui::vec2(1366.0, 768.0)).build_ui_state(
+        move |ui, state: &mut VaultState| {
+            pane_sink.set(ui.max_rect());
+            let mut images = crate::images::Images::default();
+            let _ = crate::editor::show(ui, state, &mut images);
+        },
+        state,
+    );
     harness.run_steps(3);
     shot(&mut harness, "ui-split-column-1366");
 
@@ -517,17 +515,15 @@ fn the_ai_connection_is_a_centred_dialog_of_measured_width() {
         let dialog_sink = dialog.clone();
         let pane = Rc::new(Cell::new(egui::Rect::NOTHING));
         let pane_sink = pane.clone();
-        let mut harness = Harness::builder()
-            .with_size(egui::vec2(width, height))
-            .build_ui_state(
-                move |ui, chat: &mut crate::ai_ui::Chat| {
-                    pane_sink.set(ui.max_rect());
-                    if let Some(rect) = chat.settings(ui) {
-                        dialog_sink.set(rect);
-                    }
-                },
-                chat,
-            );
+        let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
+            move |ui, chat: &mut crate::ai_ui::Chat| {
+                pane_sink.set(ui.max_rect());
+                if let Some(rect) = chat.settings(ui) {
+                    dialog_sink.set(rect);
+                }
+            },
+            chat,
+        );
         harness.run_steps(3);
         shot(&mut harness, &format!("ui-ai-dialog-{}x{}", width as u32, height as u32));
 
@@ -1522,14 +1518,12 @@ fn enter_in_the_editor_starts_a_new_line() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder()
-        .with_size(egui::vec2(700.0, 460.0))
-        .build_ui_state(
-            |ui, (state, images): &mut (VaultState, crate::images::Images)| {
-                crate::editor::show(ui, state, images);
-            },
-            (state, images),
-        );
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).build_ui_state(
+        |ui, (state, images): &mut (VaultState, crate::images::Images)| {
+            crate::editor::show(ui, state, images);
+        },
+        (state, images),
+    );
     harness.run_steps(3);
     harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
     harness.run_steps(2);
@@ -2312,10 +2306,7 @@ fn assert_inside_the_window(harness: &Shell, what: &str, width: f32) {
         if rect.width() <= 0.0 || role == egui::accesskit::Role::Splitter {
             continue;
         }
-        assert!(
-            rect.x0 >= -1.0 && rect.x1 <= f64::from(width) + 1.0,
-            "{what}: {role:?} leaves the {width:.0} pt window: {rect:?}"
-        );
+        assert!(rect.x0 >= -1.0 && rect.x1 <= f64::from(width) + 1.0, "{what}: {role:?} leaves the {width:.0} pt window: {rect:?}");
     }
 }
 

@@ -509,7 +509,8 @@ mod tests {
     /// A long name on a node at the edge of the map: its label never covers the node, whatever
     /// the side it points at.
     #[test]
-    fn a_long_label_at_the_edge_never_covers_its_node() {        let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+    fn a_long_label_at_the_edge_never_covers_its_node() {
+        let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
         let label = egui::vec2(300.0, 14.0);
         for (centre, direction) in [
             // Beside the centre, pointing at each edge; a long label is shortened to what the
