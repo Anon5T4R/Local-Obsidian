@@ -250,28 +250,38 @@ fn label_room(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: eg
 
 /// A node's name as one line, shortened with "…" to fit `room`: a long name at the edge of the map
 /// shows less of itself, never the node under it.
+///
+/// How many characters fit is found by **binary search** over the cut, not one layout per character
+/// removed: this runs for every node on every frame, and a long name would pay dozens of layouts a
+/// frame. Laying a string out is monotonic in its length, which is what makes the search valid.
 fn fitted_label(painter: &egui::Painter, name: &str, font: &egui::FontId, colour: egui::Color32, room: f32) -> std::sync::Arc<egui::Galley> {
-    // The full name first; each round keeps one character less, with "…" standing for the rest.
-    // Dropping a character per round (not rebuilding from the shortened string, which would put
-    // the "…" back and never shrink) is what ends the loop.
-    let characters: Vec<char> = name.chars().collect();
-    let mut kept = characters.len();
-    loop {
-        let shown: String = if kept == characters.len() {
-            name.to_string()
-        } else if kept == 0 {
-            String::new()
-        } else {
-            let mut cut: String = characters[..kept].iter().collect();
-            cut.push('…');
-            cut
-        };
-        let label = painter.layout_no_wrap(shown, font.clone(), colour);
-        if label.size().x <= room || kept == 0 {
-            return label;
-        }
-        kept -= 1;
+    let layout = |text: String| painter.layout_no_wrap(text, font.clone(), colour);
+    let full = layout(name.to_string());
+    if full.size().x <= room {
+        return full;
     }
+    let characters: Vec<char> = name.chars().collect();
+    let shortened = |kept: usize| {
+        let mut cut: String = characters[..kept].iter().collect();
+        cut.push('…');
+        cut
+    };
+    let fits = |kept: usize| layout(shortened(kept)).size().x <= room;
+    if !fits(0) {
+        // Not even the "…" fits the room: the label shows nothing (it would leave the canvas).
+        return layout(String::new());
+    }
+    // `low` always fits, `high` never does: the full name was already too wide.
+    let (mut low, mut high) = (0usize, characters.len());
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        if fits(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    layout(shortened(low))
 }
 
 /// The label's place on the canvas: anchored by [`label_anchor`], then clamped inside the canvas.
@@ -499,8 +509,7 @@ mod tests {
     /// A long name on a node at the edge of the map: its label never covers the node, whatever
     /// the side it points at.
     #[test]
-    fn a_long_label_at_the_edge_never_covers_its_node() {
-        let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+    fn a_long_label_at_the_edge_never_covers_its_node() {        let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
         let label = egui::vec2(300.0, 14.0);
         for (centre, direction) in [
             // Beside the centre, pointing at each edge; a long label is shortened to what the
@@ -518,6 +527,33 @@ mod tests {
             assert!(!placed.intersects(node), "at {centre:?} pointing {direction:?} the label {placed:?} covers the node {node:?}");
             assert!(canvas.contains_rect(placed), "at {centre:?} the label {placed:?} leaves the canvas");
         }
+    }
+
+    /// The shortened label keeps what fits and says it was cut: the binary search lands on the longest
+    /// prefix that fits, and the full name is untouched when it fits.
+    #[test]
+    fn a_long_label_is_shortened_with_an_ellipsis_to_its_room() {
+        let ctx = egui::Context::default();
+        let mut checked = false;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let painter = ui.painter();
+            let font = egui::FontId::proportional(11.0);
+            let colour = egui::Color32::WHITE;
+            let name = "Uma nota com um nome bem comprido que nao cabe na borda";
+            let full = painter.layout_no_wrap(name.to_string(), font.clone(), colour).size().x;
+            let room = full / 3.0;
+            let label = fitted_label(painter, name, &font, colour, room);
+            assert!(label.size().x <= room, "the label fits the room: {} > {room}", label.size().x);
+            assert!(label.text().ends_with('…'), "the cut says so: {:?}", label.text());
+            assert!(label.text().chars().count() > 2, "and it keeps what fits: {:?}", label.text());
+            // No room at all: nothing is drawn (the empty label is the only thing that fits).
+            assert!(fitted_label(painter, name, &font, colour, 0.0).text().is_empty());
+            // A name that fits is drawn as it is, "…" and all.
+            assert_eq!(fitted_label(painter, "Ana", &font, colour, 1000.0).text(), "Ana");
+            checked = true;
+        });
+        output.textures_delta.clear(); // headless: no renderer consumes the font atlas
+        assert!(checked, "the frame ran");
     }
 
     #[test]
