@@ -110,9 +110,11 @@ que o mesmo cofre abra nos dois.
 - **Exportar PDF** (`Arquivo → Exportar a nota em PDF...`): a nota vira **páginas A4 com texto de
   verdade** — os glifos vão com as fontes embutidas (subset) e o mapa Unicode, então selecionar,
   buscar e copiar funcionam no leitor de PDF. Sai o que a leitura desenha: títulos, parágrafos com
-  negrito/itálico/riscado/código/destaque, listas e tarefas, citação, callout com a cor do tipo,
-  tabela com grade e colunas medidas, código em mono e o número da página. **Imagens** saem como
-  `[image: …]` e **links** ficam como texto (as anotações clicáveis são a fase seguinte).
+  negrito/itálico/riscado/código/destaque, listas e tarefas com as sub-listas indentadas por nível,
+  citação, callout com a cor do tipo, tabela com grade e colunas medidas, código em mono, as
+  imagens do cofre embutidas (até 16 MB; sem o arquivo, ou num formato que o escritor não lê, fica
+  o `[image: …]`) e o número da página. **Links** para a web viram áreas clicáveis no leitor; um
+  `[[wikilink]]` fica texto, porque só existe dentro do app.
 - **Ajuda** (`Ajuda → Atalhos e ajuda`): as teclas, a sintaxe que uma nota aceita e onde cada coisa
   mora no cofre, com link para esta documentação.
 - Interface em pt-br, es e ja.

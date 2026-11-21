@@ -2003,7 +2003,7 @@ fn the_open_note_exports_as_a_pdf_with_selectable_text() {
     let path = std::env::temp_dir().join(format!("localobsidian-export-{}.pdf", std::process::id()));
     let _ = std::fs::remove_file(&path);
 
-    let report = crate::app::export_note_pdf(state.preview(), "Tudo", &path).expect("the export");
+    let report = crate::app::export_note_pdf(state.preview(), "Tudo", &state, &path).expect("the export");
     assert!(report.pages >= 2, "the kitchen sink does not fit on one page: {}", report.pages);
     let bytes = std::fs::read(&path).expect("the file");
     assert_eq!(bytes.len(), report.bytes);
@@ -2018,6 +2018,40 @@ fn the_open_note_exports_as_a_pdf_with_selectable_text() {
         let _ = std::fs::create_dir_all(&directory);
         let _ = std::fs::copy(&path, directory.join("export-note.pdf"));
     }
+    let _ = std::fs::remove_file(&path);
+}
+
+/// A 1×1 PNG: the smallest picture a note can embed, enough for the export to have real bytes.
+const A_PIXEL: &[u8] = &[
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 1, 115, 82, 71,
+    66, 0, 174, 206, 28, 233, 0, 0, 0, 4, 103, 65, 77, 65, 0, 0, 177, 143, 11, 252, 97, 5, 0, 0, 0, 9, 112, 72, 89, 115, 0, 0, 14, 195, 0, 0, 14,
+    195, 1, 199, 111, 168, 100, 0, 0, 0, 13, 73, 68, 65, 84, 24, 87, 99, 248, 207, 192, 240, 31, 0, 5, 0, 1, 255, 166, 92, 155, 93, 0, 0, 0, 0, 73,
+    69, 78, 68, 174, 66, 96, 130,
+];
+
+#[test]
+fn the_exported_pdf_carries_the_picture_the_link_and_the_nested_list() {
+    // The app's side of the phase-2 export: the picture is found in the vault (`_attachments/`),
+    // its bytes reach the document, a web link becomes an annotation and the sub-list is drawn
+    // under its item (the parser and the crate tests check the shape; here it is the whole path).
+    let note = "# Nota\n\n- pai\n  - filho\n\n[link](https://example.com/nota)\n\n![[figura-qa.png]]\n";
+    let scratch = Scratch::new("pdf-pictures", &[("Nota.md", note)]);
+    let attachments = scratch.0.join("_attachments");
+    std::fs::create_dir_all(&attachments).expect("the attachments folder");
+    std::fs::write(attachments.join("figura-qa.png"), A_PIXEL).expect("the picture");
+    let mut state = VaultState::default();
+    state.open(scratch.0.clone()).expect("open the vault");
+    state.open_note(&scratch.0.join("Nota.md"));
+    state.refresh_preview();
+    let path = std::env::temp_dir().join(format!("localobsidian-export-pictures-{}.pdf", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+
+    crate::app::export_note_pdf(state.preview(), "Nota", &state, &path).expect("the export");
+    let bytes = std::fs::read(&path).expect("the file");
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("/Subtype /Image") || text.contains("/Subtype/Image"), "the picture is embedded");
+    assert!(text.contains("/Link"), "the link is clickable");
+    assert!(text.contains("https://example.com/nota"), "the annotation carries its target");
     let _ = std::fs::remove_file(&path);
 }
 

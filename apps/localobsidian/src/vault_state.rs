@@ -504,6 +504,18 @@ impl VaultState {
             .find(|candidate| candidate.is_file())
     }
 
+    /// The bytes of an attachment of the open note, for the PDF export: `None` when the vault has
+    /// no such file, or when it is too big to be carried into the document (the export prints the
+    /// placeholder instead).
+    pub fn attachment_bytes(&self, destination: &str) -> Option<std::sync::Arc<Vec<u8>>> {
+        let path = self.attachment_path(destination)?;
+        let size = std::fs::metadata(&path).ok()?.len();
+        if size > localobsidian_pdf::MAX_IMAGE_BYTES as u64 {
+            return None;
+        }
+        std::fs::read(&path).ok().map(std::sync::Arc::new)
+    }
+
     /// Rebuilds the reading view when the text changed (cheap when it did not).
     pub fn refresh_preview(&mut self) {
         let stale = self.preview_cache.as_ref().is_none_or(|(revision, _)| *revision != self.revision);
@@ -1053,7 +1065,7 @@ mod tests {
                     Block::Quote(inner) => walk(inner, text, links),
                     Block::List { items, .. } => {
                         for item in items {
-                            for span in item {
+                            for span in &item.spans {
                                 text.push_str(&span.plain());
                             }
                             text.push('\n');

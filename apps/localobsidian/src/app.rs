@@ -1031,7 +1031,7 @@ impl LocalApp {
         let title = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
         self.vault.refresh_preview();
         let blocks = self.vault.preview().to_vec();
-        match export_note_pdf(&blocks, &title, &path) {
+        match export_note_pdf(&blocks, &title, &self.vault, &path) {
             Ok(report) => {
                 let pages = report.pages.to_string();
                 self.vault.message =
@@ -1452,13 +1452,16 @@ fn pdf_faces() -> localobsidian_pdf::Faces {
 }
 
 /// Writes the reading view's blocks to `path` as a PDF: what the menu does, without the menu (the
-/// tests and the QA use it).
+/// tests and the QA use it). The pictures the note embeds are read from the vault, at the paths
+/// the preview resolves them by.
 pub(crate) fn export_note_pdf(
     blocks: &[localobsidian_md::preview::Block],
     title: &str,
+    vault: &VaultState,
     path: &std::path::Path,
 ) -> Result<localobsidian_pdf::Report, localobsidian_pdf::Error> {
-    localobsidian_pdf::export(blocks, title, &pdf_faces(), path)
+    let images = |destination: &str| vault.attachment_bytes(destination);
+    localobsidian_pdf::export(blocks, title, &pdf_faces(), &images, path)
 }
 
 /// Which note a random open picks: any of them, never the one already open.

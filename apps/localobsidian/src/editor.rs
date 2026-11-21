@@ -11,7 +11,7 @@
 use egui::{Color32, RichText, TextStyle};
 
 use localobsidian_md::links;
-use localobsidian_md::preview::{Align, Block, Span};
+use localobsidian_md::preview::{Align, Block, ListItem, Span};
 
 use crate::images::Images;
 use crate::tl;
@@ -510,11 +510,18 @@ fn count_matches(blocks: &[Block], needle: &str) -> usize {
             })
             .sum()
     }
+    // An item's own text and the text of the list written under it.
+    fn in_items(items: &[ListItem], needle: &str) -> usize {
+        items
+            .iter()
+            .map(|item| in_spans(&item.spans, needle) + item.nested.as_deref().map(|nested| in_items(&nested.items, needle)).unwrap_or(0))
+            .sum()
+    }
     blocks
         .iter()
         .map(|block| match block {
             Block::Heading { spans, .. } | Block::Paragraph(spans) => in_spans(spans, needle),
-            Block::List { items, .. } => items.iter().map(|item| in_spans(item, needle)).sum(),
+            Block::List { items, .. } => in_items(items, needle),
             Block::Quote(inner) | Block::Callout { body: inner, .. } => count_matches(inner, needle),
             _ => 0,
         })
@@ -685,32 +692,9 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             ui.add_space(14.0 * zoom);
             hit
         }
-        Block::List { ordered, items, tasks } => {
-            let mut hit = None;
-            for (index, item) in items.iter().enumerate() {
-                ui.horizontal_wrapped(|ui| {
-                    match tasks.get(index).copied().flatten() {
-                        // A checklist draws a real box: the note's source is what a click edits.
-                        Some(task) => {
-                            let mut done = task.done;
-                            if ui.add(egui::Checkbox::without_text(&mut done)).on_hover_text(tl!("Tick it in the note")).clicked() {
-                                hit = Some(Hit::Task(task.index));
-                            }
-                        }
-                        None => {
-                            let marker = if *ordered { format!("{}.", index + 1) } else { "•".to_string() };
-                            ui.label(RichText::new(marker).weak());
-                        }
-                    }
-                    for span in item {
-                        if let Some(found) = show_span(ui, span, state, Style::new(BODY_SIZE * zoom)) {
-                            hit = Some(found);
-                        }
-                    }
-                });
-                // A list is a stack of lines, not a paragraph: 5 px between items keeps the rhythm.
-                ui.add_space(5.0 * zoom);
-            }
+        Block::List { ordered, items } => {
+            let hit = show_list(ui, *ordered, items, state, zoom);
+            // A list is a stack of lines, not a paragraph: 5 px between items keeps the rhythm.
             ui.add_space(8.0);
             hit
         }
@@ -801,6 +785,43 @@ fn show_block(ui: &mut egui::Ui, block: &Block, state: &VaultState, images: &mut
             None
         }
     }
+}
+
+/// A list: one row per item, the sub-list of an item indented under it, the way the source wrote
+/// it. Returns what the user clicked (a task box, a link inside an item).
+fn show_list(ui: &mut egui::Ui, ordered: bool, items: &[ListItem], state: &VaultState, zoom: f32) -> Option<Hit> {
+    let mut hit = None;
+    for (index, item) in items.iter().enumerate() {
+        ui.horizontal_wrapped(|ui| {
+            match item.task {
+                // A checklist draws a real box: the note's source is what a click edits.
+                Some(task) => {
+                    let mut done = task.done;
+                    if ui.add(egui::Checkbox::without_text(&mut done)).on_hover_text(tl!("Tick it in the note")).clicked() {
+                        hit = Some(Hit::Task(task.index));
+                    }
+                }
+                None => {
+                    let marker = if ordered { format!("{}.", index + 1) } else { "•".to_string() };
+                    ui.label(RichText::new(marker).weak());
+                }
+            }
+            for span in &item.spans {
+                if let Some(found) = show_span(ui, span, state, Style::new(BODY_SIZE * zoom)) {
+                    hit = Some(found);
+                }
+            }
+        });
+        // A list is a stack of lines, not a paragraph: 5 px between items keeps the rhythm.
+        ui.add_space(5.0 * zoom);
+        if let Some(nested) = &item.nested {
+            let sub = ui.indent(ui.scope_id().with(("sub-list", index)), |ui| show_list(ui, nested.ordered, &nested.items, state, zoom));
+            if let Some(found) = sub.inner {
+                hit = Some(found);
+            }
+        }
+    }
+    hit
 }
 
 /// `> [!kind] Título`: a coloured box, the title in bold, the body drawn as blocks.
@@ -1318,5 +1339,14 @@ mod tests {
             assert!(ratio >= 3.0, "{kind}: {ratio:.1}:1 on white is below the 3:1 floor");
             assert!(contrast(light, Color32::WHITE) > contrast(dark, Color32::WHITE), "{kind}: the light shade must be the darker one");
         }
+    }
+
+    #[test]
+    fn the_find_looks_into_the_list_under_an_item() {
+        // The reading view draws a sub-list under its parent item, so the find has to walk into it
+        // too: `pai` is the parent's text and the end of the child's.
+        let blocks = localobsidian_md::preview::blocks("- pai\n  - filho do pai");
+        assert_eq!(count_matches(&blocks, "pai"), 2, "{blocks:?}");
+        assert_eq!(count_matches(&blocks, "neto"), 0, "{blocks:?}");
     }
 }
