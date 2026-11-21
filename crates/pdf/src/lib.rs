@@ -51,6 +51,12 @@ const IMAGE_CEILING: f32 = 320.0;
 /// leaves anything past this as the placeholder instead of carrying it into the PDF.
 pub const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
 
+/// The most pixels a picture may have: the same 64 MP ceiling the suite's PDF renderer applies
+/// (`craft_pdf::raster::MAX_PIXELS`). It is written here because this crate builds only the *write*
+/// half of `craft-pdf`: pulling the `raster` feature in for one number would carry the whole PDF
+/// renderer into an app that never renders one.
+pub const MAX_IMAGE_PIXELS: u64 = 64_000_000;
+
 /// The bytes of one picture the document embeds, as the caller reads them from wherever they live.
 pub type ImageBytes = Arc<Vec<u8>>;
 
@@ -964,10 +970,16 @@ fn height_of(lines: &[Vec<Vec<Piece>>], cell_line: f32) -> f32 {
 }
 
 /// The picture in `bytes`: PNG, JPEG, GIF and WebP are the formats the writer decodes itself, and
-/// each one says which it is in its own header. Anything else, and anything bigger than
-/// [`MAX_IMAGE_BYTES`], is not embedded (the caller sees the placeholder instead).
+/// each one says which it is in its own header. Anything else, anything bigger than
+/// [`MAX_IMAGE_BYTES`], and anything with more than [`MAX_IMAGE_PIXELS`] pixels is not embedded (the
+/// caller sees the placeholder instead) - the size is read from the header, so an image that is a few
+/// hundred bytes compressed and gigabytes decoded is never decoded at all.
 fn decode_image(bytes: &ImageBytes) -> Option<Image> {
     if bytes.len() > MAX_IMAGE_BYTES {
+        return None;
+    }
+    let (width, height) = image_size(bytes)?;
+    if u64::from(width) * u64::from(height) > MAX_IMAGE_PIXELS {
         return None;
     }
     let data = krilla::Data::from(bytes.clone());
@@ -982,6 +994,89 @@ fn decode_image(bytes: &ImageBytes) -> Option<Image> {
     } else {
         None
     }
+}
+
+/// The pixel size a picture's own header declares, read **without decoding a pixel**: PNG, JPEG, GIF
+/// and WebP each carry it in their first bytes. `None` is a format this does not know (or a header
+/// cut short), which is also a picture the export leaves as the placeholder.
+fn image_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    // PNG: the IHDR chunk is always first - 8 signature bytes, the 4-byte length, the name, then the
+    // width and the height as two big-endian `u32`.
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        if bytes.get(12..16)? != b"IHDR" {
+            return None;
+        }
+        let width = u32::from_be_bytes(bytes.get(16..20)?.try_into().ok()?);
+        let height = u32::from_be_bytes(bytes.get(20..24)?.try_into().ok()?);
+        return (width > 0 && height > 0).then_some((width, height));
+    }
+    // JPEG: segments of `FF <marker> <length>` up to the start of frame (`C0..CF`, minus the three
+    // markers of that range that are not frames: `C4` DHT, `C8` JPG and `CC` DAC).
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        let mut at = 2;
+        while at + 4 <= bytes.len() {
+            if bytes.get(at)? != &0xFF {
+                return None;
+            }
+            let marker = *bytes.get(at + 1)?;
+            // Padding and the markers that carry no length: one byte each, no payload.
+            if marker == 0xFF {
+                at += 1;
+                continue;
+            }
+            if marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+                at += 2;
+                continue;
+            }
+            // End of image, or the scan itself: no frame header was seen and there will be none.
+            if marker == 0xD9 || marker == 0xDA {
+                return None;
+            }
+            let length = usize::from(u16::from_be_bytes(bytes.get(at + 2..at + 4)?.try_into().ok()?));
+            if length < 2 {
+                return None;
+            }
+            if matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF) {
+                let height = u16::from_be_bytes(bytes.get(at + 5..at + 7)?.try_into().ok()?);
+                let width = u16::from_be_bytes(bytes.get(at + 7..at + 9)?.try_into().ok()?);
+                return (width > 0 && height > 0).then_some((u32::from(width), u32::from(height)));
+            }
+            at += 2 + length;
+        }
+        return None;
+    }
+    // GIF: the logical screen size, two little-endian `u16` after the version.
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        let width = u16::from_le_bytes(bytes.get(6..8)?.try_into().ok()?);
+        let height = u16::from_le_bytes(bytes.get(8..10)?.try_into().ok()?);
+        return (width > 0 && height > 0).then_some((u32::from(width), u32::from(height)));
+    }
+    // WebP: the RIFF header names the kind of bitstream, and each kind carries the size differently.
+    if bytes.len() > 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return match bytes.get(12..16)? {
+            // Lossy: after the chunk header, the 3-byte frame tag and the 3-byte start code.
+            b"VP8 " => {
+                let width = u16::from_le_bytes(bytes.get(26..28)?.try_into().ok()?) & 0x3FFF;
+                let height = u16::from_le_bytes(bytes.get(28..30)?.try_into().ok()?) & 0x3FFF;
+                (width > 0 && height > 0).then_some((u32::from(width), u32::from(height)))
+            }
+            // Lossless: one 32-bit word holding `width - 1` and `height - 1`, 14 bits each.
+            b"VP8L" => {
+                let bits = u32::from_le_bytes(bytes.get(21..25)?.try_into().ok()?);
+                Some(((bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1))
+            }
+            // Extended: the canvas size as two 24-bit little-endian fields, minus one.
+            b"VP8X" => {
+                let field = |start: usize| -> Option<u32> {
+                    let bytes = bytes.get(start..start + 3)?;
+                    Some(u32::from(bytes[0]) | (u32::from(bytes[1]) << 8) | (u32::from(bytes[2]) << 16))
+                };
+                Some((field(24)? + 1, field(27)? + 1))
+            }
+            _ => None,
+        };
+    }
+    None
 }
 
 /// The size a picture takes on the page: its pixels at most 1 pt each (a picture is not upscaled),
@@ -1381,6 +1476,86 @@ mod tests {
             !sheet.pages.iter().flat_map(|page| &page.ops).any(|op| matches!(op, Op::Image { .. })),
             "a picture past the limit is not carried into the PDF"
         );
+    }
+
+    #[test]
+    fn a_picture_with_a_huge_header_is_a_placeholder_and_never_reaches_the_decoder() {
+        // A few hundred bytes of PNG header can ask for 30000×30000 pixels: the file passes the byte
+        // limit, and decoding it in full would cost gigabytes. The size is read from the header, and
+        // the picture never reaches the decoder.
+        let mut png = Vec::new();
+        png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        png.extend_from_slice(&13u32.to_be_bytes()); // the IHDR chunk's length
+        png.extend_from_slice(b"IHDR");
+        png.extend_from_slice(&30_000u32.to_be_bytes());
+        png.extend_from_slice(&30_000u32.to_be_bytes());
+        png.extend_from_slice(&[8, 6, 0, 0, 0]); // depth, colour, compression, filter, interlace
+        png.extend_from_slice(&[0; 4]); // the CRC: nothing reads it, nothing decodes the pixels
+        assert_eq!(image_size(&png), Some((30_000, 30_000)), "the size comes from the header alone");
+        assert!(30_000u64 * 30_000 > MAX_IMAGE_PIXELS, "the fixture is past the ceiling");
+        assert!(decode_image(&Arc::new(png.clone())).is_none(), "the picture is refused before the decoder runs");
+
+        let fonts = Loaded::new(&faces()).expect("the faces");
+        let huge = move |_: &str| Some(Arc::new(png.clone()));
+        let mut sheet = Sheet::new("Foto".to_string());
+        sheet.blocks(&blocks("![enorme](enorme.png)"), MARGIN, CONTENT, &fonts, &huge);
+        assert!(
+            !sheet.pages.iter().flat_map(|page| &page.ops).any(|op| matches!(op, Op::Image { .. })),
+            "the note prints the placeholder instead"
+        );
+    }
+
+    #[test]
+    fn the_picture_size_comes_from_each_formats_own_header() {
+        assert_eq!(image_size(PIXELS), Some((2, 2)), "the 2×2 PNG");
+
+        // JPEG: an APP0 segment, then the start of frame with the size.
+        let mut jpeg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        jpeg.extend_from_slice(&[0u8; 14]); // the APP0 payload the length promised
+        jpeg.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x11, 0x08, 0x01, 0xE0, 0x02, 0x80]);
+        assert_eq!(image_size(&jpeg), Some((640, 480)), "JPEG: 640×480 from the SOF0 segment");
+
+        // GIF: the logical screen size, little-endian.
+        let mut gif = b"GIF89a".to_vec();
+        gif.extend_from_slice(&200u16.to_le_bytes());
+        gif.extend_from_slice(&100u16.to_le_bytes());
+        gif.extend_from_slice(&[0u8; 8]);
+        assert_eq!(image_size(&gif), Some((200, 100)), "GIF");
+
+        // WebP, extended: the canvas size as two 24-bit fields, minus one.
+        let webp = |fourcc: &[u8], body: &[u8]| {
+            let mut bytes = b"RIFF".to_vec();
+            bytes.extend_from_slice(&(4 + 8 + body.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(b"WEBP");
+            bytes.extend_from_slice(fourcc);
+            bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(body);
+            bytes
+        };
+        let field = |value: u32| {
+            let bytes = (value - 1).to_le_bytes();
+            vec![bytes[0], bytes[1], bytes[2]]
+        };
+        let mut extended = vec![0u8; 4]; // flags and reserved
+        extended.extend_from_slice(&field(1000));
+        extended.extend_from_slice(&field(500));
+        assert_eq!(image_size(&webp(b"VP8X", &extended)), Some((1000, 500)), "WebP extended");
+
+        // WebP, lossless: one word holding both sizes, 14 bits each.
+        let mut lossless = vec![0x2F];
+        lossless.extend_from_slice(&(((500u32 - 1) << 14) | (1000 - 1)).to_le_bytes());
+        assert_eq!(image_size(&webp(b"VP8L", &lossless)), Some((1000, 500)), "WebP lossless");
+
+        // WebP, lossy: the frame tag, the start code, then the two 14-bit sizes.
+        let mut lossy = vec![0u8; 3];
+        lossy.extend_from_slice(&[0x9D, 0x01, 0x2A]);
+        lossy.extend_from_slice(&(1000u16 & 0x3FFF).to_le_bytes());
+        lossy.extend_from_slice(&(500u16 & 0x3FFF).to_le_bytes());
+        assert_eq!(image_size(&webp(b"VP8 ", &lossy)), Some((1000, 500)), "WebP lossy");
+
+        // A header cut short, and a format nobody here knows: no size, so no embedding.
+        assert_eq!(image_size(&PIXELS[..12]), None, "a PNG without its IHDR");
+        assert_eq!(image_size(b"isto nao e uma imagem"), None, "not a picture");
     }
 
     #[test]
