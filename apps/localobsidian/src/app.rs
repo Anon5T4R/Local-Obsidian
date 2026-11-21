@@ -34,6 +34,24 @@ enum Dialog {
     Rename { name: String },
 }
 
+/// The windows the narrow-window test opens, one by one (test-only: the app never asks for them by name).
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum WindowForTest {
+    NewNote,
+    Rename,
+    Diagnostics,
+    Connections,
+    Calendar,
+    Help,
+    About,
+    Settings,
+    AiConnection,
+    Flashcards,
+    Palette,
+    Update,
+}
+
 /// The dev-only window capture (`LOCALOBSIDIAN_QA_SHOT="<png>" LOCALOBSIDIAN_QA_VAULT="<folder>"
 /// LOCALOBSIDIAN_QA_NOTE="<name>" LOCALOBSIDIAN_QA_FRAMES=40`): wait for the layout to settle, write
 /// one PNG of the real window and close. It is what the visual QA of a whole window looks at, and it
@@ -128,6 +146,41 @@ impl LocalApp {
     #[cfg(test)]
     pub(crate) fn shell_state(&self) -> (ThemeMode, bool, bool) {
         (self.prefs.theme, self.settings_open, self.palette.is_open())
+    }
+
+    /// The windows of the narrow-window test, one by one, over a vault with notes.
+    #[cfg(test)]
+    pub(crate) fn open_window_for_test(&mut self, window: WindowForTest) {
+        match window {
+            WindowForTest::NewNote => self.begin_new_note(),
+            WindowForTest::Rename => self.begin_rename(),
+            WindowForTest::Diagnostics => self.diagnostics_open = true,
+            WindowForTest::Connections => self.set_connections(true),
+            WindowForTest::Calendar => self.calendar_open = true,
+            WindowForTest::Help => self.help_open = true,
+            WindowForTest::About => self.about_open = true,
+            WindowForTest::Settings => self.settings_open = true,
+            WindowForTest::AiConnection => self.chat.settings_open = true,
+            WindowForTest::Flashcards => self.start_flashcards(),
+            WindowForTest::Palette => self.palette.open(),
+            WindowForTest::Update => self.offer_update_for_test(),
+        }
+    }
+
+    /// The update card as the UI test sees it: a release far ahead, with the launcher's version
+    /// choices read from a file that does not exist (the user's own pins are not the test's).
+    #[cfg(test)]
+    fn offer_update_for_test(&mut self) {
+        let pins = std::env::temp_dir().join(format!("localobsidian-ui-pins-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&pins);
+        let mut updater = Updater::new(&APP, env!("CARGO_PKG_VERSION")).with_pins_path(pins);
+        updater.offer(craft_update::Release {
+            tag: "v99.0.0".to_string(),
+            name: "Local Obsidian v99.0.0".to_string(),
+            html_url: "https://example.invalid/local-obsidian-v99".to_string(),
+            ..Default::default()
+        });
+        self.updater = updater;
     }
 
     /// The app over `prefs`, on a context whose fonts and styles are installed (the tests build it without a window).

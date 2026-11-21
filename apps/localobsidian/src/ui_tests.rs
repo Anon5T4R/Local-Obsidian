@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 
 use crate::panels::{self, PanelAction};
 use crate::vault_state::VaultState;
@@ -1816,6 +1816,56 @@ fn the_theme_setting_reaches_the_context_and_the_accent() {
     }
 }
 
+/// `top`, with its alpha, painted over the opaque `bottom` (what `gamma_multiply`'d fills look like).
+fn over(top: egui::Color32, bottom: egui::Color32) -> egui::Color32 {
+    let keep = u32::from(255 - top.a());
+    let mix = |t: u8, b: u8| u8::try_from((u32::from(t) * 255 + u32::from(b) * keep + 127) / 255).unwrap_or(u8::MAX);
+    egui::Color32::from_rgb(mix(top.r(), bottom.r()), mix(top.g(), bottom.g()), mix(top.b(), bottom.b()))
+}
+
+/// The WCAG 2 contrast ratio between two opaque colours (`(L1 + 0.05) / (L2 + 0.05)`, 1:1 to 21:1).
+fn contrast(one: egui::Color32, other: egui::Color32) -> f32 {
+    let luminance = |color: egui::Color32| {
+        let linear = |value: u8| {
+            let value = f32::from(value) / 255.0;
+            if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * linear(color.r()) + 0.7152 * linear(color.g()) + 0.0722 * linear(color.b())
+    };
+    let (bright, dark) = {
+        let (one, other) = (luminance(one), luminance(other));
+        (one.max(other), one.min(other))
+    };
+    (bright + 0.05) / (dark + 0.05)
+}
+
+/// The accent of both themes is **text** in this app (links, tag pills, the source pane's headings) and
+/// never a button's fill, so what the standard holds is the text contrast: over the page, over a text
+/// box, and over the tint of itself the chips and highlights paint behind it - at least 4.5:1 (WCAG AA).
+#[test]
+fn the_accent_is_readable_as_text_in_both_themes() {
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        let ctx = egui::Context::default();
+        crate::app::install_styles(&ctx);
+        let visuals = ctx.style_of(theme).visuals.clone();
+        let accent = crate::theme::accent(visuals.dark_mode);
+        // The page (links in the reading view, headings and tags in the source pane) and the text
+        // box the source pane is drawn on.
+        for (where_, ground) in [("the page", visuals.panel_fill), ("the editor", visuals.extreme_bg_color)] {
+            let ratio = contrast(accent, ground);
+            assert!(ratio >= 4.5, "{theme:?}: the accent over {where_}: {ratio:.2}:1");
+            // The chips: `#tag` is the accent painted on 18% of itself, the `==highlight==` on 22% and
+            // the code chip on 14%/12%. (The find bar's match is a 30% tint under the theme's *own* text,
+            // so the accent is not what has to be read there.)
+            for weight in [0.12, 0.14, 0.18, 0.22] {
+                let chip = over(accent.gamma_multiply(weight), ground);
+                let ratio = contrast(accent, chip);
+                assert!(ratio >= 4.5, "{theme:?}: the accent on its own {:.0}% tint over {where_}: {ratio:.2}:1", weight * 100.0);
+            }
+        }
+    }
+}
+
 #[test]
 fn the_panels_read_in_the_light_theme() {
     // Half the world runs its desktop in light mode, so the light palette is a release gate, not a
@@ -2054,7 +2104,12 @@ type Shell = Harness<'static, Option<crate::app::LocalApp>>;
 /// The whole window over a headless context: the real top bar, the menus and the windows, with nothing written to
 /// the user's settings file.
 fn shell(theme: craft_icons::ThemeMode) -> Shell {
-    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).build_ui_state(
+    shell_sized(theme, 1000.0, 640.0)
+}
+
+/// [`shell`] at another size, for the tests that hold the window to its minimum.
+fn shell_sized(theme: craft_icons::ThemeMode, width: f32, height: f32) -> Shell {
+    let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
         move |ui, app: &mut Option<crate::app::LocalApp>| {
             let app = app.get_or_insert_with(|| {
                 crate::app::install_styles(ui.ctx());
@@ -2241,5 +2296,104 @@ fn casca_shots() {
         // The box has the focus on opening: the typing goes to it.
         harness.event(egui::Event::Text("re".to_string()));
         take(&mut harness, "4-paleta");
+    }
+}
+
+/// Every node of the accessibility tree stays inside a window `width` wide (a node a screen reader can
+/// point at that sits past the edge is a control the user cannot see). The width is what the standard
+/// holds at the window's minimum; height is the scroll's business - a window taller than the screen
+/// scrolls its content (the help window at 440 pt), and a node past the fold is reached by scrolling.
+fn assert_inside_the_window(harness: &Shell, what: &str, width: f32) {
+    for node in harness.root().children_recursive() {
+        let role = node.accesskit_node().role();
+        let Some(rect) = node.accesskit_node().bounding_box() else { continue };
+        // A panel's resize handle is a 6 pt strip centred on the panel's border: half of it is meant to
+        // sit on the window's edge (egui draws it; nothing of ours can move it inward).
+        if rect.width() <= 0.0 || role == egui::accesskit::Role::Splitter {
+            continue;
+        }
+        assert!(
+            rect.x0 >= -1.0 && rect.x1 <= f64::from(width) + 1.0,
+            "{what}: {role:?} leaves the {width:.0} pt window: {rect:?}"
+        );
+    }
+}
+
+/// A vault with notes (the same fixture the shell tests read), open in `harness`.
+fn open_the_vault(harness: &mut Shell, vault: &Scratch) {
+    if let Some(app) = harness.state_mut().as_mut() {
+        app.open_vault_for_test(vault.0.clone());
+    }
+    harness.run();
+}
+
+/// The window's minimum size, from `main.rs`'s `with_min_inner_size`: the width and height every
+/// window and dialog has to live in.
+const NARROW: (f32, f32) = (720.0, 440.0);
+
+/// Each window and dialog of the app, opened over a vault with notes, in the window's **minimum
+/// size**: no node of the accessibility tree may leave the window. This is the test the "two
+/// widths" rule of the craft standard asks for; the palette and the update card are part of it.
+#[test]
+fn every_window_fits_the_narrowest_window() {
+    use crate::app::WindowForTest;
+    use craft_icons::ThemeMode;
+    let windows = [
+        ("new note", WindowForTest::NewNote, "Create"),
+        ("rename", WindowForTest::Rename, "Rename note"),
+        ("diagnostics", WindowForTest::Diagnostics, "Vault diagnostics"),
+        ("connections", WindowForTest::Connections, "Connections"),
+        ("calendar", WindowForTest::Calendar, "Calendar"),
+        ("help", WindowForTest::Help, "Help"),
+        ("about", WindowForTest::About, "About Local Obsidian"),
+        ("settings", WindowForTest::Settings, "Settings"),
+        ("ai connection", WindowForTest::AiConnection, "AI connection"),
+        ("flashcards", WindowForTest::Flashcards, "Cards per section"),
+        ("palette", WindowForTest::Palette, ""),
+        ("update", WindowForTest::Update, "DOWNLOAD"),
+    ];
+    for (name, window, anchor) in windows {
+        for theme in [ThemeMode::Dark, ThemeMode::Light] {
+            let (vault, _state) = demo_vault(&format!("narrow-{}-{}", name.replace(' ', "-"), theme.id()));
+            let mut harness = shell_sized(theme, NARROW.0, NARROW.1);
+            open_the_vault(&mut harness, &vault);
+            if let Some(app) = harness.state_mut().as_mut() {
+                app.open_window_for_test(window);
+            }
+            harness.run_steps(3);
+            shot(&mut harness, &format!("narrow-{}-{}", name.replace(' ', "-"), theme.id()));
+            // The window is really on screen before its geometry means anything.
+            if name == "palette" {
+                assert!(harness.query_all_by_role(egui::accesskit::Role::ListBoxOption).next().is_some(), "the palette lists the commands");
+            } else {
+                assert!(harness.query_all_by_label(anchor).next().is_some(), "{name}: nothing on screen says {anchor:?}");
+            }
+            assert_inside_the_window(&harness, name, NARROW.0);
+        }
+    }
+}
+
+/// The top bar itself, over a vault with a note open, in the narrowest window: the menus and the
+/// suite's three buttons (gear, theme, search) share the strip without either leaving it.
+#[test]
+fn the_top_bar_fits_the_narrowest_window() {
+    use craft_icons::ThemeMode;
+    for theme in [ThemeMode::Dark, ThemeMode::Light] {
+        let (vault, _state) = demo_vault(&format!("narrow-bar-{}", theme.id()));
+        let mut harness = shell_sized(theme, NARROW.0, NARROW.1);
+        open_the_vault(&mut harness, &vault);
+        harness.run_steps(2);
+        shot(&mut harness, &format!("narrow-bar-{}", theme.id()));
+        assert_inside_the_window(&harness, "top bar", NARROW.0);
+        for label in ["File", "View", "Review", "AI", "Help"] {
+            let menu = harness.get_by_label(label).rect();
+            assert!(menu.right() <= NARROW.0, "the {label} menu leaves the window: {menu:?}");
+        }
+        let gear = harness.get_by_label("Settings").rect();
+        let theme_button = harness.get_by_label_contains("Theme:").rect();
+        let search = harness.get_by_label_contains("Search commands").rect();
+        assert!(gear.right() <= NARROW.0 && theme_button.right() <= NARROW.0 && search.right() <= NARROW.0, "a suite button leaves the window");
+        assert!(search.right() < theme_button.left(), "search and theme do not overlap: {search:?} vs {theme_button:?}");
+        assert!(theme_button.right() < gear.left(), "theme and gear do not overlap: {theme_button:?} vs {gear:?}");
     }
 }

@@ -3,8 +3,10 @@
 //! desktop theme - this is a note app, not a brand exercise.
 
 /// The icon's violet. The light theme needs it a touch darker to stay readable on white; the dark
-/// theme a touch lighter for the same reason. Both are the same hue.
-pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(0x5b, 0x52, 0xd6);
+/// theme a touch lighter for the same reason. Both are the same hue. The light one also has to stay
+/// readable *on its own tint* (the `#tag` pill, the `==highlight==`): at 18% and 22% of itself over
+/// white it is 4.5:1, which is why it sits deeper than the icon's flat violet.
+pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(0x4b, 0x41, 0xc4);
 pub const ACCENT_DARK: egui::Color32 = egui::Color32::from_rgb(0xa9, 0xa3, 0xff);
 
 /// The accent for the theme in use.
