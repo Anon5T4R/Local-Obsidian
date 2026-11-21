@@ -242,11 +242,7 @@ fn label_anchor(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: 
 /// node. Labels above/below the node may span the canvas: the vertical gap keeps them off it.
 fn label_room(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: egui::Vec2) -> f32 {
     if direction.x.abs() > 0.35 {
-        if direction.x > 0.0 {
-            (canvas.right() - (centre.x + radius + 6.0)).max(0.0)
-        } else {
-            ((centre.x - radius - 6.0) - canvas.left()).max(0.0)
-        }
+        if direction.x > 0.0 { (canvas.right() - (centre.x + radius + 6.0)).max(0.0) } else { ((centre.x - radius - 6.0) - canvas.left()).max(0.0) }
     } else {
         canvas.width()
     }
@@ -255,18 +251,26 @@ fn label_room(canvas: egui::Rect, centre: egui::Pos2, radius: f32, direction: eg
 /// A node's name as one line, shortened with "…" to fit `room`: a long name at the edge of the map
 /// shows less of itself, never the node under it.
 fn fitted_label(painter: &egui::Painter, name: &str, font: &egui::FontId, colour: egui::Color32, room: f32) -> std::sync::Arc<egui::Galley> {
-    let mut shown: String = name.to_string();
+    // The full name first; each round keeps one character less, with "…" standing for the rest.
+    // Dropping a character per round (not rebuilding from the shortened string, which would put
+    // the "…" back and never shrink) is what ends the loop.
+    let characters: Vec<char> = name.chars().collect();
+    let mut kept = characters.len();
     loop {
-        let label = painter.layout_no_wrap(shown.clone(), font.clone(), colour);
-        if label.size().x <= room || shown.is_empty() {
-            return label;
-        }
-        let shorter: String = shown.chars().take(shown.chars().count().saturating_sub(1)).collect();
-        shown = if shorter.is_empty() {
+        let shown: String = if kept == characters.len() {
+            name.to_string()
+        } else if kept == 0 {
             String::new()
         } else {
-            format!("{shorter}…")
+            let mut cut: String = characters[..kept].iter().collect();
+            cut.push('…');
+            cut
         };
+        let label = painter.layout_no_wrap(shown, font.clone(), colour);
+        if label.size().x <= room || kept == 0 {
+            return label;
+        }
+        kept -= 1;
     }
 }
 
