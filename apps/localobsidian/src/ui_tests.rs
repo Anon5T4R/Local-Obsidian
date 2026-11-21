@@ -488,9 +488,6 @@ fn the_reading_column_fills_the_pane_when_the_pane_is_narrow() {
     let pane_sink = pane.clone();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1366.0, 768.0))
-        // The source pane is a plain text box with no accessible name; the check is about labels,
-        // and this test is about geometry.
-        .with_accessibility_check(false)
         .build_ui_state(
             move |ui, state: &mut VaultState| {
                 pane_sink.set(ui.max_rect());
@@ -522,8 +519,6 @@ fn the_ai_connection_is_a_centred_dialog_of_measured_width() {
         let pane_sink = pane.clone();
         let mut harness = Harness::builder()
             .with_size(egui::vec2(width, height))
-            // The fields are named by the label above them, not by an accessible name of their own.
-            .with_accessibility_check(false)
             .build_ui_state(
                 move |ui, chat: &mut crate::ai_ui::Chat| {
                     pane_sink.set(ui.max_rect());
@@ -573,7 +568,7 @@ fn the_side_panels_keep_their_width_at_every_window_size() {
 
             let measured = Rc::new(Cell::new(0.0f32));
             let sink = measured.clone();
-            let mut harness = Harness::builder().with_size(egui::vec2(width, height)).with_accessibility_check(false).build_ui_state(
+            let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
                 move |ui, (state, chat, review): &mut (VaultState, crate::ai_ui::Chat, crate::review_ui::Review)| {
                     let ceiling = (ui.available_width() * share).clamp(160.0, absolute);
                     let panel = if left { egui::Panel::left(name) } else { egui::Panel::right(name) };
@@ -614,7 +609,7 @@ fn the_arrows_walk_the_notes_that_were_visited() {
     state.open_note(&scratch.0.join("Sepse.md"));
     state.open_note(&scratch.0.join("Sepse neonatal.md"));
     state.open_note(&scratch.0.join("Protocolos/Protocolo.md"));
-    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 700.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 700.0)).build_ui_state(
         |ui, state: &mut VaultState| {
             let mut images = crate::images::Images::default();
             match crate::editor::show(ui, state, &mut images) {
@@ -1103,7 +1098,7 @@ fn the_flashcards_dialog_names_the_note_it_will_create() {
     let mut action = crate::flashcards::Flashcards::default();
     action.start(&state, None);
     let chat = crate::ai_ui::Chat::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 620.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(900.0, 620.0)).build_ui_state(
         |ui, (state, action, chat): &mut (VaultState, crate::flashcards::Flashcards, crate::ai_ui::Chat)| {
             action.dialog(ui, state, chat);
         },
@@ -1529,8 +1524,6 @@ fn enter_in_the_editor_starts_a_new_line() {
     let images = crate::images::Images::default();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(700.0, 460.0))
-        // The editor has no accessible name of its own (the note's title is the label above it).
-        .with_accessibility_check(false)
         .build_ui_state(
             |ui, (state, images): &mut (VaultState, crate::images::Images)| {
                 crate::editor::show(ui, state, images);
@@ -1555,7 +1548,7 @@ fn a_slash_command_at_the_start_of_a_line_opens_a_popup_that_inserts_a_block() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1589,7 +1582,7 @@ fn enter_takes_the_highlighted_slash_command_instead_of_breaking_the_line() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1619,7 +1612,7 @@ fn a_bare_slash_lists_the_whole_catalogue() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1648,7 +1641,7 @@ fn escape_dismisses_the_slash_popup_and_it_stays_closed_at_that_caret() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(700.0, 460.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1721,7 +1714,7 @@ fn the_arrow_keys_move_the_slash_highlight() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1751,7 +1744,7 @@ fn the_wheel_is_not_fought_by_the_slash_popup() {
     state.open_note(&scratch.0.join("Nota.md"));
     state.view = crate::vault_state::ViewMode::Edit;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1902,7 +1895,6 @@ fn the_panels_read_in_the_light_theme() {
     chat.open = true;
     let mut harness = Harness::builder()
         .with_size(egui::vec2(460.0, 620.0))
-        .with_accessibility_check(false)
         .build_ui_state(|ui, (state, chat): &mut (VaultState, crate::ai_ui::Chat)| chat.ui(ui, state), (state, chat));
     harness.run_steps(2);
     light(&mut harness);
@@ -1919,7 +1911,7 @@ fn the_panels_read_in_the_light_theme() {
     state.open_note(&scratch.0.join("Fonte.md"));
     state.view = crate::vault_state::ViewMode::Split;
     let images = crate::images::Images::default();
-    let mut harness = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
         |ui, (state, images): &mut (VaultState, crate::images::Images)| {
             crate::editor::show(ui, state, images);
         },
@@ -1978,7 +1970,7 @@ fn the_panels_read_in_the_light_theme() {
     let mut state = VaultState::default();
     state.open(scratch.0.clone()).expect("open the vault");
     state.open_note(&scratch.0.join("Tudo.md"));
-    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).with_accessibility_check(false).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(760.0, 620.0)).build_ui_state(
         |ui, (state, chat): &mut (VaultState, crate::ai_ui::Chat)| {
             chat.ui(ui, state);
             // The dialog is drawn by the app, outside the panel (as in `app.rs`).
@@ -2062,13 +2054,7 @@ type Shell = Harness<'static, Option<crate::app::LocalApp>>;
 /// The whole window over a headless context: the real top bar, the menus and the windows, with nothing written to
 /// the user's settings file.
 fn shell(theme: craft_icons::ThemeMode) -> Shell {
-    shell_checked(theme, true)
-}
-
-/// [`shell`], with the accessibility audit on or off. The audit is off for the QA shots: the note editor over an open
-/// vault has no accessible name yet (a gap of the app, not of the shell).
-fn shell_checked(theme: craft_icons::ThemeMode, accessibility: bool) -> Shell {
-    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).with_accessibility_check(accessibility).build_ui_state(
+    let mut harness = Harness::builder().with_size(egui::vec2(1000.0, 640.0)).build_ui_state(
         move |ui, app: &mut Option<crate::app::LocalApp>| {
             let app = app.get_or_insert_with(|| {
                 crate::app::install_styles(ui.ctx());
@@ -2234,7 +2220,7 @@ fn casca_shots() {
             harness.run();
         };
 
-        let mut harness = shell_checked(mode, false);
+        let mut harness = shell(mode);
         open(&mut harness);
         take(&mut harness, "1-barra");
 
@@ -2243,12 +2229,12 @@ fn casca_shots() {
         take(&mut harness, "2-menu-arquivo");
         harness.key_press(egui::Key::Escape);
 
-        let mut harness = shell_checked(mode, false);
+        let mut harness = shell(mode);
         open(&mut harness);
         harness.get_by_label("Settings").click();
         take(&mut harness, "3-configuracoes");
 
-        let mut harness = shell_checked(mode, false);
+        let mut harness = shell(mode);
         open(&mut harness);
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
         harness.run();

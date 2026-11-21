@@ -310,7 +310,10 @@ fn editor_pane(ui: &mut egui::Ui, state: &mut VaultState) -> EditorAction {
             .code_editor()
             .layouter(&mut layouter)
             .show(ui);
-        changed |= output.response.changed();
+        // The source has no label beside it (the note's title is the header, frames away): it names
+        // itself, so a screen reader announces what the box is.
+        let editor = output.response.response.clone().accessible_name(tl!("Note source"));
+        changed |= editor.changed();
         // List continuation reads the newline the widget has just inserted.
         changed |= crate::editor_keys::post(ui, &mut state.buffer, editor_id);
 
