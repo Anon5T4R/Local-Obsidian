@@ -2297,8 +2297,25 @@ fn casca_shots() {
 /// point at that sits past the edge is a control the user cannot see). The width is what the standard
 /// holds at the window's minimum; height is the scroll's business - a window taller than the screen
 /// scrolls its content (the help window at 440 pt), and a node past the fold is reached by scrolling.
+/// Each node of the accessibility tree inside the window, in both axes. The body of a dialog taller
+/// than the window scrolls, with its title and its buttons outside the `ScrollArea`: the accesskit
+/// tree reports the scrolled content unclipped, so what hangs below is accepted only when it comes
+/// before a vertical scroll bar inside the window and in its column.
 fn assert_inside_the_window(harness: &Shell, what: &str, width: f32) {
-    for node in harness.root().children_recursive() {
+    const TOL: f64 = 1.0;
+    let (w, h) = (f64::from(width), f64::from(NARROW.1));
+    let nodes: Vec<_> = harness.root().children_recursive().collect();
+    let bars: Vec<(usize, egui::accesskit::Rect)> = nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, node)| {
+            let rect = node.accesskit_node().bounding_box()?;
+            let vertical = rect.y1 - rect.y0 > rect.x1 - rect.x0;
+            let inside = rect.x0 >= -TOL && rect.x1 <= w + TOL && rect.y0 >= -TOL && rect.y1 <= h + TOL;
+            (node.accesskit_node().role() == egui::accesskit::Role::ScrollBar && vertical && inside).then_some((i, rect))
+        })
+        .collect();
+    for (i, node) in nodes.iter().enumerate() {
         let role = node.accesskit_node().role();
         let Some(rect) = node.accesskit_node().bounding_box() else { continue };
         // A panel's resize handle is a 6 pt strip centred on the panel's border: half of it is meant to
@@ -2306,7 +2323,12 @@ fn assert_inside_the_window(harness: &Shell, what: &str, width: f32) {
         if rect.width() <= 0.0 || role == egui::accesskit::Role::Splitter {
             continue;
         }
-        assert!(rect.x0 >= -1.0 && rect.x1 <= f64::from(width) + 1.0, "{what}: {role:?} leaves the {width:.0} pt window: {rect:?}");
+        assert!(rect.x0 >= -TOL && rect.x1 <= w + TOL, "{what}: {role:?} leaves the {width:.0} pt window: {rect:?}");
+        assert!(rect.y0 >= -TOL, "{what}: {role:?} above the window: {rect:?}");
+        if rect.y1 > h + TOL {
+            let scrolled = bars.iter().any(|&(bar_at, bar)| bar_at > i && rect.x1 <= bar.x1 + TOL && bar.y0 <= rect.y0 + TOL);
+            assert!(scrolled, "{what}: {role:?} below the {:.0} pt window and outside a scrolling body: {rect:?}", NARROW.1);
+        }
     }
 }
 
