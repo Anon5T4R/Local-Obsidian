@@ -17,6 +17,8 @@ craft-i18n = { workspace = true }
 craft-ai-ui = { workspace = true }
 craft-icons = { workspace = true }
 craft-palette = { workspace = true }
+# Agent-native plumbing: the stdio MCP server, the script steps and the automation roots the CLI uses.
+craft-mcp = { workspace = true }
 craft-update = { workspace = true }
 craft-window = { workspace = true }
 craft-desktop-theme = { workspace = true }

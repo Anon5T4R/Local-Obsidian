@@ -23,6 +23,9 @@ repository = "https://github.com/Anon5T4R/Local-Obsidian"
 craft-icons = { path = "libs/craft-libs/crates/icons/", features = ["egui"] }
 # The suite's command palette (Ctrl+K and the search icon). Source: local-libs.
 craft-palette = { path = "libs/craft-libs/crates/palette/" }
+# Agent-native plumbing (stdio MCP server, script steps with "$N", the automation roots and the
+# `--connect PORT` live bridge); source in local-libs, mirrored here by its sync.ps1.
+craft-mcp = { path = "libs/craft-libs/crates/mcp/" }
 craft-i18n = { path = "libs/craft-libs/crates/i18n/" }
 craft-ai-ui = { path = "libs/craft-libs/crates/ai-ui/" }
 # The SVG loader for the suite's icons (craft-icons): resvg, pure Rust. Vendored fork via [patch].
