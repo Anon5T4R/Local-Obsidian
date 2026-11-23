@@ -125,6 +125,8 @@ fun MarkdownPreview(
             .usePlugin(
                 ImagesPlugin.create(ImagesPlugin.ImagesConfigure { plugin ->
                     plugin.addSchemeHandler(ContentSchemeHandler(context))
+                    // O app tem a permissão INTERNET só para o atualizador: imagem remota nunca é buscada.
+                    plugin.addSchemeHandler(BlockedNetworkSchemeHandler)
                 })
             )
 
@@ -498,4 +500,12 @@ private class ContentSchemeHandler(private val context: Context) : SchemeHandler
     }
 
     override fun supportedSchemes(): Collection<String> = listOf("content")
+}
+
+/** http/https nunca saem do aparelho: a imagem remota vira vazio, como quando o app não tinha rede. */
+private object BlockedNetworkSchemeHandler : SchemeHandler() {
+    override fun handle(raw: String, uri: Uri): ImageItem =
+        ImageItem.withResult(ColorDrawable(android.graphics.Color.TRANSPARENT))
+
+    override fun supportedSchemes(): Collection<String> = listOf("http", "https")
 }

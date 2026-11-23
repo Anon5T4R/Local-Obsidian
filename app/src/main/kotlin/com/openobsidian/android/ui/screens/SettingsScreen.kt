@@ -16,6 +16,9 @@ import com.openobsidian.android.data.AppSettings
 import com.openobsidian.android.data.AppTheme
 import com.openobsidian.android.data.PreviewFontSize
 import com.openobsidian.android.data.SortOrder
+import com.openobsidian.android.ui.UpdateActions
+import com.openobsidian.android.ui.UpdateSettingsSection
+import com.openobsidian.android.ui.UpdateViewModel
 
 @Composable
 fun SettingsScreen(
@@ -23,6 +26,8 @@ fun SettingsScreen(
     onThemeChange: (AppTheme) -> Unit,
     onFontSizeChange: (PreviewFontSize) -> Unit,
     onSortOrderChange: (SortOrder) -> Unit,
+    updateState: UpdateViewModel.UiState,
+    updateActions: UpdateActions,
     onClose: () -> Unit,
 ) {
     Column(
@@ -143,6 +148,9 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // ── Updates (opt-in) ────────────────────────────────────────────
+            item { UpdateSettingsSection(updateState, updateActions) }
 
             item { Spacer(Modifier.height(32.dp)) }
         }

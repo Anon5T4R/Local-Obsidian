@@ -1,6 +1,6 @@
-# OpenObsidian Android
+# Local Obsidian (Android)
 
-Um editor de notas em **Markdown** para Android, inspirado no Obsidian. Abre uma
+O **Local Obsidian** no Android (repositório `OpenObsidianAndroid`): um editor de notas em **Markdown**, inspirado no Obsidian. Abre uma
 pasta local do seu dispositivo (um "vault") via Storage Access Framework e
 trabalha direto nos seus arquivos `.md` — sem nuvem, sem banco de dados, sem
 lock-in. Tudo continua sendo arquivos de texto na sua pasta.
@@ -71,6 +71,17 @@ lock-in. Tudo continua sendo arquivos de texto na sua pasta.
 - O `mermaid.min.js` está embutido no app e o WebView roda **com a rede
   bloqueada** — diagrama que depende de CDN é diagrama que falha offline.
 - Diagrama que não compila mostra o erro em vez de uma tela em branco.
+
+### Atualizações (opcional)
+- **Desligado por padrão.** Em Configurações → Atualizações, o usuário liga a
+  verificação automática (no máximo uma vez por dia) ou toca em "Verificar agora".
+  É a **única** conexão de rede do app: lê as releases de
+  `Anon5T4R/OpenObsidianAndroid` no GitHub e nada sobre o usuário ou as notas é enviado.
+- Só baixa APK de `https://github.com/Anon5T4R/OpenObsidianAndroid/releases/download/`,
+  confere o SHA-256 publicado pelo GitHub no asset e entrega o arquivo ao instalador
+  do Android, que só aceita a versão assinada com a mesma chave da instalada.
+- Release = tag `vX.Y.Z` (igual ao `versionName`); o workflow publica
+  `LocalObsidian-Android-vX.Y.Z.apk`.
 
 ### Integridade
 - **Renomear reescreve os `[[links]]`** que apontavam para a nota, preservando

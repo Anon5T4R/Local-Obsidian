@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Só o atualizador opcional usa a rede (ler as releases no GitHub e baixar o APK). Notas e vault nunca saem
+         do aparelho; as WebViews de Mermaid e EPUB seguem com blockNetworkLoads. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Entregar o APK baixado ao instalador do sistema (o usuário ainda libera "instalar apps desconhecidos"). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".OpenObsidianApp"
         android:allowBackup="true"
@@ -23,5 +29,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Resultado da instalação da atualização (PackageInstaller). Só o PendingIntent do próprio app chega aqui. -->
+        <receiver
+            android:name=".data.update.UpdateInstallReceiver"
+            android:exported="false" />
     </application>
 </manifest>
