@@ -60,6 +60,33 @@ packaging/linux/package.sh    # AppImage/deb/rpm/tar (Linux)
   `libs/` é árvore vendored e carrega a atribuição de origem).
 - Fontes fora do que o egui embute vivem no craft-fonts (`assets/craft-fonts`).
 
+## Agent-native (MCP)
+Todo comando do app é alcançável por um agente. O servidor é `localobsidian mcp` (stdio), sobre o
+`craft-mcp` da suíte (`libs/craft-libs/crates/mcp`, fonte `local-libs` — espelho, não editar), com
+três ferramentas: `command_list` (o catálogo: id, rótulo, menu, `appOnly` e o schema dos parâmetros),
+`command_run` (um id com `params`) e `command_batch` (passos em ordem, com `"$N.path"` puxando o
+resultado de um passo anterior). Sem cliente MCP: `localobsidian commands [--search TEXT]` imprime o
+catálogo e `localobsidian run --in VAULT --script job.json` roda os mesmos passos. O catálogo é
+`src/automation/catalogue.rs`: os comandos da paleta (`src/app/commands.rs`) mais o lado de leitura e
+escrita do mesmo vault — `note.open`, `note.read`, `note.write`, `vault.inspect`, `vault.search` e
+`vault.diagnostics` (o que o editor, a barra lateral, o painel de busca e a janela de diagnóstico
+mostram). Nada de ação nova.
+
+O vault é o documento: o headless abre, lê, escreve, cria, renomeia (reescrevendo os `[[links]]`) e
+busca **pelo próprio `VaultState` do app** (`src/automation/session.rs` — as mesmas gravações
+atômicas, o mesmo índice e o mesmo motor de busca), e a janela usa as mesmas funções em
+`src/live.rs`. Exportar HTML/PDF também: `write_html`/`write_pdf` no `app.rs` são os mesmos do menu.
+O que precisa da janela (seletores, viewport, sessão de revisão, chat de IA, updater, sair) diz
+`appOnly` e o headless o recusa apontando o modo live.
+
+Modo live: `localobsidian --control PORT` abre o canal JSON em `127.0.0.1` e
+`localobsidian mcp --connect PORT` liga o MCP nele (porta nua = loopback; host que não é loopback é
+recusado antes de conectar). `--automation-read-root DIR`/`--automation-write-root DIR`
+(repetíveis, `--flag=DIR`) confinam os arquivos que os comandos abrem, leem, escrevem e exportam
+(renomear pede escrita no vault inteiro: pode reescrever qualquer nota); uma espécie sem raiz não
+concede nada daquele acesso e, sem nenhuma flag, não há confinamento. Com um app rodando, as flags
+vão para o app. As três vias têm teste em `tests/agent_native.rs`.
+
 ## Upstream e a pasta `C:\Dev\storytold`
 
 Menções a `storytold/*` em código, comentários, docs e atribuições são referência histórica e

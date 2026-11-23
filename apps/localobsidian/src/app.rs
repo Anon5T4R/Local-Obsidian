@@ -79,7 +79,7 @@ pub struct LocalApp {
     /// The `language` setting: [`i18n::AUTO`] or a code from [`i18n::LANGUAGES`].
     language: String,
     prefs: Prefs,
-    vault: VaultState,
+    pub(crate) vault: VaultState,
     /// The pictures the reading view has decoded (`![[foto.png]]`).
     images: Images,
     /// The review session and its statistics panel.
@@ -109,9 +109,19 @@ pub struct LocalApp {
     qa_shot: Option<QaShot>,
     /// The chat panel and its connection.
     chat: Chat,
+    /// The control channel of `--control PORT` (agents and scripts), when the app was started with it.
+    pub(crate) control: Option<crate::automation::control::Control>,
+    /// The automation roots given with `--control` (none: nothing is confined).
+    pub(crate) roots: Option<craft_mcp::automation::Roots>,
 }
 
 impl LocalApp {
+    /// Give the window the control channel and the roots it enforces (`--control PORT`).
+    pub(crate) fn attach_control(&mut self, control: Option<crate::automation::control::Control>, roots: Option<craft_mcp::automation::Roots>) {
+        self.control = control;
+        self.roots = roots;
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>, frame: craft_window::Frame) -> Self {
         crate::fonts::install(&cc.egui_ctx);
         install_styles(&cc.egui_ctx);
@@ -234,6 +244,8 @@ impl LocalApp {
                 frames: std::env::var("LOCALOBSIDIAN_QA_FRAMES").ok().and_then(|frames| frames.parse().ok()).unwrap_or(40),
                 taken: false,
             }),
+            control: None,
+            roots: None,
         };
 
         // `LOCALOBSIDIAN_QA_VAULT` opens a vault before the first frame - the capture has no hands to
@@ -1077,14 +1089,11 @@ impl LocalApp {
 
     /// Writes the open note as a PDF and says how many pages it made.
     fn export_pdf(&mut self, path: std::path::PathBuf) {
-        let Some(active) = self.vault.active.clone() else {
+        if self.vault.active.is_none() {
             self.vault.message = Some(tl!("open a note first").to_string());
             return;
-        };
-        let title = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
-        self.vault.refresh_preview();
-        let blocks = self.vault.preview().to_vec();
-        match export_note_pdf(&blocks, &title, &self.vault, &path) {
+        }
+        match write_pdf(&mut self.vault, &path) {
             Ok(report) => {
                 let pages = report.pages.to_string();
                 self.vault.message =
@@ -1100,34 +1109,17 @@ impl LocalApp {
     /// inlined and the palette following the reader's system. A `[[Nota]]` becomes `Nota.html`, so
     /// exporting the notes it points at into the same folder makes the link work.
     fn export_html(&mut self, path: std::path::PathBuf) {
-        let Some(active) = self.vault.active.clone() else {
+        if self.vault.active.is_none() {
             self.vault.message = Some(tl!("open a note first").to_string());
             return;
-        };
-        let name = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
-        self.vault.refresh_preview();
-        let html = localobsidian_md::html::document(&name, i18n::code(), self.vault.preview());
-        if let Err(error) = std::fs::write(&path, html) {
-            self.vault.message = Some(format!("{}: {error}", tl!("could not write the page")));
-            return;
         }
-
-        // The pictures keep the vault's `_attachments/` layout, so the note's own paths stay right.
-        let mut copied = 0;
-        if let Some(folder) = path.parent() {
-            let wanted = localobsidian_md::html::images(self.vault.preview());
-            for destination in wanted {
-                let Some(source) = self.vault.attachment_path(&destination) else { continue };
-                let Some(file_name) = source.file_name().map(|name| name.to_os_string()) else { continue };
-                let target_folder = folder.join("_attachments");
-                if std::fs::create_dir_all(&target_folder).is_err() {
-                    continue;
-                }
-                if std::fs::copy(&source, target_folder.join(file_name)).is_ok() {
-                    copied += 1;
-                }
+        let copied = match write_html(&mut self.vault, &path, i18n::code()) {
+            Ok(copied) => copied,
+            Err(error) => {
+                self.vault.message = Some(format!("{}: {error}", tl!("could not write the page")));
+                return;
             }
-        }
+        };
 
         let file = path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
         let mut message = i18n::tr_fmt("exported to {file}", &[("file", &file)]);
@@ -1309,6 +1301,16 @@ impl LocalApp {
                 self.remember();
             }
             Err(error) => self.vault.message = Some(format!("{}: {error}", tl!("could not open the vault"))),
+        }
+    }
+
+    /// The window's own follow-up of opening a vault: the folder watch and the remembered folder.
+    pub(crate) fn after_open_vault(&mut self) {
+        if let Some(root) = self.vault.root.clone() {
+            self.watcher = crate::watcher::Watcher::start(&root);
+            self.fs_change = None;
+            self.prefs.last_vault = Some(root);
+            self.remember();
         }
     }
 
@@ -1515,6 +1517,48 @@ pub(crate) fn export_note_pdf(
 ) -> Result<localobsidian_pdf::Report, localobsidian_pdf::Error> {
     let images = |destination: &str| vault.attachment_bytes(destination);
     localobsidian_pdf::export(blocks, title, &pdf_faces(), &images, path)
+}
+
+/// Writes the open note as a PDF, for the menu and for an agent (`file.export_pdf`). The faces are
+/// the app's own (embedded at build time).
+pub(crate) fn write_pdf(vault: &mut VaultState, path: &std::path::Path) -> Result<localobsidian_pdf::Report, String> {
+    let Some(active) = vault.active.clone() else { return Err("no note is open".into()) };
+    let title = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+    vault.refresh_preview();
+    let blocks = vault.preview().to_vec();
+    export_note_pdf(&blocks, &title, vault, path).map_err(|e| e.to_string())
+}
+
+/// Writes the open note as one HTML page and copies the pictures it shows beside it, for the menu
+/// and for an agent (`file.export_html`). Returns how many pictures were copied.
+///
+/// The page is what the reading view draws: the same blocks, the same callouts, the stylesheet
+/// inlined and the palette following the reader's system. A `[[Nota]]` becomes `Nota.html`, so
+/// exporting the notes it points at into the same folder makes the link work.
+pub(crate) fn write_html(vault: &mut VaultState, path: &std::path::Path, lang: &str) -> Result<usize, String> {
+    let Some(active) = vault.active.clone() else { return Err("no note is open".into()) };
+    let name = active.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default();
+    vault.refresh_preview();
+    let html = localobsidian_md::html::document(&name, lang, vault.preview());
+    std::fs::write(path, html).map_err(|e| e.to_string())?;
+
+    // The pictures keep the vault's `_attachments/` layout, so the note's own paths stay right.
+    let mut copied = 0;
+    if let Some(folder) = path.parent() {
+        let wanted = localobsidian_md::html::images(vault.preview());
+        for destination in wanted {
+            let Some(source) = vault.attachment_path(&destination) else { continue };
+            let Some(file_name) = source.file_name().map(|name| name.to_os_string()) else { continue };
+            let target_folder = folder.join("_attachments");
+            if std::fs::create_dir_all(&target_folder).is_err() {
+                continue;
+            }
+            if std::fs::copy(&source, target_folder.join(file_name)).is_ok() {
+                copied += 1;
+            }
+        }
+    }
+    Ok(copied)
 }
 
 /// Which note a random open picks: any of them, never the one already open.
@@ -1768,6 +1812,8 @@ impl LocalApp {
 
     /// What `ui` draws: the top bar, the page and the windows over it.
     pub(crate) fn show(&mut self, ui: &mut egui::Ui) {
+        // The control channel (`--control PORT`): answer what the agent asked, with the vault's state.
+        self.pump_control(ui.ctx());
         match self.frame.clone() {
             craft_window::Frame::App(layout) => self.header_bar(ui, &layout),
             // The desktop draws the frame; the menus still need a strip inside the window.
