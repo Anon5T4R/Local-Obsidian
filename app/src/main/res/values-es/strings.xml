@@ -293,4 +293,35 @@
     <string name="toast_no_other_note">No hay otra nota para abrir</string>
     <string name="toast_export_html_done">%1$s exportada como HTML</string>
     <string name="toast_export_html_failed">No se pudo escribir el archivo HTML</string>
+
+    <!-- ── Atualizações ────────────────────────────────────────────── -->
+    <string name="settings_updates">Actualizaciones</string>
+    <string name="update_auto_title">Buscar actualizaciones automáticamente</string>
+    <string name="update_auto_body">Desactivado por defecto. Activado, Local Obsidian busca una versión nueva como máximo una vez al día. La única conexión es con GitHub, para leer las releases de Anon5T4R/OpenObsidianAndroid; no se envía nada sobre ti ni sobre tus notas.</string>
+    <string name="update_check_now">Comprobar ahora</string>
+    <string name="update_checking">Comprobando…</string>
+    <string name="update_status_never">Aún no comprobado.</string>
+    <string name="update_status_up_to_date">Al día (comprobado el %1$s).</string>
+    <string name="update_status_available">Versión nueva %1$s disponible.</string>
+    <string name="update_status_error">No se pudo comprobar: %1$s.</string>
+    <string name="update_current_version">Versión instalada: %1$s</string>
+    <string name="update_error_network">sin conexión con GitHub</string>
+    <string name="update_error_http">GitHub respondió con el error %1$d</string>
+    <string name="update_error_parse">respuesta inesperada de GitHub</string>
+    <string name="update_error_too_large">el archivo es mayor de lo permitido</string>
+    <string name="update_error_digest">la descarga no coincide con el checksum publicado en GitHub y fue descartada</string>
+    <string name="update_error_storage">no se pudo guardar la descarga</string>
+    <string name="update_error_install">la instalación no se completó</string>
+    <string name="update_banner">Local Obsidian %1$s está disponible</string>
+    <string name="update_action">Actualizar</string>
+    <string name="update_action_version">Actualizar a %1$s</string>
+    <string name="update_dismiss">Descartar</string>
+    <string name="update_downloading">Descargando Local Obsidian %1$s… %2$d%%</string>
+    <string name="update_installing">Instalando Local Obsidian %1$s…</string>
+    <string name="update_permission_title">Permitir instalar actualizaciones</string>
+    <string name="update_permission_body">Android solo deja que Local Obsidian instale su propia actualización después de que permitas \"Instalar apps desconocidas\" para él. En la próxima pantalla, activa el interruptor y vuelve: la actualización continúa sola. Android solo acepta la versión nueva si está firmada con la misma clave que la instalada.</string>
+    <string name="update_permission_open">Abrir ajustes</string>
+    <string name="update_done_notice">Actualizado a Local Obsidian %1$s.</string>
+    <string name="update_cancelled_notice">Actualización cancelada.</string>
+    <string name="update_failed_notice">La actualización falló: %1$s</string>
 </resources>

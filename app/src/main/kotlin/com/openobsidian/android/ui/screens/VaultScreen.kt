@@ -249,7 +249,7 @@ fun VaultScreen(
                     title = {
                         Column {
                             Text(
-                                state.activeFile?.displayName ?: (state.tree?.name ?: "OpenObsidian"),
+                                state.activeFile?.displayName ?: (state.tree?.name ?: stringResource(R.string.app_name)),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )

@@ -5,7 +5,7 @@
   crashing, which is the behaviour we want.
 -->
 <resources>
-    <string name="app_name">OpenObsidian</string>
+    <string name="app_name">Local Obsidian</string>
 
     <!-- ── Welcome ─────────────────────────────────────────────────── -->
     <string name="welcome_tagline">Your markdown vault, native and fast.</string>
@@ -300,4 +300,35 @@
     <string name="toast_no_other_note">There is no other note to open</string>
     <string name="toast_export_html_done">%1$s exported as HTML</string>
     <string name="toast_export_html_failed">Could not write the HTML file</string>
+
+    <!-- ── Atualizações ────────────────────────────────────────────── -->
+    <string name="settings_updates">Updates</string>
+    <string name="update_auto_title">Check for updates automatically</string>
+    <string name="update_auto_body">Off by default. When on, Local Obsidian looks for a new version at most once a day. The only connection is to GitHub, to read the releases of Anon5T4R/OpenObsidianAndroid; nothing about you or your notes is sent.</string>
+    <string name="update_check_now">Check now</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_status_never">Not checked yet.</string>
+    <string name="update_status_up_to_date">Up to date (checked %1$s).</string>
+    <string name="update_status_available">New version %1$s available.</string>
+    <string name="update_status_error">Could not check: %1$s.</string>
+    <string name="update_current_version">Installed version: %1$s</string>
+    <string name="update_error_network">no connection to GitHub</string>
+    <string name="update_error_http">GitHub answered with error %1$d</string>
+    <string name="update_error_parse">unexpected answer from GitHub</string>
+    <string name="update_error_too_large">the file is larger than allowed</string>
+    <string name="update_error_digest">the download does not match the checksum published on GitHub and was discarded</string>
+    <string name="update_error_storage">could not save the download</string>
+    <string name="update_error_install">the installation did not complete</string>
+    <string name="update_banner">Local Obsidian %1$s is available</string>
+    <string name="update_action">Update</string>
+    <string name="update_action_version">Update to %1$s</string>
+    <string name="update_dismiss">Dismiss</string>
+    <string name="update_downloading">Downloading Local Obsidian %1$s… %2$d%%</string>
+    <string name="update_installing">Installing Local Obsidian %1$s…</string>
+    <string name="update_permission_title">Allow installing updates</string>
+    <string name="update_permission_body">Android only lets Local Obsidian install its own update after you allow \"Install unknown apps\" for it. On the next screen, turn the switch on and come back: the update continues by itself. Android only accepts the new version if it is signed with the same key as the one installed.</string>
+    <string name="update_permission_open">Open settings</string>
+    <string name="update_done_notice">Updated to Local Obsidian %1$s.</string>
+    <string name="update_cancelled_notice">Update cancelled.</string>
+    <string name="update_failed_notice">Update failed: %1$s</string>
 </resources>
