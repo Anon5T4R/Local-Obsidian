@@ -89,7 +89,7 @@ impl LocalApp {
     }
 
     /// Runs what the palette returned, through the same calls as the menus.
-    pub(super) fn run_command(&mut self, ctx: &egui::Context, id: &str) {
+    pub(crate) fn run_command(&mut self, ctx: &egui::Context, id: &str) {
         match id {
             "file.open" => self.ask_vault(ctx),
             "file.new" => self.begin_new_note(),
