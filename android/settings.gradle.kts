@@ -21,5 +21,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenObsidianAndroid"
+rootProject.name = "LocalNotebookAndroid"
 include(":app")

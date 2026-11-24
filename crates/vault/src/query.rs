@@ -124,7 +124,7 @@ pub fn parse(source: &str) -> Query {
 /// The notes `query` selects, in the order it asked for.
 pub fn run<'a>(files: &'a [NoteFile], index: &Index, query: &Query) -> Vec<&'a NoteFile> {
     let fields_of = |note: &NoteFile| -> Vec<(String, String)> {
-        index.frontmatter.get(&note.path).map(localobsidian_md::frontmatter::Frontmatter::pairs).unwrap_or_default()
+        index.frontmatter.get(&note.path).map(localnotebook_md::frontmatter::Frontmatter::pairs).unwrap_or_default()
     };
     let mut selected: Vec<&NoteFile> = files
         .iter()

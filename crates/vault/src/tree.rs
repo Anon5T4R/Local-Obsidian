@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn a_scan_lists_notes_and_documents_and_nothing_else() {
-        let root = std::env::temp_dir().join(format!("localobsidian-tree-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("localnotebook-tree-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("scratch dir");
         for (name, body) in [("Nota.md", "# Nota"), ("protocolo.pdf", "%PDF-1.4"), ("foto.png", "PNG"), (".oculto.md", "# nope")] {

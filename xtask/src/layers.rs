@@ -1,6 +1,6 @@
 //! Dependency layering rules.
 //!
-//! The suite grows every app as layers: `localobsidian-<name>` crates only ever depend downwards, so
+//! The suite grows every app as layers: `localnotebook-<name>` crates only ever depend downwards, so
 //! the engine can be tested without the UI and no lower layer drags egui in. The rule engine works
 //! on a small, metadata-independent model so it can be unit-tested; `from_metadata` builds that
 //! model from `cargo metadata`.
@@ -38,10 +38,10 @@ impl Class {
     }
 }
 
-/// The layering table. Names are package names without the `localobsidian-` prefix.
+/// The layering table. Names are package names without the `localnotebook-` prefix.
 pub const TABLE: &[(&str, Class)] = &[
     // L6 apps and tooling
-    ("localobsidian", Class::Exempt),
+    ("localnotebook", Class::Exempt),
     ("xtask", Class::Exempt),
     // Note format: text in, blocks out. Depends on no workspace crate at all.
     ("md", Class::Standalone),
@@ -66,7 +66,7 @@ pub const INTRA_LAYER_ORDER: &[&[&str]] = &[
 
 /// The package-name prefix of the app's own crates. A born app renames it with the rest of the
 /// template (`scripts/nascer-app.ps1`).
-pub const PREFIX: &str = "localobsidian-";
+pub const PREFIX: &str = "localnotebook-";
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));
@@ -257,14 +257,14 @@ mod tests {
     /// The table this template ships with: only the app and the tooling, so the gate passes.
     #[test]
     fn the_shipped_table_is_clean() {
-        let g = [c("localobsidian", &[("egui", Normal, false), ("craft-update", Normal, false)]), c("xtask", &[("serde_json", Normal, false)])];
+        let g = [c("localnotebook", &[("egui", Normal, false), ("craft-update", Normal, false)]), c("xtask", &[("serde_json", Normal, false)])];
         assert!(check(&g).is_empty(), "{:?}", check(&g));
     }
 
     #[test]
     fn an_unregistered_workspace_crate_is_flagged() {
-        let v = check(&[c("localobsidian-mystery", &[])]);
-        assert!(matches!(&v[..], [Violation::Unregistered { krate }] if krate == "localobsidian-mystery"));
+        let v = check(&[c("localnotebook-mystery", &[])]);
+        assert!(matches!(&v[..], [Violation::Unregistered { krate }] if krate == "localnotebook-mystery"));
     }
 
     /// The rules a born app relies on, with its own crates registered.
@@ -275,27 +275,27 @@ mod tests {
             ("engine", Class::Layer(3)),
             ("ui", Class::Layer(5)),
             ("testkit", Class::Testkit),
-            ("localobsidian", Class::Exempt),
+            ("localnotebook", Class::Exempt),
             ("xtask", Class::Exempt),
         ];
         let g = [
-            c("localobsidian-geom", &[]),
-            c("localobsidian-engine", &[("localobsidian-geom", Normal, true)]),
-            c("localobsidian-ui", &[("localobsidian-engine", Normal, true), ("egui", Normal, false)]),
-            c("localobsidian", &[("localobsidian-ui", Normal, true), ("localobsidian-testkit", Dev, true)]),
+            c("localnotebook-geom", &[]),
+            c("localnotebook-engine", &[("localnotebook-geom", Normal, true)]),
+            c("localnotebook-ui", &[("localnotebook-engine", Normal, true), ("egui", Normal, false)]),
+            c("localnotebook", &[("localnotebook-ui", Normal, true), ("localnotebook-testkit", Dev, true)]),
         ];
         assert!(check_with(&g, table).is_empty(), "{:?}", check_with(&g, table));
 
         // engine -> ui goes up
-        let up = check_with(&[c("localobsidian-engine", &[("localobsidian-ui", Normal, true)])], table);
+        let up = check_with(&[c("localnotebook-engine", &[("localnotebook-ui", Normal, true)])], table);
         assert!(matches!(up[..], [Violation::Upward { from: 3, to: 5, .. }]), "{up:?}");
 
         // a UI toolkit below L5
-        let ui = check_with(&[c("localobsidian-engine", &[("egui", Normal, false)])], table);
+        let ui = check_with(&[c("localnotebook-engine", &[("egui", Normal, false)])], table);
         assert!(matches!(ui[..], [Violation::UiBelowL5 { layer: 3, .. }]), "{ui:?}");
 
         // test tooling as a normal dependency
-        let tk = check_with(&[c("localobsidian-engine", &[("localobsidian-testkit", Normal, true)])], table);
+        let tk = check_with(&[c("localnotebook-engine", &[("localnotebook-testkit", Normal, true)])], table);
         assert!(matches!(tk[..], [Violation::TestkitAsNormalDep { .. }]), "{tk:?}");
     }
 }

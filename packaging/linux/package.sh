@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build and package Local Notebook for Linux (<arch> is x86_64 or aarch64):
 #
-#   $DIST/localobsidian-<version>-linux-<arch>.AppImage         any distro with glibc >= the build host's
-#   $DIST/localobsidian-<version>-linux-<arch>.AppImage.zsync   delta updates (needs zsyncmake)
-#   $DIST/localobsidian-<version>-linux-<arch>.deb              Debian, Ubuntu, Mint, Pop!_OS, ...
-#   $DIST/localobsidian-<version>-linux-<arch>.rpm              Fedora, openSUSE, RHEL, ...
-#   $DIST/localobsidian-<version>-linux-<arch>.tar.gz           plain FHS-style tree (bin/, share/)
+#   $DIST/localnotebook-<version>-linux-<arch>.AppImage         any distro with glibc >= the build host's
+#   $DIST/localnotebook-<version>-linux-<arch>.AppImage.zsync   delta updates (needs zsyncmake)
+#   $DIST/localnotebook-<version>-linux-<arch>.deb              Debian, Ubuntu, Mint, Pop!_OS, ...
+#   $DIST/localnotebook-<version>-linux-<arch>.rpm              Fedora, openSUSE, RHEL, ...
+#   $DIST/localnotebook-<version>-linux-<arch>.tar.gz           plain FHS-style tree (bin/, share/)
 #
 # Usage: packaging/linux/package.sh [--skip-build] [--formats "appimage deb rpm tar"]
 # Fonts: uses CRAFT_FONTS_DIR or the vendored assets/craft-fonts.
@@ -37,8 +37,8 @@ case "$ARCH" in
   aarch64 | arm64) ARCH=aarch64; DEB_ARCH=arm64 ;;
   *) echo "unsupported architecture $ARCH" >&2; exit 2 ;;
 esac
-export LOCALOBSIDIAN_MAINTAINER="${LOCALOBSIDIAN_MAINTAINER:-Local Notebook maintainers <localobsidian@users.noreply.github.com>}"
-BASENAME="localobsidian-$VERSION-linux-$ARCH"
+export LOCALNOTEBOOK_MAINTAINER="${LOCALNOTEBOOK_MAINTAINER:-Local Notebook maintainers <localnotebook@users.noreply.github.com>}"
+BASENAME="localnotebook-$VERSION-linux-$ARCH"
 
 echo "==> Local Notebook $VERSION for Linux $ARCH ($FORMATS)"
 
@@ -46,7 +46,7 @@ if [[ "$SKIP_BUILD" = 0 ]]; then
   # shellcheck source=../fonts.sh
   . "$ROOT/packaging/fonts.sh"
   prepare_fonts
-  (cd "$ROOT" && cargo build --release --locked -p localobsidian ${CROSS_TARGET:+--target "$CROSS_TARGET"})
+  (cd "$ROOT" && cargo build --release --locked -p localnotebook ${CROSS_TARGET:+--target "$CROSS_TARGET"})
 fi
 BIN="$CARGO_TARGET_DIR/${CROSS_TARGET:+$CROSS_TARGET/}release"
 WORK="$CARGO_TARGET_DIR/linux-package"
@@ -54,16 +54,16 @@ STAGE="$WORK/root"
 rm -rf "$WORK"
 
 # ---- stage an FHS tree (shared by every format) -------------------------------------------------
-install -Dm755 "$BIN/localobsidian" "$STAGE/usr/bin/localobsidian"
-"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/localobsidian" 2>/dev/null || true
+install -Dm755 "$BIN/localnotebook" "$STAGE/usr/bin/localnotebook"
+"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/localnotebook" 2>/dev/null || true
 install -Dm644 "$HERE/$APP_ID.desktop" "$STAGE/usr/share/applications/$APP_ID.desktop"
 mkdir -p "$STAGE/usr/share/metainfo"
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$LOCALOBSIDIAN_BUILD_DATE/g" \
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$LOCALNOTEBOOK_BUILD_DATE/g" \
   "$HERE/$APP_ID.metainfo.xml.in" >"$STAGE/usr/share/metainfo/$APP_ID.metainfo.xml"
 mkdir -p "$STAGE/usr/share/icons"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/usr/share/icons/"
-mkdir -p "$STAGE/usr/share/doc/localobsidian"
-copy_docs "$STAGE/usr/share/doc/localobsidian"
+mkdir -p "$STAGE/usr/share/doc/localnotebook"
+copy_docs "$STAGE/usr/share/doc/localnotebook"
 
 if command -v desktop-file-validate >/dev/null; then
   desktop-file-validate "$STAGE/usr/share/applications/$APP_ID.desktop"
@@ -115,7 +115,7 @@ if has appimage; then
   esac
   APPDIR="$WORK/Local Notebook.AppDir"
   cp -R "$STAGE" "$APPDIR"
-  ln -s usr/bin/localobsidian "$APPDIR/AppRun"
+  ln -s usr/bin/localnotebook "$APPDIR/AppRun"
   cp "$HERE/$APP_ID.desktop" "$APPDIR/$APP_ID.desktop"
   cp "$ROOT/assets/app-icon/hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
   ln -s "$APP_ID.png" "$APPDIR/.DirIcon"
@@ -162,7 +162,7 @@ if has appimage; then
   # the blocks that changed in a newer release, through the .zsync published next to each AppImage
   # on GitHub Releases. A fork's builds point at its own releases through GITHUB_REPOSITORY.
   REPO="${GITHUB_REPOSITORY:-Anon5T4R/Local-Obsidian}"
-  UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|localobsidian-*-linux-$ARCH.AppImage.zsync"
+  UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|localnotebook-*-linux-$ARCH.AppImage.zsync"
   # Extract-and-run: works without FUSE (containers, CI). The output embeds the static runtime,
   # so users don't need libfuse2 either. With zsyncmake on the host (CI installs the zsync
   # package) appimagetool also writes the .zsync, into its working directory, hence the cd.
@@ -175,6 +175,6 @@ if has appimage; then
   fi
 fi
 
-"$STAGE/usr/bin/localobsidian" --version
+"$STAGE/usr/bin/localnotebook" --version
 echo "==> done"
 ls -lh "$DIST"

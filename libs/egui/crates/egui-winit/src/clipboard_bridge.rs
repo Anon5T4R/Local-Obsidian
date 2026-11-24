@@ -70,10 +70,7 @@ pub(crate) enum PasteErrorKind {
 #[allow(clippy::allow_attributes, dead_code)] // Some compatibility helpers are cfg-specific.
 impl PasteError {
     pub(crate) fn new(kind: PasteErrorKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-        }
+        Self { kind, message: message.into() }
     }
 
     pub(crate) fn from_io(error: &io::Error) -> Self {
@@ -98,19 +95,16 @@ impl PasteError {
     pub(crate) fn io_kind(&self) -> io::ErrorKind {
         match self.kind {
             PasteErrorKind::Absent => io::ErrorKind::NotFound,
-            PasteErrorKind::NotOffered
-            | PasteErrorKind::StaleSelfSource
-            | PasteErrorKind::TooLarge
-            | PasteErrorKind::Malformed => io::ErrorKind::InvalidData,
+            PasteErrorKind::NotOffered | PasteErrorKind::StaleSelfSource | PasteErrorKind::TooLarge | PasteErrorKind::Malformed => {
+                io::ErrorKind::InvalidData
+            }
             PasteErrorKind::Interrupted => io::ErrorKind::Interrupted,
             PasteErrorKind::TimedOut => io::ErrorKind::TimedOut,
             PasteErrorKind::Unsupported => io::ErrorKind::Unsupported,
             PasteErrorKind::Busy => io::ErrorKind::WouldBlock,
             PasteErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
             PasteErrorKind::Disconnected => io::ErrorKind::BrokenPipe,
-            PasteErrorKind::Encode | PasteErrorKind::Internal | PasteErrorKind::Backend => {
-                io::ErrorKind::Other
-            }
+            PasteErrorKind::Encode | PasteErrorKind::Internal | PasteErrorKind::Backend => io::ErrorKind::Other,
         }
     }
 
@@ -190,9 +184,7 @@ pub(crate) struct DecodedPasteImage {
 
 impl core::fmt::Debug for DecodedPasteImage {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("DecodedPasteImage")
-            .field("size", &self.image.size)
-            .finish_non_exhaustive()
+        f.debug_struct("DecodedPasteImage").field("size", &self.image.size).finish_non_exhaustive()
     }
 }
 
@@ -282,13 +274,7 @@ pub(crate) fn claim<T: ClipboardTransport>(
     target_window: WindowId,
     caller_generation: u64,
 ) -> Result<(), PasteError> {
-    transport.claim(
-        kind,
-        Arc::from(text),
-        token,
-        target_window,
-        caller_generation,
-    )
+    transport.claim(kind, Arc::from(text), token, target_window, caller_generation)
 }
 
 /// One batch's captured input-origin state.
@@ -331,10 +317,7 @@ pub(crate) fn capture_claim_origin<T: ClipboardTransport>(
 ) -> CapturedClaimOrigin<T::ClaimToken> {
     match transport.input_origin(target_window) {
         Ok(token) => CapturedClaimOrigin::Captured { generation, token },
-        Err(error) => CapturedClaimOrigin::Failed {
-            generation,
-            kind: error.io_kind(),
-        },
+        Err(error) => CapturedClaimOrigin::Failed { generation, kind: error.io_kind() },
     }
 }
 
@@ -353,10 +336,7 @@ pub(crate) struct ClaimBatch<Token> {
 
 impl<Token> Default for ClaimBatch<Token> {
     fn default() -> Self {
-        Self {
-            pending: false,
-            prepared: CapturedClaimOrigin::Absent,
-        }
+        Self { pending: false, prepared: CapturedClaimOrigin::Absent }
     }
 }
 
@@ -373,12 +353,7 @@ impl<Token> ClaimBatch<Token> {
     /// preparation happens on a non-Wayland window; the prepared state is then `Absent`.
     /// A pending request is consumed exactly once, and an older prepared value can never survive
     /// into another batch even when output handling was skipped.
-    pub(crate) fn prepare<T: ClipboardTransport<ClaimToken = Token>>(
-        &mut self,
-        transport: Option<&T>,
-        target_window: WindowId,
-        generation: u64,
-    ) {
+    pub(crate) fn prepare<T: ClipboardTransport<ClaimToken = Token>>(&mut self, transport: Option<&T>, target_window: WindowId, generation: u64) {
         let pending = core::mem::take(&mut self.pending);
         self.prepared = match (pending, transport) {
             (true, Some(transport)) => capture_claim_origin(transport, target_window, generation),
@@ -457,9 +432,7 @@ pub(crate) enum ClaimOriginError {
 impl ClaimOriginError {
     fn kind(&self) -> io::ErrorKind {
         match self {
-            Self::StaleCapture { .. } | Self::ImageRequiresCapturedOrigin { .. } => {
-                io::ErrorKind::InvalidInput
-            }
+            Self::StaleCapture { .. } | Self::ImageRequiresCapturedOrigin { .. } => io::ErrorKind::InvalidInput,
             Self::CaptureFailed { kind, .. } | Self::FreshOriginFailed { kind, .. } => *kind,
         }
     }
@@ -468,32 +441,18 @@ impl ClaimOriginError {
 impl core::fmt::Display for ClaimOriginError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::StaleCapture {
-                expected_generation,
-                captured_generation,
-            } => write!(
-                f,
-                "captured clipboard origin is stale (captured generation {captured_generation}, output generation {expected_generation})"
-            ),
-            Self::CaptureFailed {
-                expected_generation,
-                captured_generation,
-                kind,
-            } => write!(
+            Self::StaleCapture { expected_generation, captured_generation } => {
+                write!(f, "captured clipboard origin is stale (captured generation {captured_generation}, output generation {expected_generation})")
+            }
+            Self::CaptureFailed { expected_generation, captured_generation, kind } => write!(
                 f,
                 "clipboard origin capture failed ({kind:?}; captured generation {captured_generation}, output generation {expected_generation})"
             ),
-            Self::ImageRequiresCapturedOrigin {
-                expected_generation,
-            } => write!(
-                f,
-                "image copy requires a captured origin (output generation {expected_generation}); fallback is not allowed"
-            ),
+            Self::ImageRequiresCapturedOrigin { expected_generation } => {
+                write!(f, "image copy requires a captured origin (output generation {expected_generation}); fallback is not allowed")
+            }
             Self::FreshOriginFailed { kind, message } => {
-                write!(
-                    f,
-                    "latest clipboard origin lookup failed ({kind:?}): {message}"
-                )
+                write!(f, "latest clipboard origin lookup failed ({kind:?}): {message}")
             }
         }
     }
@@ -522,10 +481,7 @@ pub(crate) struct BatchClaimOrigins<Token> {
 
 impl<Token> Default for BatchClaimOrigins<Token> {
     fn default() -> Self {
-        Self {
-            regular: None,
-            primary: None,
-        }
+        Self { regular: None, primary: None }
     }
 }
 
@@ -548,15 +504,13 @@ pub(crate) fn resolve_batch_claim_origins<T: ClipboardTransport>(
         return BatchClaimOrigins::default();
     }
 
-    let fallback_permitted =
-        primary || regular == Some(RegularClaimOriginPolicy::AllowFreshFallback);
+    let fallback_permitted = primary || regular == Some(RegularClaimOriginPolicy::AllowFreshFallback);
     let fallback = if matches!(&captured, CapturedClaimOrigin::Absent) && fallback_permitted {
-        Some(transport.input_origin(target_window).map_err(|error| {
-            ClaimOriginError::FreshOriginFailed {
-                kind: error.io_kind(),
-                message: error.to_string(),
-            }
-        }))
+        Some(
+            transport
+                .input_origin(target_window)
+                .map_err(|error| ClaimOriginError::FreshOriginFailed { kind: error.io_kind(), message: error.to_string() }),
+        )
     } else {
         None
     };
@@ -564,59 +518,30 @@ pub(crate) fn resolve_batch_claim_origins<T: ClipboardTransport>(
     let resolve = |policy: RegularClaimOriginPolicy| {
         let allow_fallback = policy == RegularClaimOriginPolicy::AllowFreshFallback;
         match &captured {
-            CapturedClaimOrigin::Captured { generation, token }
-                if *generation == expected_generation =>
-            {
-                Ok(token.clone())
-            }
+            CapturedClaimOrigin::Captured { generation, token } if *generation == expected_generation => Ok(token.clone()),
             CapturedClaimOrigin::Captured { generation, .. } => {
-                Err(ClaimOriginError::StaleCapture {
-                    expected_generation,
-                    captured_generation: *generation,
-                })
+                Err(ClaimOriginError::StaleCapture { expected_generation, captured_generation: *generation })
             }
             CapturedClaimOrigin::Failed { generation, kind } => {
-                Err(ClaimOriginError::CaptureFailed {
-                    expected_generation,
-                    captured_generation: *generation,
-                    kind: *kind,
-                })
+                Err(ClaimOriginError::CaptureFailed { expected_generation, captured_generation: *generation, kind: *kind })
             }
-            CapturedClaimOrigin::Absent if allow_fallback => fallback
-                .as_ref()
-                .expect("fallback is requested when a family permits it")
-                .clone(),
-            CapturedClaimOrigin::Absent => Err(ClaimOriginError::ImageRequiresCapturedOrigin {
-                expected_generation,
-            }),
+            CapturedClaimOrigin::Absent if allow_fallback => fallback.as_ref().expect("fallback is requested when a family permits it").clone(),
+            CapturedClaimOrigin::Absent => Err(ClaimOriginError::ImageRequiresCapturedOrigin { expected_generation }),
         }
     };
 
     let resolve_primary = || match &captured {
-        CapturedClaimOrigin::Captured { generation, token }
-            if *generation == expected_generation =>
-        {
-            Ok(token.clone())
+        CapturedClaimOrigin::Captured { generation, token } if *generation == expected_generation => Ok(token.clone()),
+        CapturedClaimOrigin::Captured { generation, .. } => {
+            Err(ClaimOriginError::StaleCapture { expected_generation, captured_generation: *generation })
         }
-        CapturedClaimOrigin::Captured { generation, .. } => Err(ClaimOriginError::StaleCapture {
-            expected_generation,
-            captured_generation: *generation,
-        }),
-        CapturedClaimOrigin::Failed { generation, kind } => Err(ClaimOriginError::CaptureFailed {
-            expected_generation,
-            captured_generation: *generation,
-            kind: *kind,
-        }),
-        CapturedClaimOrigin::Absent => fallback
-            .as_ref()
-            .expect("PRIMARY requests the fallback when visible")
-            .clone(),
+        CapturedClaimOrigin::Failed { generation, kind } => {
+            Err(ClaimOriginError::CaptureFailed { expected_generation, captured_generation: *generation, kind: *kind })
+        }
+        CapturedClaimOrigin::Absent => fallback.as_ref().expect("PRIMARY requests the fallback when visible").clone(),
     };
 
-    let origins = BatchClaimOrigins {
-        regular: regular.map(resolve),
-        primary: primary.then(resolve_primary),
-    };
+    let origins = BatchClaimOrigins { regular: regular.map(resolve), primary: primary.then(resolve_primary) };
     drop(captured); // Consume this prepared batch even when no family retains a token.
     origins
 }
@@ -653,10 +578,7 @@ pub(crate) enum PasteOutcome {
     /// A completed regular-clipboard PNG read after bounded decode.
     RegularImage(DecodedPasteImage),
     /// A completed PRIMARY read, with the middle-click position captured at request time.
-    Primary {
-        pos: Pos2,
-        result: Result<String, PasteError>,
-    },
+    Primary { pos: Pos2, result: Result<String, PasteError> },
 }
 
 /// Fields shared by every pending request and used for delivery fences.
@@ -779,11 +701,7 @@ struct DecodeRequest {
 }
 
 impl ComposedRegular {
-    fn new(
-        decoder: Option<Arc<dyn ImagePasteDecoder>>,
-        terminal_waker: CompletionWaker,
-        deadline: Instant,
-    ) -> Self {
+    fn new(decoder: Option<Arc<dyn ImagePasteDecoder>>, terminal_waker: CompletionWaker, deadline: Instant) -> Self {
         Self {
             inner: Arc::new(ComposedRegularInner {
                 state: Mutex::new(ComposedState {
@@ -804,13 +722,7 @@ impl ComposedRegular {
     }
 
     /// The clock used for absolute deadline checks.
-    #[cfg_attr(
-        not(test),
-        expect(
-            clippy::unused_self,
-            reason = "tests supply this request’s deterministic clock"
-        )
-    )]
+    #[cfg_attr(not(test), expect(clippy::unused_self, reason = "tests supply this request’s deterministic clock"))]
     fn now(&self) -> Instant {
         #[cfg(test)]
         {
@@ -876,18 +788,11 @@ impl ComposedRegular {
             match result {
                 Ok(PasteContent::Text(text)) => {
                     let result = if self.now() >= self.inner.deadline {
-                        Err(PasteError::new(
-                            PasteErrorKind::TimedOut,
-                            "the composed paste delivery deadline expired",
-                        ))
+                        Err(PasteError::new(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired"))
                     } else {
                         Ok(RegularPasteResult::Text(text))
                     };
-                    state.phase = if result.is_ok() {
-                        ComposedPhase::Ready
-                    } else {
-                        ComposedPhase::Failed
-                    };
+                    state.phase = if result.is_ok() { ComposedPhase::Ready } else { ComposedPhase::Failed };
                     state.result = Some(result);
                     if !state.terminal_woken {
                         state.terminal_woken = true;
@@ -897,10 +802,7 @@ impl ComposedRegular {
                 Ok(PasteContent::ImagePng(png)) => {
                     if self.now() >= self.inner.deadline {
                         state.phase = ComposedPhase::Failed;
-                        state.result = Some(Err(PasteError::new(
-                            PasteErrorKind::TimedOut,
-                            "the composed paste delivery deadline expired",
-                        )));
+                        state.result = Some(Err(PasteError::new(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired")));
                         if !state.terminal_woken {
                             state.terminal_woken = true;
                             wake = true;
@@ -908,18 +810,10 @@ impl ComposedRegular {
                     } else if let Some(decoder) = &self.inner.decoder {
                         state.phase = ComposedPhase::Decoding;
                         state.decode_epoch = state.decode_epoch.wrapping_add(1);
-                        decode = Some(DecodeRequest {
-                            epoch: state.decode_epoch,
-                            png,
-                            decoder: Arc::clone(decoder),
-                            deadline: self.inner.deadline,
-                        });
+                        decode = Some(DecodeRequest { epoch: state.decode_epoch, png, decoder: Arc::clone(decoder), deadline: self.inner.deadline });
                     } else {
                         state.phase = ComposedPhase::Failed;
-                        state.result = Some(Err(PasteError::new(
-                            PasteErrorKind::NotOffered,
-                            "PNG decode is unavailable in this build",
-                        )));
+                        state.result = Some(Err(PasteError::new(PasteErrorKind::NotOffered, "PNG decode is unavailable in this build")));
                         if !state.terminal_woken {
                             state.terminal_woken = true;
                             wake = true;
@@ -945,27 +839,21 @@ impl ComposedRegular {
             let request = Arc::new(request);
             let weak = Arc::downgrade(&self.inner);
             let completion_request = Arc::clone(&request);
-            let completion: Box<
-                dyn FnOnce(Result<DecodedPasteImage, PasteError>) + Send + 'static,
-            > = Box::new(move |result| {
+            let completion: Box<dyn FnOnce(Result<DecodedPasteImage, PasteError>) + Send + 'static> = Box::new(move |result| {
                 let Some(inner) = weak.upgrade() else {
                     return;
                 };
                 let composed = Self { inner };
                 composed.decode_finished(completion_request.epoch, result);
             });
-            let cancel =
-                request
-                    .decoder
-                    .decode(Arc::clone(&request.png), request.deadline, completion);
+            let cancel = request.decoder.decode(Arc::clone(&request.png), request.deadline, completion);
             if let Some(cancel) = cancel {
                 // Publish the handle for `cancel`/deadline handling. If the request became
                 // terminal or was cancelled while `decode` was starting, cancel the job instead
                 // of leaving it queued.
                 let cancel_now = {
                     let mut state = self.lock();
-                    if state.phase == ComposedPhase::Decoding && state.decode_epoch == request.epoch
-                    {
+                    if state.phase == ComposedPhase::Decoding && state.decode_epoch == request.epoch {
                         state.decode_cancel = Some(Arc::clone(&cancel));
                         false
                     } else {
@@ -989,19 +877,12 @@ impl ComposedRegular {
                 return;
             }
             let result = if self.now() >= self.inner.deadline {
-                Err(PasteError::new(
-                    PasteErrorKind::TimedOut,
-                    "the composed paste delivery deadline expired during decode",
-                ))
+                Err(PasteError::new(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired during decode"))
             } else {
                 result
             };
             state.decode_cancel = None;
-            state.phase = if result.is_ok() {
-                ComposedPhase::Ready
-            } else {
-                ComposedPhase::Failed
-            };
+            state.phase = if result.is_ok() { ComposedPhase::Ready } else { ComposedPhase::Failed };
             state.result = Some(result.map(RegularPasteResult::Image));
             if !state.terminal_woken {
                 state.terminal_woken = true;
@@ -1019,16 +900,10 @@ impl ComposedRegular {
     fn try_take_terminal(&self) -> Option<Result<RegularPasteResult, PasteError>> {
         let mut cancel = None;
         let mut state = self.lock();
-        if matches!(
-            state.phase,
-            ComposedPhase::Loading | ComposedPhase::Decoding | ComposedPhase::Ready
-        ) {
+        if matches!(state.phase, ComposedPhase::Loading | ComposedPhase::Decoding | ComposedPhase::Ready) {
             if self.now() >= self.inner.deadline {
                 state.phase = ComposedPhase::Failed;
-                state.result = Some(Err(PasteError::new(
-                    PasteErrorKind::TimedOut,
-                    "the composed paste delivery deadline expired",
-                )));
+                state.result = Some(Err(PasteError::new(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired")));
                 state.decode_epoch = state.decode_epoch.wrapping_add(1);
                 state.raw = None;
                 cancel = state.decode_cancel.take();
@@ -1041,10 +916,7 @@ impl ComposedRegular {
                 state.phase = ComposedPhase::Consumed;
                 state.result.take()
             }
-            ComposedPhase::Cancelled
-            | ComposedPhase::Consumed
-            | ComposedPhase::Loading
-            | ComposedPhase::Decoding => None,
+            ComposedPhase::Cancelled | ComposedPhase::Consumed | ComposedPhase::Loading | ComposedPhase::Decoding => None,
         };
         drop(state);
         if let Some(cancel) = cancel {
@@ -1058,10 +930,7 @@ impl ComposedRegular {
     fn cancel(&self) {
         let (raw, cancel) = {
             let mut state = self.lock();
-            if matches!(
-                state.phase,
-                ComposedPhase::Cancelled | ComposedPhase::Consumed
-            ) {
+            if matches!(state.phase, ComposedPhase::Cancelled | ComposedPhase::Consumed) {
                 return;
             }
             state.phase = ComposedPhase::Cancelled;
@@ -1137,12 +1006,7 @@ impl PasteBridge {
                 self.cancel_kind(PasteKind::Primary);
                 self.deferred_primary = None;
             }
-            InputKind::KeyPress
-            | InputKind::PointerPress
-            | InputKind::Edit
-            | InputKind::Focus
-            | InputKind::Close
-            | InputKind::Hide => {
+            InputKind::KeyPress | InputKind::PointerPress | InputKind::Edit | InputKind::Focus | InputKind::Close | InputKind::Hide => {
                 self.cancel_all();
                 self.generation = self.generation.wrapping_add(1);
             }
@@ -1150,12 +1014,9 @@ impl PasteBridge {
     }
 
     fn note_focus_gained(&mut self) {
-        let keeps_primary = self.pending.values().any(|request| {
-            request.kind() == PasteKind::Primary && request.common().generation == self.generation
-        }) || self
-            .deferred_primary
-            .as_ref()
-            .is_some_and(|deferred| deferred.generation == self.generation);
+        let keeps_primary =
+            self.pending.values().any(|request| request.kind() == PasteKind::Primary && request.common().generation == self.generation)
+                || self.deferred_primary.as_ref().is_some_and(|deferred| deferred.generation == self.generation);
 
         if keeps_primary {
             self.cancel_kind(PasteKind::Regular);
@@ -1177,12 +1038,9 @@ impl PasteBridge {
         focused_widget: Option<Id>,
         waker: CompletionWaker,
     ) -> Result<(), PasteError> {
-        let target_window = self.target_window.ok_or_else(|| {
-            PasteError::new(
-                PasteErrorKind::Disconnected,
-                "the state has no native window for this clipboard request",
-            )
-        })?;
+        let target_window = self
+            .target_window
+            .ok_or_else(|| PasteError::new(PasteErrorKind::Disconnected, "the state has no native window for this clipboard request"))?;
         let generation = self.generation;
         let common = PendingCommon {
             viewport_id: self.viewport_id,
@@ -1194,18 +1052,13 @@ impl PasteBridge {
             pos: None,
         };
         let deadline = Instant::now() + DELIVERY_BUDGET;
-        let composed =
-            ComposedRegular::new(self.image_decoder.as_ref().map(Arc::clone), waker, deadline);
+        let composed = ComposedRegular::new(self.image_decoder.as_ref().map(Arc::clone), waker, deadline);
         let raw_waker = composed.raw_waker();
-        let handle =
-            transport.begin_load(PasteKind::Regular, target_window, generation, raw_waker)?;
+        let handle = transport.begin_load(PasteKind::Regular, target_window, generation, raw_waker)?;
         composed.attach(handle);
         let request_id = self.next_request_id;
         self.next_request_id = self.next_request_id.wrapping_add(1);
-        self.pending.insert(
-            request_id,
-            PendingRequest::Regular(PendingRegular { common, composed }),
-        );
+        self.pending.insert(request_id, PendingRequest::Regular(PendingRegular { common, composed }));
         Ok(())
     }
 
@@ -1225,26 +1078,13 @@ impl PasteBridge {
     ) -> Result<(), PasteError> {
         let retry_waker = Arc::clone(&waker);
         self.deferred_primary = None;
-        match self.begin_raw(
-            PasteKind::Primary,
-            transport,
-            focused_widget,
-            Some(pos),
-            target_layer,
-            waker,
-        ) {
+        match self.begin_raw(PasteKind::Primary, transport, focused_widget, Some(pos), target_layer, waker) {
             Ok(()) => {
                 self.deferred_primary = None;
                 Ok(())
             }
             Err(error) if error.io_kind() == io::ErrorKind::InvalidInput => {
-                self.deferred_primary = Some(DeferredPrimary {
-                    pos,
-                    focused_widget,
-                    target_layer,
-                    generation: self.generation,
-                    waker: retry_waker,
-                });
+                self.deferred_primary = Some(DeferredPrimary { pos, focused_widget, target_layer, generation: self.generation, waker: retry_waker });
                 Ok(())
             }
             Err(error) => Err(error),
@@ -1254,10 +1094,7 @@ impl PasteBridge {
     /// Retry a focus-deferred PRIMARY read. Safe to call on every focus gain; a still-unfocused
     /// seat keeps the same single deferred request.
     #[allow(clippy::allow_attributes, dead_code)] // Only the Wayland event path defers reads.
-    pub(crate) fn retry_deferred_primary<T: ClipboardTransport>(
-        &mut self,
-        transport: &T,
-    ) -> Result<(), PasteError> {
+    pub(crate) fn retry_deferred_primary<T: ClipboardTransport>(&mut self, transport: &T) -> Result<(), PasteError> {
         let Some(deferred) = self.deferred_primary.take() else {
             return Ok(());
         };
@@ -1291,12 +1128,9 @@ impl PasteBridge {
         target_layer: Option<LayerId>,
         waker: CompletionWaker,
     ) -> Result<(), PasteError> {
-        let target_window = self.target_window.ok_or_else(|| {
-            PasteError::new(
-                PasteErrorKind::Disconnected,
-                "the state has no native window for this clipboard request",
-            )
-        })?;
+        let target_window = self
+            .target_window
+            .ok_or_else(|| PasteError::new(PasteErrorKind::Disconnected, "the state has no native window for this clipboard request"))?;
         let generation = self.generation;
         let handle = transport.begin_load(kind, target_window, generation, waker)?;
         let request_id = self.next_request_id;
@@ -1369,10 +1203,7 @@ impl PasteBridge {
                     };
                     let result = result.and_then(|content| match content {
                         PasteContent::Text(text) => Ok(text.to_string()),
-                        PasteContent::ImagePng(_) => Err(PasteError::new(
-                            PasteErrorKind::NotOffered,
-                            "PRIMARY does not carry images",
-                        )),
+                        PasteContent::ImagePng(_) => Err(PasteError::new(PasteErrorKind::NotOffered, "PRIMARY does not carry images")),
                     });
                     outcomes.push(match pos {
                         Some(pos) => PasteOutcome::Primary { pos, result },
@@ -1387,9 +1218,7 @@ impl PasteBridge {
                         continue;
                     };
                     outcomes.push(match result {
-                        Ok(RegularPasteResult::Text(text)) => {
-                            PasteOutcome::Regular(Ok(text.to_string()))
-                        }
+                        Ok(RegularPasteResult::Text(text)) => PasteOutcome::Regular(Ok(text.to_string())),
                         Ok(RegularPasteResult::Image(image)) => PasteOutcome::RegularImage(image),
                         Err(error) => PasteOutcome::Regular(Err(error)),
                     });
@@ -1435,21 +1264,12 @@ impl PasteBridge {
 
     /// Test-facing convenience wrapper: no egui layers are consulted.
     #[cfg(test)]
-    pub(crate) fn drain(
-        &mut self,
-        current_window: WindowId,
-        current_focused_widget: Option<Id>,
-    ) -> Vec<PasteOutcome> {
+    pub(crate) fn drain(&mut self, current_window: WindowId, current_focused_widget: Option<Id>) -> Vec<PasteOutcome> {
         self.drain_with_layers(current_window, current_focused_widget, |_| None)
     }
 
     fn cancel_kind(&mut self, kind: PasteKind) {
-        let request_ids: Vec<u64> = self
-            .pending
-            .iter()
-            .filter(|(_, request)| request.kind() == kind)
-            .map(|(request_id, _)| *request_id)
-            .collect();
+        let request_ids: Vec<u64> = self.pending.iter().filter(|(_, request)| request.kind() == kind).map(|(request_id, _)| *request_id).collect();
         for request_id in request_ids {
             if let Some(request) = self.pending.remove(&request_id) {
                 request.cancel();
@@ -1489,9 +1309,7 @@ mod tests {
 
     impl MockSlot {
         fn complete(&self, result: Result<PasteContent, PasteError>) {
-            if self.cancelled.load(Ordering::Acquire) != 0
-                || self.completed.load(Ordering::Acquire) != 0
-            {
+            if self.cancelled.load(Ordering::Acquire) != 0 || self.completed.load(Ordering::Acquire) != 0 {
                 return;
             }
             self.completed.store(1, Ordering::Release);
@@ -1554,10 +1372,9 @@ mod tests {
             let completions = core::mem::take(&mut *self.pending.lock());
             let result = result.map(Arc::new);
             for completion in completions {
-                completion(result.as_ref().map_or_else(
-                    |error| Err(error.clone()),
-                    |image| Ok(DecodedPasteImage::new(image.as_ref().clone(), Box::new(()))),
-                ));
+                completion(
+                    result.as_ref().map_or_else(|error| Err(error.clone()), |image| Ok(DecodedPasteImage::new(image.as_ref().clone(), Box::new(())))),
+                );
             }
         }
     }
@@ -1658,10 +1475,7 @@ mod tests {
             waker: CompletionWaker,
         ) -> Result<Box<dyn PasteTransfer>, PasteError> {
             if kind == PasteKind::Primary && self.deny_primary.load(Ordering::Acquire) {
-                return Err(PasteError::new(
-                    PasteErrorKind::InvalidInput,
-                    "the active seat has not focused the target yet",
-                ));
+                return Err(PasteError::new(PasteErrorKind::InvalidInput, "the active seat has not focused the target yet"));
             }
             let slot = Arc::new(MockSlot::default());
             *slot.waker.lock() = Some(Arc::clone(&waker));
@@ -1675,10 +1489,7 @@ mod tests {
         fn input_origin(&self, _target_window: WindowId) -> Result<Self::ClaimToken, PasteError> {
             self.origin_calls.fetch_add(1, Ordering::AcqRel);
             if self.deny_origin.load(Ordering::Acquire) {
-                return Err(PasteError::new(
-                    PasteErrorKind::Busy,
-                    "no fresh input origin",
-                ));
+                return Err(PasteError::new(PasteErrorKind::Busy, "no fresh input origin"));
             }
             Ok(self.current_token.load(Ordering::Acquire).max(1))
         }
@@ -1692,18 +1503,9 @@ mod tests {
             caller_generation: u64,
         ) -> Result<(), PasteError> {
             if !self.consumed.lock().insert((token, kind)) {
-                return Err(PasteError::new(
-                    PasteErrorKind::InvalidInput,
-                    "the input origin was already consumed in this selection family",
-                ));
+                return Err(PasteError::new(PasteErrorKind::InvalidInput, "the input origin was already consumed in this selection family"));
             }
-            self.claims.lock().push(RecordedClaim {
-                kind,
-                text: text.to_string(),
-                token,
-                target_window,
-                generation: caller_generation,
-            });
+            self.claims.lock().push(RecordedClaim { kind, text: text.to_string(), token, target_window, generation: caller_generation });
             Ok(())
         }
     }
@@ -1731,16 +1533,12 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
         assert!(bridge.drain(WindowId::from(1), focused).is_empty());
         assert_eq!(wakes.load(Ordering::Acquire), 0);
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("hello"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("hello"))));
         assert_eq!(wakes.load(Ordering::Acquire), 1);
 
         let outcomes = bridge.drain(WindowId::from(1), focused);
@@ -1752,9 +1550,7 @@ mod tests {
         assert!(bridge.drain(WindowId::from(1), focused).is_empty());
         assert_eq!(wakes.load(Ordering::Acquire), 1);
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("late"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("late"))));
         assert_eq!(wakes.load(Ordering::Acquire), 1);
     }
 
@@ -1764,19 +1560,9 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_primary(
-                &transport,
-                focused,
-                Pos2::new(12.0, 34.0),
-                None,
-                counting_waker(&wakes),
-            )
-            .unwrap();
+        bridge.begin_primary(&transport, focused, Pos2::new(12.0, 34.0), None, counting_waker(&wakes)).unwrap();
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("primary"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("primary"))));
         let outcomes = bridge.drain(WindowId::from(1), focused);
         assert_eq!(outcomes.len(), 1);
         match &outcomes[0] {
@@ -1798,29 +1584,15 @@ mod tests {
         let first_wakes = Arc::new(AtomicUsize::new(0));
         let second_wakes = Arc::new(AtomicUsize::new(0));
 
-        first
-            .begin_regular(&transport, first_focus, counting_waker(&first_wakes))
-            .unwrap();
-        second
-            .begin_primary(
-                &transport,
-                second_focus,
-                Pos2::new(1.0, 2.0),
-                None,
-                counting_waker(&second_wakes),
-            )
-            .unwrap();
+        first.begin_regular(&transport, first_focus, counting_waker(&first_wakes)).unwrap();
+        second.begin_primary(&transport, second_focus, Pos2::new(1.0, 2.0), None, counting_waker(&second_wakes)).unwrap();
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("first"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("first"))));
         let first_outcomes = first.drain(WindowId::from(1), first_focus);
         assert_eq!(first_outcomes.len(), 1);
         assert!(second.drain(WindowId::from(2), second_focus).is_empty());
 
-        transport
-            .slot(1)
-            .complete(Ok(PasteContent::Text(Arc::from("second"))));
+        transport.slot(1).complete(Ok(PasteContent::Text(Arc::from("second"))));
         assert!(first.drain(WindowId::from(1), first_focus).is_empty());
         let second_outcomes = second.drain(WindowId::from(2), second_focus);
         assert_eq!(second_outcomes.len(), 1);
@@ -1834,31 +1606,19 @@ mod tests {
             let transport = MockTransport::default();
             let mut bridge = bridge(1, 1);
             let focused = Some(Id::unique("field"));
-            bridge
-                .begin_regular(&transport, focused, noop_waker())
-                .unwrap();
+            bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
 
             bridge.note_input(invalidation);
-            transport
-                .slot(0)
-                .complete(Ok(PasteContent::Text(Arc::from("stale"))));
+            transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("stale"))));
             assert!(bridge.drain(WindowId::from(1), focused).is_empty());
         }
 
         let transport = MockTransport::default();
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
-        bridge
-            .begin_regular(&transport, focused, noop_waker())
-            .unwrap();
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("stale focus"))));
-        assert!(
-            bridge
-                .drain(WindowId::from(1), Some(Id::unique("other")))
-                .is_empty()
-        );
+        bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("stale focus"))));
+        assert!(bridge.drain(WindowId::from(1), Some(Id::unique("other"))).is_empty());
     }
 
     #[test]
@@ -1867,20 +1627,10 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let before_click = Some(Id::unique("before"));
         let after_click = Some(Id::unique("clicked"));
-        bridge
-            .begin_primary(
-                &transport,
-                before_click,
-                Pos2::new(3.0, 4.0),
-                None,
-                noop_waker(),
-            )
-            .unwrap();
+        bridge.begin_primary(&transport, before_click, Pos2::new(3.0, 4.0), None, noop_waker()).unwrap();
 
         // The same pointer press can move widget focus before the transfer completes.
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("middle"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("middle"))));
         let outcomes = bridge.drain(WindowId::from(1), after_click);
         assert_eq!(outcomes.len(), 1);
     }
@@ -1891,24 +1641,16 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
         bridge.note_input(InputKind::Close);
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("after close"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("after close"))));
         assert!(bridge.drain(WindowId::from(1), focused).is_empty());
         assert_eq!(wakes.load(Ordering::Acquire), 0);
 
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
         bridge.set_target_window(WindowId::from(2));
-        transport
-            .slot(1)
-            .complete(Ok(PasteContent::Text(Arc::from("after replacement"))));
+        transport.slot(1).complete(Ok(PasteContent::Text(Arc::from("after replacement"))));
         assert!(bridge.drain(WindowId::from(2), focused).is_empty());
         assert_eq!(wakes.load(Ordering::Acquire), 0);
     }
@@ -1918,14 +1660,10 @@ mod tests {
         let transport = MockTransport::default();
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
-        bridge
-            .begin_regular(&transport, focused, noop_waker())
-            .unwrap();
+        bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
 
         bridge.note_input(InputKind::NonInvalidating);
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("release is fine"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("release is fine"))));
         let outcomes = bridge.drain(WindowId::from(1), focused);
         assert_eq!(outcomes.len(), 1);
     }
@@ -1936,21 +1674,12 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         for _ in 0..3 {
-            bridge
-                .begin_regular(&transport, focused, noop_waker())
-                .unwrap();
+            bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
         }
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from(""))));
-        transport
-            .slot(1)
-            .complete(Err(PasteError::new(PasteErrorKind::Absent, "no offer")));
-        transport.slot(2).complete(Err(PasteError::new(
-            PasteErrorKind::Interrupted,
-            "owner changed",
-        )));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from(""))));
+        transport.slot(1).complete(Err(PasteError::new(PasteErrorKind::Absent, "no offer")));
+        transport.slot(2).complete(Err(PasteError::new(PasteErrorKind::Interrupted, "owner changed")));
 
         let outcomes = bridge.drain(WindowId::from(1), focused);
         assert_eq!(outcomes.len(), 3);
@@ -1980,15 +1709,7 @@ mod tests {
         let captured = transport.input_origin(target).unwrap();
         transport.new_input_turn(); // token 3: a later, unrelated input turn
 
-        claim(
-            &transport,
-            PasteKind::Regular,
-            "captured",
-            captured,
-            target,
-            7,
-        )
-        .unwrap();
+        claim(&transport, PasteKind::Regular, "captured", captured, target, 7).unwrap();
         let claims = transport.claims();
         assert_eq!(claims.len(), 1);
         assert_eq!(claims[0].token, 2, "the triggering input token must win");
@@ -2002,14 +1723,7 @@ mod tests {
         let captured = capture_claim_origin(&transport, target, 4);
         assert_eq!(transport.origin_calls(), 1);
 
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            4,
-            captured,
-            Some(RegularClaimOriginPolicy::AllowFreshFallback),
-            true,
-        );
+        let origins = resolve_batch_claim_origins(&transport, target, 4, captured, Some(RegularClaimOriginPolicy::AllowFreshFallback), true);
         assert_eq!(transport.origin_calls(), 1, "no fallback after a capture");
         assert_eq!(origins.regular.unwrap().unwrap(), 2);
         assert_eq!(origins.primary.unwrap().unwrap(), 2);
@@ -2025,29 +1739,10 @@ mod tests {
 
         // IME/focus or another invalidating event advanced the batch generation without a
         // new claimable pointer/keyboard capture.
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            5,
-            captured,
-            Some(RegularClaimOriginPolicy::AllowFreshFallback),
-            true,
-        );
+        let origins = resolve_batch_claim_origins(&transport, target, 5, captured, Some(RegularClaimOriginPolicy::AllowFreshFallback), true);
         assert_eq!(transport.origin_calls(), 1, "stale must not fall back");
-        assert!(matches!(
-            origins.regular.unwrap(),
-            Err(ClaimOriginError::StaleCapture {
-                expected_generation: 5,
-                captured_generation: 4,
-            })
-        ));
-        assert!(matches!(
-            origins.primary.unwrap(),
-            Err(ClaimOriginError::StaleCapture {
-                expected_generation: 5,
-                captured_generation: 4,
-            })
-        ));
+        assert!(matches!(origins.regular.unwrap(), Err(ClaimOriginError::StaleCapture { expected_generation: 5, captured_generation: 4 })));
+        assert!(matches!(origins.primary.unwrap(), Err(ClaimOriginError::StaleCapture { expected_generation: 5, captured_generation: 4 })));
     }
 
     #[test]
@@ -2057,44 +1752,19 @@ mod tests {
         let target = WindowId::from(1);
         let captured = capture_claim_origin(&transport, target, 9);
         assert_eq!(transport.origin_calls(), 1);
-        assert_eq!(
-            captured,
-            CapturedClaimOrigin::<u64>::Failed {
-                generation: 9,
-                kind: io::ErrorKind::WouldBlock,
-            }
-        );
+        assert_eq!(captured, CapturedClaimOrigin::<u64>::Failed { generation: 9, kind: io::ErrorKind::WouldBlock });
 
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            9,
-            captured,
-            Some(RegularClaimOriginPolicy::AllowFreshFallback),
-            true,
-        );
+        let origins = resolve_batch_claim_origins(&transport, target, 9, captured, Some(RegularClaimOriginPolicy::AllowFreshFallback), true);
         assert_eq!(transport.origin_calls(), 1, "failed must not fall back");
         let regular = origins.regular.unwrap().unwrap_err();
         assert!(matches!(
             &regular,
-            ClaimOriginError::CaptureFailed {
-                expected_generation: 9,
-                captured_generation: 9,
-                kind: io::ErrorKind::WouldBlock,
-            }
+            ClaimOriginError::CaptureFailed { expected_generation: 9, captured_generation: 9, kind: io::ErrorKind::WouldBlock }
         ));
-        assert_eq!(
-            io::Error::from(regular).kind(),
-            io::ErrorKind::WouldBlock,
-            "the capture error kind is preserved for diagnostics"
-        );
+        assert_eq!(io::Error::from(regular).kind(), io::ErrorKind::WouldBlock, "the capture error kind is preserved for diagnostics");
         assert!(matches!(
             origins.primary.unwrap(),
-            Err(ClaimOriginError::CaptureFailed {
-                expected_generation: 9,
-                captured_generation: 9,
-                kind: io::ErrorKind::WouldBlock,
-            })
+            Err(ClaimOriginError::CaptureFailed { expected_generation: 9, captured_generation: 9, kind: io::ErrorKind::WouldBlock })
         ));
     }
 
@@ -2102,14 +1772,8 @@ mod tests {
     fn absent_text_and_primary_share_one_synchronous_fallback_token() {
         let transport = MockTransport::default();
         let target = WindowId::from(1);
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            7,
-            CapturedClaimOrigin::Absent,
-            Some(RegularClaimOriginPolicy::AllowFreshFallback),
-            true,
-        );
+        let origins =
+            resolve_batch_claim_origins(&transport, target, 7, CapturedClaimOrigin::Absent, Some(RegularClaimOriginPolicy::AllowFreshFallback), true);
         assert_eq!(transport.origin_calls(), 1, "one lookup for both families");
         assert_eq!(origins.regular.unwrap().unwrap(), 1);
         assert_eq!(origins.primary.unwrap().unwrap(), 1);
@@ -2128,12 +1792,7 @@ mod tests {
             true,
         );
         assert_eq!(transport.origin_calls(), 1, "only PRIMARY may fall back");
-        assert!(matches!(
-            origins.regular.unwrap(),
-            Err(ClaimOriginError::ImageRequiresCapturedOrigin {
-                expected_generation: 7,
-            })
-        ));
+        assert!(matches!(origins.regular.unwrap(), Err(ClaimOriginError::ImageRequiresCapturedOrigin { expected_generation: 7 })));
         assert_eq!(origins.primary.unwrap().unwrap(), 1);
     }
 
@@ -2150,26 +1809,14 @@ mod tests {
             false,
         );
         assert_eq!(transport.origin_calls(), 0);
-        assert!(matches!(
-            origins.regular.unwrap(),
-            Err(ClaimOriginError::ImageRequiresCapturedOrigin {
-                expected_generation: 7,
-            })
-        ));
+        assert!(matches!(origins.regular.unwrap(), Err(ClaimOriginError::ImageRequiresCapturedOrigin { expected_generation: 7 })));
         assert!(origins.primary.is_none());
     }
 
     #[test]
     fn no_clipboard_winner_consumes_no_origin() {
         let transport = MockTransport::default();
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            WindowId::from(1),
-            3,
-            CapturedClaimOrigin::Absent,
-            None,
-            false,
-        );
+        let origins = resolve_batch_claim_origins(&transport, WindowId::from(1), 3, CapturedClaimOrigin::Absent, None, false);
         assert_eq!(transport.origin_calls(), 0);
         assert!(origins.regular.is_none());
         assert!(origins.primary.is_none());
@@ -2188,47 +1835,21 @@ mod tests {
             true,
         );
         assert_eq!(transport.origin_calls(), 1);
-        assert!(matches!(
-            origins.regular.unwrap(),
-            Err(ClaimOriginError::FreshOriginFailed {
-                kind: io::ErrorKind::WouldBlock,
-                ..
-            })
-        ));
-        assert!(matches!(
-            origins.primary.unwrap(),
-            Err(ClaimOriginError::FreshOriginFailed {
-                kind: io::ErrorKind::WouldBlock,
-                ..
-            })
-        ));
+        assert!(matches!(origins.regular.unwrap(), Err(ClaimOriginError::FreshOriginFailed { kind: io::ErrorKind::WouldBlock, .. })));
+        assert!(matches!(origins.primary.unwrap(), Err(ClaimOriginError::FreshOriginFailed { kind: io::ErrorKind::WouldBlock, .. })));
     }
 
     #[test]
     fn cloned_batch_token_remains_single_use_per_family() {
         let transport = MockTransport::default();
         let target = WindowId::from(1);
-        let mut origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            3,
-            CapturedClaimOrigin::Absent,
-            Some(RegularClaimOriginPolicy::AllowFreshFallback),
-            true,
-        );
+        let mut origins =
+            resolve_batch_claim_origins(&transport, target, 3, CapturedClaimOrigin::Absent, Some(RegularClaimOriginPolicy::AllowFreshFallback), true);
         let regular = origins.regular.take().unwrap().unwrap();
         let primary = origins.primary.take().unwrap().unwrap();
         assert_eq!(regular, primary);
         claim(&transport, PasteKind::Regular, "copy", regular, target, 3).unwrap();
-        claim(
-            &transport,
-            PasteKind::Primary,
-            "primary",
-            primary,
-            target,
-            3,
-        )
-        .unwrap();
+        claim(&transport, PasteKind::Primary, "primary", primary, target, 3).unwrap();
         let claims = transport.claims();
         assert_eq!(claims.len(), 2);
         assert_eq!(claims[0].token, claims[1].token);
@@ -2241,22 +1862,14 @@ mod tests {
         let transport = MockTransport::default();
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
-        bridge
-            .begin_regular(&transport, focused, noop_waker())
-            .unwrap();
-        bridge
-            .begin_primary(&transport, focused, Pos2::new(5.0, 6.0), None, noop_waker())
-            .unwrap();
+        bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
+        bridge.begin_primary(&transport, focused, Pos2::new(5.0, 6.0), None, noop_waker()).unwrap();
 
         // Click-to-focus compositors may deliver the keyboard focus gain after the pointer press.
         bridge.note_input(InputKind::FocusGained);
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("keyboard"))));
-        transport
-            .slot(1)
-            .complete(Ok(PasteContent::Text(Arc::from("middle"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("keyboard"))));
+        transport.slot(1).complete(Ok(PasteContent::Text(Arc::from("middle"))));
         let outcomes = bridge.drain(WindowId::from(1), Some(Id::unique("clicked")));
         assert_eq!(outcomes.len(), 1, "only the PRIMARY read survives");
         match &outcomes[0] {
@@ -2273,27 +1886,13 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let before_click = Some(Id::unique("before"));
         let after_click = Some(Id::unique("clicked"));
-        bridge
-            .begin_primary(
-                &transport,
-                before_click,
-                Pos2::new(1.0, 1.0),
-                None,
-                noop_waker(),
-            )
-            .unwrap();
+        bridge.begin_primary(&transport, before_click, Pos2::new(1.0, 1.0), None, noop_waker()).unwrap();
 
         // The click's own focus move is accepted and consumes the single allowance.
         assert!(bridge.drain(WindowId::from(1), after_click).is_empty());
         // A later focus change in the same generation is target churn and drops the read.
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("late"))));
-        assert!(
-            bridge
-                .drain(WindowId::from(1), Some(Id::unique("modal")))
-                .is_empty()
-        );
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("late"))));
+        assert!(bridge.drain(WindowId::from(1), Some(Id::unique("modal"))).is_empty());
     }
 
     #[test]
@@ -2303,49 +1902,21 @@ mod tests {
         let focused = Some(Id::unique("field"));
         let editor = LayerId::new(egui::Order::Middle, Id::unique("editor"));
         let modal = LayerId::new(egui::Order::Foreground, Id::unique("modal"));
-        bridge
-            .begin_regular(&transport, focused, noop_waker())
-            .unwrap();
-        bridge
-            .begin_primary(
-                &transport,
-                focused,
-                Pos2::new(2.0, 3.0),
-                Some(editor),
-                noop_waker(),
-            )
-            .unwrap();
+        bridge.begin_regular(&transport, focused, noop_waker()).unwrap();
+        bridge.begin_primary(&transport, focused, Pos2::new(2.0, 3.0), Some(editor), noop_waker()).unwrap();
 
         // A wheel scroll can move the text under a captured middle-click position.
         bridge.note_input(InputKind::Scroll);
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("regular survives"))));
-        transport
-            .slot(1)
-            .complete(Ok(PasteContent::Text(Arc::from("primary must not land"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("regular survives"))));
+        transport.slot(1).complete(Ok(PasteContent::Text(Arc::from("primary must not land"))));
         let outcomes = bridge.drain_with_layers(WindowId::from(1), focused, |_| Some(editor));
         assert_eq!(outcomes.len(), 1);
         assert!(matches!(outcomes[0], PasteOutcome::Regular(_)));
 
         // A modal layer under the click position also invalidates a pending PRIMARY.
-        bridge
-            .begin_primary(
-                &transport,
-                focused,
-                Pos2::new(2.0, 3.0),
-                Some(editor),
-                noop_waker(),
-            )
-            .unwrap();
-        transport
-            .slot(2)
-            .complete(Ok(PasteContent::Text(Arc::from("behind a modal"))));
-        assert!(
-            bridge
-                .drain_with_layers(WindowId::from(1), focused, |_| Some(modal))
-                .is_empty()
-        );
+        bridge.begin_primary(&transport, focused, Pos2::new(2.0, 3.0), Some(editor), noop_waker()).unwrap();
+        transport.slot(2).complete(Ok(PasteContent::Text(Arc::from("behind a modal"))));
+        assert!(bridge.drain_with_layers(WindowId::from(1), focused, |_| Some(modal)).is_empty());
     }
 
     #[test]
@@ -2354,9 +1925,7 @@ mod tests {
         transport.deny_primary(true);
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
-        bridge
-            .begin_primary(&transport, focused, Pos2::new(4.0, 5.0), None, noop_waker())
-            .unwrap();
+        bridge.begin_primary(&transport, focused, Pos2::new(4.0, 5.0), None, noop_waker()).unwrap();
         assert!(transport.loads.lock().is_empty(), "no read before focus");
 
         // The focus event triggers exactly one retry of the same request.
@@ -2365,9 +1934,7 @@ mod tests {
         bridge.retry_deferred_primary(&transport).unwrap();
         assert_eq!(transport.loads.lock().len(), 1);
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("middle"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("middle"))));
         let outcomes = bridge.drain(WindowId::from(1), focused);
         assert_eq!(outcomes.len(), 1);
     }
@@ -2381,15 +1948,7 @@ mod tests {
         let regular = transport.input_origin(target).unwrap();
         let primary = transport.input_origin(target).unwrap();
         claim(&transport, PasteKind::Regular, "copy", regular, target, 7).unwrap();
-        claim(
-            &transport,
-            PasteKind::Primary,
-            "primary",
-            primary,
-            target,
-            7,
-        )
-        .unwrap();
+        claim(&transport, PasteKind::Primary, "primary", primary, target, 7).unwrap();
         let another = transport.input_origin(target).unwrap();
         let error = claim(&transport, PasteKind::Regular, "again", another, target, 7).unwrap_err();
         assert_eq!(error.kind(), PasteErrorKind::InvalidInput);
@@ -2405,15 +1964,7 @@ mod tests {
         // A fresh triggering input may claim the regular family again.
         transport.new_input_turn();
         let second = transport.input_origin(target).unwrap();
-        claim(
-            &transport,
-            PasteKind::Regular,
-            "second turn",
-            second,
-            target,
-            8,
-        )
-        .unwrap();
+        claim(&transport, PasteKind::Regular, "second turn", second, target, 8).unwrap();
         let claims = transport.claims();
         assert_eq!(claims.len(), 1);
         assert_eq!(claims[0].text, "second turn");
@@ -2437,13 +1988,7 @@ mod tests {
         batch.prepare(Some(&transport), target, generation);
         assert_eq!(transport.origin_calls(), 1);
         assert!(!batch.has_pending_input());
-        assert_eq!(
-            batch.prepared(),
-            &CapturedClaimOrigin::Captured {
-                generation: 8,
-                token: 2,
-            }
-        );
+        assert_eq!(batch.prepared(), &CapturedClaimOrigin::Captured { generation: 8, token: 2 });
 
         let origins = resolve_batch_claim_origins(
             &transport,
@@ -2466,37 +2011,16 @@ mod tests {
 
         batch.note_claimable_input();
         batch.prepare(Some(&transport), target, 4);
-        assert!(matches!(
-            batch.take_prepared(),
-            CapturedClaimOrigin::Captured {
-                generation: 4,
-                token: 1
-            }
-        ));
-        assert_eq!(
-            batch.take_prepared(),
-            CapturedClaimOrigin::Absent,
-            "the prepared slot is single-use even without a clipboard winner"
-        );
+        assert!(matches!(batch.take_prepared(), CapturedClaimOrigin::Captured { generation: 4, token: 1 }));
+        assert_eq!(batch.take_prepared(), CapturedClaimOrigin::Absent, "the prepared slot is single-use even without a clipboard winner");
 
         // The output had no clipboard winner. A later programmatic image in a fresh batch must
         // see `Absent`, not the unused token from the key press.
         batch.prepare(Some(&transport), target, 5);
-        let origins = resolve_batch_claim_origins(
-            &transport,
-            target,
-            5,
-            batch.take_prepared(),
-            Some(RegularClaimOriginPolicy::RequireCapturedOrigin),
-            false,
-        );
+        let origins =
+            resolve_batch_claim_origins(&transport, target, 5, batch.take_prepared(), Some(RegularClaimOriginPolicy::RequireCapturedOrigin), false);
         assert_eq!(transport.origin_calls(), 1, "no lookup for an unused batch");
-        assert!(matches!(
-            origins.regular.unwrap(),
-            Err(ClaimOriginError::ImageRequiresCapturedOrigin {
-                expected_generation: 5,
-            })
-        ));
+        assert!(matches!(origins.regular.unwrap(), Err(ClaimOriginError::ImageRequiresCapturedOrigin { expected_generation: 5 })));
     }
 
     #[test]
@@ -2508,13 +2032,7 @@ mod tests {
 
         batch.note_claimable_input();
         batch.prepare(Some(&transport), target, 9);
-        assert_eq!(
-            batch.take_prepared(),
-            CapturedClaimOrigin::Failed {
-                generation: 9,
-                kind: io::ErrorKind::WouldBlock,
-            }
-        );
+        assert_eq!(batch.take_prepared(), CapturedClaimOrigin::Failed { generation: 9, kind: io::ErrorKind::WouldBlock });
 
         // No output consumed the failed state. A new batch without claimable input is `Absent`.
         batch.prepare(Some(&transport), target, 10);
@@ -2548,16 +2066,8 @@ mod tests {
         batch.note_claimable_input();
         batch.invalidate();
         batch.prepare(Some(&transport), target, 2);
-        assert_eq!(
-            batch.take_prepared(),
-            CapturedClaimOrigin::Absent,
-            "invalidation also drops an unprepared pending trigger"
-        );
-        assert_eq!(
-            transport.origin_calls(),
-            1,
-            "only the prepared batch looked up"
-        );
+        assert_eq!(batch.take_prepared(), CapturedClaimOrigin::Absent, "invalidation also drops an unprepared pending trigger");
+        assert_eq!(transport.origin_calls(), 1, "only the prepared batch looked up");
     }
 
     #[test]
@@ -2566,14 +2076,10 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
         bridge.note_input(InputKind::Close);
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::Text(Arc::from("late"))));
+        transport.slot(0).complete(Ok(PasteContent::Text(Arc::from("late"))));
         assert_eq!(wakes.load(Ordering::Acquire), 0);
         assert!(bridge.drain(WindowId::from(1), focused).is_empty());
     }
@@ -2589,29 +2095,15 @@ mod tests {
         bridge.set_image_decoder(Some(Arc::clone(&decoder) as Arc<dyn ImagePasteDecoder>));
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![
-                0x89, b'P', b'N', b'G',
-            ])))));
+        transport.slot(0).complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![0x89, b'P', b'N', b'G'])))));
         assert_eq!(decoder.calls(), 1, "raw completion schedules decode");
-        assert_eq!(
-            wakes.load(Ordering::Acquire),
-            0,
-            "decode is not terminal yet"
-        );
+        assert_eq!(wakes.load(Ordering::Acquire), 0, "decode is not terminal yet");
         assert!(bridge.drain(WindowId::from(1), focused).is_empty());
 
         decoder.complete(Ok(sample_image()));
-        assert_eq!(
-            wakes.load(Ordering::Acquire),
-            1,
-            "exactly one terminal wake"
-        );
+        assert_eq!(wakes.load(Ordering::Acquire), 1, "exactly one terminal wake");
 
         let outcomes = bridge.drain(WindowId::from(1), focused);
         assert_eq!(outcomes.len(), 1);
@@ -2632,9 +2124,7 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .expect("immediate completion does not fail admission");
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).expect("immediate completion does not fail admission");
         assert_eq!(wakes.load(Ordering::Acquire), 1);
 
         let outcomes = bridge.drain(WindowId::from(1), focused);
@@ -2653,20 +2143,12 @@ mod tests {
         bridge.set_image_decoder(Some(Arc::clone(&decoder) as Arc<dyn ImagePasteDecoder>));
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![1, 2, 3])))));
+        transport.slot(0).complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![1, 2, 3])))));
         assert_eq!(decoder.calls(), 1);
         bridge.note_input(InputKind::Close);
-        assert_eq!(
-            decoder.cancellations(),
-            1,
-            "queued decode cancellation propagates through the decoder trait"
-        );
+        assert_eq!(decoder.cancellations(), 1, "queued decode cancellation propagates through the decoder trait");
         decoder.complete(Ok(sample_image()));
 
         assert_eq!(wakes.load(Ordering::Acquire), 0, "cancel never wakes");
@@ -2675,13 +2157,8 @@ mod tests {
 
     #[test]
     fn text_completion_after_delivery_deadline_is_timed_out() {
-        let composed = ComposedRegular::new(
-            None,
-            noop_waker(),
-            Instant::now()
-                .checked_sub(Duration::from_millis(1))
-                .expect("instant is representable"),
-        );
+        let composed =
+            ComposedRegular::new(None, noop_waker(), Instant::now().checked_sub(Duration::from_millis(1)).expect("instant is representable"));
         let slot = Arc::new(MockSlot::default());
         *slot.result.lock() = Some(Ok(PasteContent::Text(Arc::from("late"))));
         composed.attach(Box::new(MockTransfer(slot)));
@@ -2708,11 +2185,7 @@ mod tests {
     fn ready_result_drained_before_delivery_deadline_is_delivered() {
         let deadline = Instant::now() + Duration::from_secs(1);
         let composed = ready_text_composed(deadline);
-        composed.set_test_now(
-            deadline
-                .checked_sub(Duration::from_millis(1))
-                .expect("instant is representable"),
-        );
+        composed.set_test_now(deadline.checked_sub(Duration::from_millis(1)).expect("instant is representable"));
         match composed.try_take_terminal().expect("ready terminal result") {
             Ok(RegularPasteResult::Text(text)) => assert_eq!(text.as_ref(), "ready"),
             Ok(RegularPasteResult::Image(_)) => panic!("unexpected image result"),
@@ -2725,16 +2198,8 @@ mod tests {
     fn ready_result_drained_after_delivery_deadline_is_timed_out() {
         let deadline = Instant::now() + Duration::from_secs(1);
         let composed = ready_text_composed(deadline);
-        composed.set_test_now(
-            deadline
-                .checked_sub(Duration::from_millis(1))
-                .expect("instant is representable"),
-        );
-        assert_eq!(
-            composed.lock().phase,
-            ComposedPhase::Ready,
-            "the result was ready before the deadline"
-        );
+        composed.set_test_now(deadline.checked_sub(Duration::from_millis(1)).expect("instant is representable"));
+        assert_eq!(composed.lock().phase, ComposedPhase::Ready, "the result was ready before the deadline");
         composed.set_test_now(deadline + Duration::from_millis(1));
         match composed.try_take_terminal().expect("terminal timeout") {
             Err(error) => assert_eq!(error.kind(), PasteErrorKind::TimedOut),
@@ -2745,8 +2210,7 @@ mod tests {
 
     #[test]
     fn terminal_waker_runs_outside_the_composed_state_lock() {
-        let holder: Arc<std::sync::OnceLock<std::sync::Weak<ComposedRegular>>> =
-            Arc::new(std::sync::OnceLock::new());
+        let holder: Arc<std::sync::OnceLock<std::sync::Weak<ComposedRegular>>> = Arc::new(std::sync::OnceLock::new());
         let observed = Arc::new(AtomicUsize::new(0));
         let waker = {
             let holder = Arc::clone(&holder);
@@ -2760,21 +2224,13 @@ mod tests {
             });
             waker
         };
-        let composed = Arc::new(ComposedRegular::new(
-            None,
-            waker,
-            Instant::now() + Duration::from_mins(1),
-        ));
+        let composed = Arc::new(ComposedRegular::new(None, waker, Instant::now() + Duration::from_mins(1)));
         holder.set(Arc::downgrade(&composed)).ok();
 
         let slot = Arc::new(MockSlot::default());
         *slot.result.lock() = Some(Ok(PasteContent::Text(Arc::from("no lock"))));
         composed.attach(Box::new(MockTransfer(slot)));
-        assert_eq!(
-            observed.load(Ordering::Acquire),
-            1,
-            "the terminal waker observed a delivered result"
-        );
+        assert_eq!(observed.load(Ordering::Acquire), 1, "the terminal waker observed a delivered result");
     }
 
     #[test]
@@ -2783,13 +2239,9 @@ mod tests {
         let mut bridge = bridge(1, 1);
         let focused = Some(Id::unique("field"));
         let wakes = Arc::new(AtomicUsize::new(0));
-        bridge
-            .begin_regular(&transport, focused, counting_waker(&wakes))
-            .unwrap();
+        bridge.begin_regular(&transport, focused, counting_waker(&wakes)).unwrap();
 
-        transport
-            .slot(0)
-            .complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![1, 2, 3])))));
+        transport.slot(0).complete(Ok(PasteContent::ImagePng(Arc::new(MockPng(vec![1, 2, 3])))));
         assert_eq!(wakes.load(Ordering::Acquire), 1);
 
         let outcomes = bridge.drain(WindowId::from(1), focused);

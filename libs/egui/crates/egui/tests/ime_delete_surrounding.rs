@@ -13,12 +13,7 @@ struct Field {
 
 impl Field {
     fn new(text: &str) -> Self {
-        let mut field = Self {
-            ctx: Context::default(),
-            id: Id::unique("field"),
-            text: text.to_owned(),
-            time: 0.0,
-        };
+        let mut field = Self { ctx: Context::default(), id: Id::unique("field"), text: text.to_owned(), time: 0.0 };
         // Focus, then let the undoer settle on the starting text.
         field.frame(vec![]);
         field.time += 2.0;
@@ -46,21 +41,12 @@ impl Field {
     }
 
     fn undo(&mut self) {
-        self.frame(vec![Event::Key {
-            key: Key::Z,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::COMMAND,
-        }]);
+        self.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
     }
 }
 
 fn delete(before_bytes: usize, after_bytes: usize) -> Event {
-    Event::Ime(ImeEvent::DeleteSurroundingBytes {
-        before_bytes,
-        after_bytes,
-    })
+    Event::Ime(ImeEvent::DeleteSurroundingBytes { before_bytes, after_bytes })
 }
 
 fn commit(text: &str) -> Event {
@@ -69,10 +55,7 @@ fn commit(text: &str) -> Event {
 
 fn preedit(text: &str) -> Event {
     let end = text.chars().count();
-    Event::Ime(ImeEvent::Preedit {
-        text: text.to_owned(),
-        active_range_chars: (end > 0).then_some(end..end),
-    })
+    Event::Ime(ImeEvent::Preedit { text: text.to_owned(), active_range_chars: (end > 0).then_some(end..end) })
 }
 
 #[test]
@@ -95,10 +78,7 @@ fn press_and_hold_replaces_only_the_letter_and_undoes_in_one_step() {
 fn a_deletion_with_its_commit_removes_exact_bytes() {
     // An emoji sequence replaced as a whole.
     let mut field = Field::new(PREFIX);
-    field.frame(vec![
-        delete("👨\u{200d}👩\u{200d}👧".len(), 0),
-        commit("🙂"),
-    ]);
+    field.frame(vec![delete("👨\u{200d}👩\u{200d}👧".len(), 0), commit("🙂")]);
     assert_eq!(field.text, "e\u{301}é🇯🇵🙂");
     field.undo();
     assert_eq!(field.text, PREFIX);

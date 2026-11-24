@@ -21,8 +21,8 @@ use crate::{
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{
-    ByteRangeExt as _, FallbackAlign, Galley, Glyph, LayoutJob, LayoutSection, LineBreakKind,
-    LineBreaker, PlacedRow, Row, RowVisuals, TextDirection, VariationCoords,
+    ByteRangeExt as _, FallbackAlign, Galley, Glyph, LayoutJob, LayoutSection, LineBreakKind, LineBreaker, PlacedRow, Row, RowVisuals, TextDirection,
+    VariationCoords,
     family::FamilyKey,
     font_face::{ClusterGlyph, FontFace, GlyphInfo, ShapedCluster, ShapedGlyph},
     glyph_atlas::{GlyphAllocation, OutlineGlyph, RasterGlyphAllocation},
@@ -81,13 +81,7 @@ struct Paragraph {
 
 impl Paragraph {
     pub fn from_section_index(section_index_at_start: u32) -> Self {
-        Self {
-            cursor_x_px: 0.0,
-            section_index_at_start,
-            glyphs: vec![],
-            empty_paragraph_height: 0.0,
-            rtl: false,
-        }
+        Self { cursor_x_px: 0.0, section_index_at_start, glyphs: vec![], empty_paragraph_height: 0.0, rtl: false }
     }
 }
 
@@ -124,15 +118,7 @@ pub(crate) fn layout(fonts: &mut FontsImpl, pixels_per_point: f32, job: Arc<Layo
     {
         let mut shape_buffer = fonts.take_shape_buffer();
         for section_index in 0..job.sections.len() {
-            shape_buffer = layout_section(
-                fonts,
-                shape_buffer,
-                pixels_per_point,
-                &job,
-                section_index as u32,
-                &bidi,
-                &mut paragraphs,
-            );
+            shape_buffer = layout_section(fonts, shape_buffer, pixels_per_point, &job, section_index as u32, &bidi, &mut paragraphs);
         }
         fonts.return_shape_buffer(shape_buffer);
     }
@@ -142,13 +128,7 @@ pub(crate) fn layout(fonts: &mut FontsImpl, pixels_per_point: f32, job: Arc<Layo
     let intrinsic_size = calculate_intrinsic_size(point_scale, &job, &paragraphs);
 
     let mut elided = false;
-    let mut rows = rows_from_paragraphs(
-        paragraphs,
-        &job,
-        pixels_per_point,
-        fonts.line_breaker.as_ref(),
-        &mut elided,
-    );
+    let mut rows = rows_from_paragraphs(paragraphs, &job, pixels_per_point, fonts.line_breaker.as_ref(), &mut elided);
     if elided && let Some(last_placed) = rows.last_mut() {
         let last_row = Arc::make_mut(&mut last_placed.row);
         replace_last_glyph_with_overflow_character(fonts, pixels_per_point, &job, last_row);
@@ -174,28 +154,12 @@ pub(crate) fn layout(fonts: &mut FontsImpl, pixels_per_point: f32, job: Arc<Layo
     let num_rows = rows.len();
     for (i, placed_row) in rows.iter_mut().enumerate() {
         // Aligned around x = 0 for now, see `align_rtl_rows_to_start`:
-        let halign = if starts_on_the_right(&job, &placed_row.row) {
-            Align::RIGHT
-        } else {
-            job.halign
-        };
+        let halign = if starts_on_the_right(&job, &placed_row.row) { Align::RIGHT } else { job.halign };
         let is_last_row = i + 1 == num_rows;
-        let ends_with_hard_break = placed_row
-            .row
-            .glyphs
-            .last()
-            .is_some_and(|glyph| is_mandatory_break(glyph.chr));
-        let justify_row =
-            justify && !placed_row.ends_with_newline && !ends_with_hard_break && !is_last_row;
+        let ends_with_hard_break = placed_row.row.glyphs.last().is_some_and(|glyph| is_mandatory_break(glyph.chr));
+        let justify_row = justify && !placed_row.ends_with_newline && !ends_with_hard_break && !is_last_row;
         if justify || halign != Align::LEFT {
-            halign_and_justify_row(
-                point_scale,
-                placed_row,
-                halign,
-                job.wrap.max_width,
-                justify_row,
-                job.keep_trailing_whitespace,
-            );
+            halign_and_justify_row(point_scale, placed_row, halign, job.wrap.max_width, justify_row, job.keep_trailing_whitespace);
         }
     }
     align_rtl_rows_to_start(&job, &mut rows, pixels_per_point);
@@ -221,14 +185,7 @@ struct ShapingContext {
 }
 
 impl ShapingContext {
-    fn glyph(
-        &self,
-        chr: char,
-        physical_x: i32,
-        advance_width_px: f32,
-        face_metrics: &StyledMetrics,
-        alloc: GlyphAllocation,
-    ) -> Glyph {
+    fn glyph(&self, chr: char, physical_x: i32, advance_width_px: f32, face_metrics: &StyledMetrics, alloc: GlyphAllocation) -> Glyph {
         let GlyphAllocation { uv_rect, is_color } = alloc;
         Glyph {
             chr,
@@ -292,20 +249,12 @@ fn layout_shaped_run(
     ctx: &mut ShapingContext,
     paragraph: &mut Paragraph,
 ) {
-    let shaped = ShapedRun {
-        run,
-        text: run_text,
-        face_metrics,
-        infos: glyph_buffer.glyph_infos(),
-        positions: glyph_buffer.glyph_positions(),
-    };
+    let shaped = ShapedRun { run, text: run_text, face_metrics, infos: glyph_buffer.glyph_infos(), positions: glyph_buffer.glyph_positions() };
 
     let mut clusters = logical_clusters(shaped.infos, run.bidi_level % 2 == 1).peekable();
     while let Some(glyph_range) = clusters.next() {
         let byte_range = shaped.cluster_bytes(&glyph_range, clusters.peek());
-        let char_count = run_text
-            .get(byte_range.clone())
-            .map_or(0, |cluster_text| cluster_text.chars().count());
+        let char_count = run_text.get(byte_range.clone()).map_or(0, |cluster_text| cluster_text.chars().count());
 
         // Apply extra_letter_spacing only at cluster boundaries,
         // never between glyphs within the same cluster (e.g. base + mark).
@@ -315,21 +264,14 @@ fn layout_shaped_run(
         ctx.is_first_glyph_in_section = false;
 
         let first_glyph = paragraph.glyphs.len();
-        let as_one_bitmap = if char_count < glyph_range.len() {
-            emit_cluster_bitmap(fonts, &shaped, glyph_range.clone(), ctx, paragraph)
-        } else {
-            None
-        };
-        let emitted = as_one_bitmap
-            .unwrap_or_else(|| emit_cluster_glyphs(fonts, &shaped, glyph_range, ctx, paragraph));
+        let as_one_bitmap =
+            if char_count < glyph_range.len() { emit_cluster_bitmap(fonts, &shaped, glyph_range.clone(), ctx, paragraph) } else { None };
+        let emitted = as_one_bitmap.unwrap_or_else(|| emit_cluster_glyphs(fonts, &shaped, glyph_range, ctx, paragraph));
 
         // Every glyph of a cluster was emitted for the cluster's first char.
         // Give each its own char, in logical order, so the row's chars are the text.
         if let Some(cluster_text) = run_text.get(byte_range.clone()) {
-            for (glyph, chr) in paragraph.glyphs[first_glyph..]
-                .iter_mut()
-                .zip(cluster_text.chars())
-            {
+            for (glyph, chr) in paragraph.glyphs[first_glyph..].iter_mut().zip(cluster_text.chars()) {
                 glyph.chr = chr;
             }
         }
@@ -354,24 +296,15 @@ struct ShapedRun<'a> {
 impl ShapedRun<'_> {
     /// The bytes of the cluster shaped into `glyph_range`,
     /// given the cluster after it in logical order (if any).
-    fn cluster_bytes(
-        &self,
-        glyph_range: &Range<usize>,
-        next: Option<&Range<usize>>,
-    ) -> Range<usize> {
+    fn cluster_bytes(&self, glyph_range: &Range<usize>, next: Option<&Range<usize>>) -> Range<usize> {
         let start = self.infos[glyph_range.start].cluster as usize;
-        let end = next.map_or(self.text.len(), |next| {
-            self.infos[next.start].cluster as usize
-        });
+        let end = next.map_or(self.text.len(), |next| self.infos[next.start].cluster as usize);
         start..end
     }
 
     /// The first character of the cluster starting at byte `cluster`.
     fn char_at(&self, cluster: u32) -> char {
-        self.text
-            .get(cluster as usize..)
-            .and_then(|s| s.chars().next())
-            .unwrap_or('\u{FFFD}') // Unicode Replacement Character
+        self.text.get(cluster as usize..).and_then(|s| s.chars().next()).unwrap_or('\u{FFFD}') // Unicode Replacement Character
     }
 }
 
@@ -397,10 +330,7 @@ fn emit_cluster_bitmap(
 
     let mut advance_px = 0.0;
     let mut glyphs = Vec::with_capacity(glyph_range.len());
-    for (info, pos) in shaped.infos[glyph_range.clone()]
-        .iter()
-        .zip(&shaped.positions[glyph_range])
-    {
+    for (info, pos) in shaped.infos[glyph_range.clone()].iter().zip(&shaped.positions[glyph_range]) {
         let glyph_id = skrifa::GlyphId::new(info.glyph_id);
         if glyph_id == skrifa::GlyphId::NOTDEF {
             return None;
@@ -418,17 +348,11 @@ fn emit_cluster_bitmap(
     let OutlineGlyph { allocation, x_px } = fonts.allocate_cluster(
         shaped.run.font_key,
         shaped.face_metrics,
-        &ShapedCluster {
-            glyphs: &glyphs,
-            h_pos: paragraph.cursor_x_px,
-            is_cjk: is_cjk(chr),
-        },
+        &ShapedCluster { glyphs: &glyphs, h_pos: paragraph.cursor_x_px, is_cjk: is_cjk(chr) },
     )?;
 
     paragraph.cursor_x_px += advance_px;
-    paragraph
-        .glyphs
-        .push(ctx.glyph(chr, x_px, advance_px, shaped.face_metrics, allocation));
+    paragraph.glyphs.push(ctx.glyph(chr, x_px, advance_px, shaped.face_metrics, allocation));
     Some(1)
 }
 
@@ -443,13 +367,7 @@ fn emit_cluster_glyphs(
     ctx: &ShapingContext,
     paragraph: &mut Paragraph,
 ) -> usize {
-    let ShapedRun {
-        run,
-        text: run_text,
-        face_metrics,
-        infos,
-        positions,
-    } = *shaped;
+    let ShapedRun { run, text: run_text, face_metrics, infos, positions } = *shaped;
     let px_scale = face_metrics.px_scale_factor;
     let mut emitted = 0;
     let first_glyph = paragraph.glyphs.len();
@@ -457,10 +375,7 @@ fn emit_cluster_glyphs(
     // The glyph that stands for the cluster. Not always the first:
     // a right-to-left shaper puts a cluster's marks before its base.
     let base = if run.bidi_level % 2 == 1 {
-        glyph_range
-            .clone()
-            .find(|&idx| 0 < positions[idx].x_advance)
-            .unwrap_or(glyph_range.start)
+        glyph_range.clone().find(|&idx| 0 < positions[idx].x_advance).unwrap_or(glyph_range.start)
     } else {
         glyph_range.start
     };
@@ -505,31 +420,17 @@ fn emit_cluster_glyphs(
 
             let cluster_text = run_text
                 .get(cluster as usize..)
-                .and_then(|text| {
-                    unicode_segmentation::UnicodeSegmentation::graphemes(text, true).next()
-                })
+                .and_then(|text| unicode_segmentation::UnicodeSegmentation::graphemes(text, true).next())
                 .unwrap_or_default();
 
-            if let Some(raster) = fonts.rasterize_cluster(
-                FontPriority::Lowest,
-                ctx.family,
-                cluster_text,
-                ctx.pixels_per_point,
-                ctx.font_size,
-            ) {
+            if let Some(raster) = fonts.rasterize_cluster(FontPriority::Lowest, ctx.family, cluster_text, ctx.pixels_per_point, ctx.font_size) {
                 raster_glyph(ctx, paragraph, chr, &raster, face_metrics)
             } else {
                 // Use the fallback font face (not run.font_key which returned NOTDEF).
                 let fallback_key = fonts.resolve_face(ctx.family, chr);
                 let fallback_metrics = fonts
                     .face(fallback_key)
-                    .map(|face| {
-                        face.styled_metrics(
-                            ctx.pixels_per_point,
-                            ctx.font_size,
-                            &Default::default(),
-                        )
-                    })
+                    .map(|face| face.styled_metrics(ctx.pixels_per_point, ctx.font_size, &Default::default()))
                     .unwrap_or_default();
                 let (_, glyph_info) = fonts.glyph_info(ctx.family, chr, &fallback_metrics);
 
@@ -539,33 +440,19 @@ fn emit_cluster_glyphs(
                 if glyph_info.id == Some(skrifa::GlyphId::NOTDEF) {
                     fonts.on_missing_glyph(ctx.family, cluster_text);
                 }
-                let advance_width_px =
-                    glyph_info.advance_width_unscaled.0 * fallback_metrics.px_scale_factor;
-                let OutlineGlyph { allocation, x_px } = allocate_glyph_info(
-                    fonts,
-                    fallback_key,
-                    &fallback_metrics,
-                    glyph_info,
-                    paragraph.cursor_x_px,
-                    chr,
-                );
+                let advance_width_px = glyph_info.advance_width_unscaled.0 * fallback_metrics.px_scale_factor;
+                let OutlineGlyph { allocation, x_px } =
+                    allocate_glyph_info(fonts, fallback_key, &fallback_metrics, glyph_info, paragraph.cursor_x_px, chr);
 
                 paragraph.cursor_x_px += advance_width_px;
 
                 ctx.glyph(chr, x_px, advance_width_px, &fallback_metrics, allocation)
             }
         } else {
-            let OutlineGlyph {
-                allocation: mut glyph_alloc,
-                x_px,
-            } = fonts.allocate_glyph(
+            let OutlineGlyph { allocation: mut glyph_alloc, x_px } = fonts.allocate_glyph(
                 run.font_key,
                 face_metrics,
-                &ShapedGlyph {
-                    glyph_id,
-                    h_pos: paragraph.cursor_x_px + x_offset_px,
-                    is_cjk: is_cjk(chr),
-                },
+                &ShapedGlyph { glyph_id, h_pos: paragraph.cursor_x_px + x_offset_px, is_cjk: is_cjk(chr) },
             );
 
             // Apply shaper y_offset — this varies per glyph instance so it
@@ -603,39 +490,16 @@ fn allocate_glyph_info(
     chr: char,
 ) -> OutlineGlyph {
     let Some(glyph_id) = glyph_info.id else {
-        return OutlineGlyph {
-            allocation: GlyphAllocation::default(),
-            x_px: h_pos_px.round() as i32,
-        };
+        return OutlineGlyph { allocation: GlyphAllocation::default(), x_px: h_pos_px.round() as i32 };
     };
-    fonts.allocate_glyph(
-        face_key,
-        metrics,
-        &ShapedGlyph {
-            glyph_id,
-            h_pos: h_pos_px,
-            is_cjk: is_cjk(chr),
-        },
-    )
+    fonts.allocate_glyph(face_key, metrics, &ShapedGlyph { glyph_id, h_pos: h_pos_px, is_cjk: is_cjk(chr) })
 }
 
 /// Emit one glyph for a rasterized cluster and advance the cursor.
-fn raster_glyph(
-    ctx: &ShapingContext,
-    paragraph: &mut Paragraph,
-    chr: char,
-    raster: &RasterGlyphAllocation,
-    face_metrics: &StyledMetrics,
-) -> Glyph {
+fn raster_glyph(ctx: &ShapingContext, paragraph: &mut Paragraph, chr: char, raster: &RasterGlyphAllocation, face_metrics: &StyledMetrics) -> Glyph {
     let physical_x = paragraph.cursor_x_px.round() as i32;
     paragraph.cursor_x_px += raster.advance_px;
-    ctx.glyph(
-        chr,
-        physical_x,
-        raster.advance_px,
-        face_metrics,
-        raster.allocation,
-    )
+    ctx.glyph(chr, physical_x, raster.advance_px, face_metrics, raster.allocation)
 }
 
 /// Emit the glyphs of a run that a [`GlyphRasterizer`](crate::text::GlyphRasterizer) rendered,
@@ -643,12 +507,7 @@ fn raster_glyph(
 ///
 /// The run is one grapheme cluster: its first char gets the bitmap,
 /// and the rest zero-width continuation glyphs.
-fn layout_raster_run(
-    ctx: &mut ShapingContext,
-    paragraph: &mut Paragraph,
-    run_text: &str,
-    raster: &RasterGlyphAllocation,
-) {
+fn layout_raster_run(ctx: &mut ShapingContext, paragraph: &mut Paragraph, run_text: &str, raster: &RasterGlyphAllocation) {
     let Some(chr) = run_text.chars().next() else {
         return;
     };
@@ -660,14 +519,7 @@ fn layout_raster_run(
     let face_metrics = ctx.font_metrics.clone();
     let glyph = raster_glyph(ctx, paragraph, chr, raster, &face_metrics);
     paragraph.glyphs.push(glyph);
-    emit_continuation_glyphs(
-        ctx,
-        paragraph,
-        run_text,
-        0..run_text.len(),
-        1,
-        &face_metrics,
-    );
+    emit_continuation_glyphs(ctx, paragraph, run_text, 0..run_text.len(), 1, &face_metrics);
 }
 
 /// Emit zero-width continuation glyphs when a cluster has more characters than
@@ -695,13 +547,7 @@ fn emit_continuation_glyphs(
     let physical_x = paragraph.cursor_x_px.round() as i32;
 
     for chr in cluster_text.chars().skip(cluster_glyph_count) {
-        paragraph.glyphs.push(ctx.glyph(
-            chr,
-            physical_x,
-            0.0,
-            face_metrics,
-            GlyphAllocation::default(),
-        ));
+        paragraph.glyphs.push(ctx.glyph(chr, physical_x, 0.0, face_metrics, GlyphAllocation::default()));
     }
 }
 
@@ -717,19 +563,12 @@ fn layout_section(
     out_paragraphs: &mut Vec<Paragraph>,
 ) -> harfrust::UnicodeBuffer {
     let section = &job.sections[section_index as usize];
-    let LayoutSection {
-        leading_space,
-        byte_range,
-        format,
-    } = section;
+    let LayoutSection { leading_space, byte_range, format } = section;
 
     let family = fonts.family_key(&format.font_id.family);
     let font_size = format.font_id.size;
     let font_metrics = fonts.family_metrics(family, pixels_per_point, font_size, &format.coords);
-    let line_height = section
-        .format
-        .line_height
-        .unwrap_or(font_metrics.row_height);
+    let line_height = section.format.line_height.unwrap_or(font_metrics.row_height);
     let extra_letter_spacing = section.format.extra_letter_spacing;
 
     let mut paragraph = out_paragraphs.last_mut().unwrap();
@@ -757,10 +596,7 @@ fn layout_section(
 
     // Process each paragraph segment (split on newlines — the shaper can't handle them).
     for (seg_idx, segment) in SplitOrWhole::new(section_text, job.break_on_newline).enumerate() {
-        let segment_levels = bidi
-            .levels
-            .as_deref()
-            .map(|levels| &levels[segment_start..segment_start + segment.len()]);
+        let segment_levels = bidi.levels.as_deref().map(|levels| &levels[segment_start..segment_start + segment.len()]);
 
         if 0 < seg_idx {
             paragraph = out_paragraphs.push_mut(Paragraph::from_section_index(section_index));
@@ -785,15 +621,11 @@ fn layout_section(
                 continue;
             }
             let Some(font_face) = fonts.face(run.font_key) else {
-                debug_assert!(
-                    false,
-                    "`segment_into_runs` should have turned this fontless cluster into a raster run"
-                );
+                debug_assert!(false, "`segment_into_runs` should have turned this fontless cluster into a raster run");
                 continue;
             };
 
-            let face_metrics =
-                font_face.styled_metrics(pixels_per_point, font_size, &format.coords);
+            let face_metrics = font_face.styled_metrics(pixels_per_point, font_size, &format.coords);
 
             // Set buffer flags for paragraph boundary context.
             let mut flags = harfrust::BufferFlags::empty();
@@ -804,24 +636,9 @@ fn layout_section(
                 flags |= harfrust::BufferFlags::END_OF_TEXT;
             }
 
-            let glyph_buffer = shape_text(
-                font_face,
-                run_text,
-                run.bidi_level % 2 == 1,
-                &format.coords,
-                shape_buffer,
-                flags,
-            );
+            let glyph_buffer = shape_text(font_face, run_text, run.bidi_level % 2 == 1, &format.coords, shape_buffer, flags);
 
-            layout_shaped_run(
-                fonts,
-                run,
-                run_text,
-                &glyph_buffer,
-                &face_metrics,
-                &mut ctx,
-                paragraph,
-            );
+            layout_shaped_run(fonts, run, run_text, &glyph_buffer, &face_metrics, &mut ctx, paragraph);
 
             shape_buffer = glyph_buffer.clear();
         }
@@ -839,11 +656,7 @@ enum SplitOrWhole<'a> {
 
 impl<'a> SplitOrWhole<'a> {
     fn new(text: &'a str, split: bool) -> Self {
-        if split {
-            Self::Split(text.split('\n'))
-        } else {
-            Self::Whole(iter::once(text))
-        }
+        if split { Self::Split(text.split('\n')) } else { Self::Whole(iter::once(text)) }
     }
 }
 
@@ -862,11 +675,7 @@ impl<'a> Iterator for SplitOrWhole<'a> {
 ///
 /// The result is eventually passed to `Response::intrinsic_size`.
 /// This works by calculating the size of each `Paragraph` (instead of each `Row`).
-fn calculate_intrinsic_size(
-    point_scale: PointScale,
-    job: &LayoutJob,
-    paragraphs: &[Paragraph],
-) -> Vec2 {
+fn calculate_intrinsic_size(point_scale: PointScale, job: &LayoutJob, paragraphs: &[Paragraph]) -> Vec2 {
     let mut intrinsic_size = Vec2::ZERO;
     for (idx, paragraph) in paragraphs.iter().enumerate() {
         // Use the precise cursor position instead of `last_glyph.max_x()`,
@@ -930,8 +739,7 @@ fn rows_from_paragraphs(
             // spacing as characters within a single galley.
             let paragraph_width = paragraph.cursor_x_px / pixels_per_point;
             let fits = paragraph_width <= job.effective_wrap_width();
-            let may_break_hard =
-                job.break_on_newline && paragraph.glyphs.iter().any(|g| is_mandatory_break(g.chr));
+            let may_break_hard = job.break_on_newline && paragraph.glyphs.iter().any(|g| is_mandatory_break(g.chr));
             // Early-out optimization: don't look for breaks in a paragraph that fits on one row.
             let breaks = (!fits || may_break_hard)
                 .then(|| break_opportunities(&paragraph, job, line_breaker))
@@ -974,11 +782,7 @@ struct BreakAfter {
 }
 
 /// What may follow each glyph of `paragraph`: one entry per glyph.
-fn break_opportunities(
-    paragraph: &Paragraph,
-    job: &LayoutJob,
-    line_breaker: &dyn LineBreaker,
-) -> Vec<BreakAfter> {
+fn break_opportunities(paragraph: &Paragraph, job: &LayoutJob, line_breaker: &dyn LineBreaker) -> Vec<BreakAfter> {
     // There is one glyph per char, so the text of the glyphs is the text of the paragraph.
     let text: String = paragraph.glyphs.iter().map(|glyph| glyph.chr).collect();
     let glyph_starts: Vec<usize> = text.char_indices().map(|(offset, _)| offset).collect();
@@ -1001,9 +805,7 @@ fn break_opportunities(
             continue;
         };
         let penalty = match line_break.kind {
-            LineBreakKind::Hard
-                if job.break_on_newline && is_mandatory_break(paragraph.glyphs[glyph].chr) =>
-            {
+            LineBreakKind::Hard if job.break_on_newline && is_mandatory_break(paragraph.glyphs[glyph].chr) => {
                 after[glyph].hard = true;
                 continue;
             }
@@ -1045,13 +847,7 @@ fn row_of_glyphs(paragraph: &Paragraph, range: Range<usize>, row_start_x: f32) -
 }
 
 /// `breaks` has one entry per glyph of `paragraph`, see [`break_opportunities`].
-fn line_break(
-    paragraph: &Paragraph,
-    breaks: &[BreakAfter],
-    job: &LayoutJob,
-    out_rows: &mut Vec<PlacedRow>,
-    elided: &mut bool,
-) {
+fn line_break(paragraph: &Paragraph, breaks: &[BreakAfter], job: &LayoutJob, out_rows: &mut Vec<PlacedRow>, elided: &mut bool) {
     let wrap_width = job.effective_wrap_width();
 
     // Keeps track of good places to insert row break if we exceed `wrap_width`.
@@ -1072,9 +868,7 @@ fn line_break(
         if wrap_width < potential_row_width {
             // Row break:
 
-            if first_row_indentation > 0.0
-                && !row_break_candidates.has_good_candidate(job.wrap.break_anywhere)
-            {
+            if first_row_indentation > 0.0 && !row_break_candidates.has_good_candidate(job.wrap.break_anywhere) {
                 // Allow the first row to be completely empty, because we know there will be more space on the next row:
                 // TODO(emilk): this records the height of this first row as zero, though that is probably fine since first_row_indentation usually comes with a first_row_min_height.
                 out_rows.push(PlacedRow {
@@ -1091,13 +885,8 @@ fn line_break(
                 });
                 row_start_x += first_row_indentation;
                 first_row_indentation = 0.0;
-            } else if let Some(last_kept_index) = row_break_candidates.get(job.wrap.break_anywhere)
-            {
-                out_rows.push(row_of_glyphs(
-                    paragraph,
-                    row_start_idx..last_kept_index + 1,
-                    row_start_x,
-                ));
+            } else if let Some(last_kept_index) = row_break_candidates.get(job.wrap.break_anywhere) {
+                out_rows.push(row_of_glyphs(paragraph, row_start_idx..last_kept_index + 1, row_start_x));
 
                 // Start a new row:
                 row_start_idx = last_kept_index + 1;
@@ -1161,54 +950,30 @@ fn line_break(
 /// Trims the last glyphs in the row and replaces it with an overflow character (e.g. `…`).
 ///
 /// Called before we have any Y coordinates.
-fn replace_last_glyph_with_overflow_character(
-    fonts: &mut FontsImpl,
-    pixels_per_point: f32,
-    job: &LayoutJob,
-    row: &mut Row,
-) {
+fn replace_last_glyph_with_overflow_character(fonts: &mut FontsImpl, pixels_per_point: f32, job: &LayoutJob, row: &mut Row) {
     let Some(overflow_character) = job.wrap.overflow_character else {
         return;
     };
 
-    let mut section_index = row
-        .glyphs
-        .last()
-        .map(|g| g.section_index)
-        .unwrap_or(row.section_index_at_start);
+    let mut section_index = row.glyphs.last().map(|g| g.section_index).unwrap_or(row.section_index_at_start);
     loop {
         let section = &job.sections[section_index as usize];
         let extra_letter_spacing = section.format.extra_letter_spacing;
         let family = fonts.family_key(&section.format.font_id.family);
         let font_size = section.format.font_id.size;
 
-        let font_metrics =
-            fonts.family_metrics(family, pixels_per_point, font_size, &section.format.coords);
+        let font_metrics = fonts.family_metrics(family, pixels_per_point, font_size, &section.format.coords);
 
         // A priority rasterizer may override the overflow character, just like any other glyph:
         let mut utf8 = [0_u8; 4];
-        let raster = fonts.rasterize_cluster(
-            FontPriority::Highest,
-            family,
-            overflow_character.encode_utf8(&mut utf8),
-            pixels_per_point,
-            font_size,
-        );
+        let raster = fonts.rasterize_cluster(FontPriority::Highest, family, overflow_character.encode_utf8(&mut utf8), pixels_per_point, font_size);
 
         let (face_key, font_face_metrics, glyph_info) = if raster.is_some() {
-            (
-                FontFaceKey::INVALID,
-                font_metrics.clone(),
-                GlyphInfo::INVISIBLE,
-            )
+            (FontFaceKey::INVALID, font_metrics.clone(), GlyphInfo::INVISIBLE)
         } else {
             let face_key = fonts.resolve_face(family, overflow_character);
-            let font_face_metrics = fonts
-                .face(face_key)
-                .map(|face| {
-                    face.styled_metrics(pixels_per_point, font_size, &section.format.coords)
-                })
-                .unwrap_or_default();
+            let font_face_metrics =
+                fonts.face(face_key).map(|face| face.styled_metrics(pixels_per_point, font_size, &section.format.coords)).unwrap_or_default();
             let (_, glyph_info) = fonts.glyph_info(family, overflow_character, &font_face_metrics);
             (face_key, font_face_metrics, glyph_info)
         };
@@ -1229,33 +994,15 @@ fn replace_last_glyph_with_overflow_character(
         let replacement_glyph_width = advance_width_px / pixels_per_point;
 
         // Check if we're within width budget:
-        if overflow_glyph_x + replacement_glyph_width <= job.effective_wrap_width()
-            || row.glyphs.is_empty()
-        {
+        if overflow_glyph_x + replacement_glyph_width <= job.effective_wrap_width() || row.glyphs.is_empty() {
             // we are done
 
-            let OutlineGlyph {
-                allocation: replacement_glyph_alloc,
-                x_px,
-            } = match &raster {
-                Some(raster) => OutlineGlyph {
-                    allocation: raster.allocation,
-                    x_px: (overflow_glyph_x * pixels_per_point).round() as i32,
-                },
-                None => allocate_glyph_info(
-                    fonts,
-                    face_key,
-                    &font_face_metrics,
-                    glyph_info,
-                    overflow_glyph_x * pixels_per_point,
-                    overflow_character,
-                ),
+            let OutlineGlyph { allocation: replacement_glyph_alloc, x_px } = match &raster {
+                Some(raster) => OutlineGlyph { allocation: raster.allocation, x_px: (overflow_glyph_x * pixels_per_point).round() as i32 },
+                None => allocate_glyph_info(fonts, face_key, &font_face_metrics, glyph_info, overflow_glyph_x * pixels_per_point, overflow_character),
             };
 
-            let line_height = section
-                .format
-                .line_height
-                .unwrap_or(font_metrics.row_height);
+            let line_height = section.format.line_height.unwrap_or(font_metrics.row_height);
 
             row.glyphs.push(Glyph {
                 chr: overflow_character,
@@ -1304,11 +1051,7 @@ fn halign_and_justify_row(
         return;
     }
 
-    let num_leading_spaces = row
-        .glyphs
-        .iter()
-        .take_while(|glyph| glyph.chr.is_whitespace())
-        .count();
+    let num_leading_spaces = row.glyphs.iter().take_while(|glyph| glyph.chr.is_whitespace()).count();
 
     let glyph_range = if num_leading_spaces == row.glyphs.len() {
         // There is only whitespace
@@ -1316,12 +1059,7 @@ fn halign_and_justify_row(
     } else if keep_trailing_whitespace {
         (num_leading_spaces, row.glyphs.len())
     } else {
-        let num_trailing_spaces = row
-            .glyphs
-            .iter()
-            .rev()
-            .take_while(|glyph| glyph.chr.is_whitespace())
-            .count();
+        let num_trailing_spaces = row.glyphs.iter().rev().take_while(|glyph| glyph.chr.is_whitespace()).count();
 
         (num_leading_spaces, row.glyphs.len() - num_trailing_spaces)
     };
@@ -1330,29 +1068,18 @@ fn halign_and_justify_row(
 
     // Glyphs are indexed in logical order but placed in visual order
     // (see `reorder_row_visually`), so measure and shift them by x:
-    let Row {
-        glyphs,
-        visual_order,
-        ..
-    } = &mut *row;
+    let Row { glyphs, visual_order, .. } = &mut *row;
     let num_glyphs = glyphs.len();
     let order = || visual_indices(visual_order, num_glyphs);
     let kept = |i: usize| glyph_range.0 <= i && i < glyph_range.1;
     let first_kept = order().position(kept).unwrap_or(0);
     let last_kept = order().rev().find(|&i| kept(i)).unwrap_or(0);
 
-    let original_min_x = glyphs[order().nth(first_kept).unwrap_or(0)]
-        .logical_rect()
-        .min
-        .x;
+    let original_min_x = glyphs[order().nth(first_kept).unwrap_or(0)].logical_rect().min.x;
     let original_max_x = glyphs[last_kept].logical_rect().max.x;
     let original_width = original_max_x - original_min_x;
 
-    let target_width = if justify && num_glyphs_in_range > 1 {
-        wrap_width
-    } else {
-        original_width
-    };
+    let target_width = if justify && num_glyphs_in_range > 1 { wrap_width } else { original_width };
 
     let (target_min_x, target_max_x) = match halign {
         Align::LEFT => (0.0, target_width),
@@ -1360,16 +1087,9 @@ fn halign_and_justify_row(
         Align::RIGHT => (-target_width, 0.0),
     };
 
-    let num_spaces_in_range = glyphs[glyph_range.0..glyph_range.1]
-        .iter()
-        .filter(|glyph| glyph.chr.is_whitespace())
-        .count();
+    let num_spaces_in_range = glyphs[glyph_range.0..glyph_range.1].iter().filter(|glyph| glyph.chr.is_whitespace()).count();
 
-    let mut extra_x_per_glyph = if num_glyphs_in_range == 1 {
-        0.0
-    } else {
-        (target_width - original_width) / (num_glyphs_in_range as f32 - 1.0)
-    };
+    let mut extra_x_per_glyph = if num_glyphs_in_range == 1 { 0.0 } else { (target_width - original_width) / (num_glyphs_in_range as f32 - 1.0) };
     extra_x_per_glyph = extra_x_per_glyph.at_least(0.0); // Don't contract
 
     let mut extra_x_per_space = 0.0;
@@ -1379,10 +1099,7 @@ fn halign_and_justify_row(
 
         extra_x_per_glyph = point_scale.floor_to_pixel(extra_x_per_glyph);
 
-        extra_x_per_space = (target_width
-            - original_width
-            - extra_x_per_glyph * (num_glyphs_in_range as f32 - 1.0))
-            / (num_spaces_in_range as f32);
+        extra_x_per_space = (target_width - original_width - extra_x_per_glyph * (num_glyphs_in_range as f32 - 1.0)) / (num_spaces_in_range as f32);
     }
 
     placed_row.pos.x = point_scale.round_to_pixel(target_min_x);
@@ -1406,36 +1123,20 @@ fn halign_and_justify_row(
 ///
 /// See [`LayoutJob::halign_min_is_start`].
 fn starts_on_the_right(job: &LayoutJob, row: &Row) -> bool {
-    job.halign == Align::Min
-        && job.halign_min_is_start
-        && row.rtl_paragraph
-        && !row.glyphs.is_empty()
+    job.halign == Align::Min && job.halign_min_is_start && row.rtl_paragraph && !row.glyphs.is_empty()
 }
 
 /// Puts each row that [`starts_on_the_right`] flush with the right edge of the widest row.
 ///
 /// Such a row has been aligned as `Align::RIGHT`, with its size in `row.size.x`;
 /// the other rows stay where they are. Returns `true` if any row moved.
-pub(crate) fn align_rtl_rows_to_start(
-    job: &LayoutJob,
-    rows: &mut [PlacedRow],
-    pixels_per_point: f32,
-) -> bool {
-    if !rows
-        .iter()
-        .any(|placed_row| starts_on_the_right(job, &placed_row.row))
-    {
+pub(crate) fn align_rtl_rows_to_start(job: &LayoutJob, rows: &mut [PlacedRow], pixels_per_point: f32) -> bool {
+    if !rows.iter().any(|placed_row| starts_on_the_right(job, &placed_row.row)) {
         return false;
     }
     let width = rows
         .iter()
-        .map(|placed_row| {
-            if starts_on_the_right(job, &placed_row.row) {
-                placed_row.size.x
-            } else {
-                placed_row.pos.x + placed_row.size.x
-            }
-        })
+        .map(|placed_row| if starts_on_the_right(job, &placed_row.row) { placed_row.size.x } else { placed_row.pos.x + placed_row.size.x })
         .fold(0.0, f32::max);
     let point_scale = PointScale::new(pixels_per_point);
     for placed_row in rows {
@@ -1447,13 +1148,7 @@ pub(crate) fn align_rtl_rows_to_start(
 }
 
 /// Calculate the Y positions and tessellate the text.
-fn galley_from_rows(
-    point_scale: PointScale,
-    job: Arc<LayoutJob>,
-    mut rows: Vec<PlacedRow>,
-    elided: bool,
-    intrinsic_size: Vec2,
-) -> Galley {
+fn galley_from_rows(point_scale: PointScale, job: Arc<LayoutJob>, mut rows: Vec<PlacedRow>, elided: bool, intrinsic_size: Vec2) -> Galley {
     let mut first_row_min_height = job.first_row_min_height;
     let mut cursor_y = 0.0;
 
@@ -1534,17 +1229,8 @@ fn galley_from_rows(
         }
     }
 
-    let mut galley = Galley {
-        job,
-        rows,
-        elided,
-        rect,
-        mesh_bounds,
-        num_vertices,
-        num_indices,
-        pixels_per_point: point_scale.pixels_per_point,
-        intrinsic_size,
-    };
+    let mut galley =
+        Galley { job, rows, elided, rect, mesh_bounds, num_vertices, num_indices, pixels_per_point: point_scale.pixels_per_point, intrinsic_size };
 
     if galley.job.round_output_to_gui {
         galley.round_output_to_gui();
@@ -1574,21 +1260,12 @@ impl BaselineOvershoot {
                 continue;
             }
             let above = (glyph.font_face_ascent - glyph.font_ascent).at_least(0.0);
-            let below = ((glyph.font_face_height - glyph.font_face_ascent)
-                - (glyph.font_height - glyph.font_ascent))
-                .at_least(0.0);
-            if let Some(section) = sections
-                .iter_mut()
-                .find(|section| section.section_index == glyph.section_index)
-            {
+            let below = ((glyph.font_face_height - glyph.font_face_ascent) - (glyph.font_height - glyph.font_ascent)).at_least(0.0);
+            if let Some(section) = sections.iter_mut().find(|section| section.section_index == glyph.section_index) {
                 section.above = section.above.at_least(above);
                 section.below = section.below.at_least(below);
             } else {
-                sections.push(BaselineOvershootOfSection {
-                    section_index: glyph.section_index,
-                    above,
-                    below,
-                });
+                sections.push(BaselineOvershootOfSection { section_index: glyph.section_index, above, below });
             }
         }
         Self(sections)
@@ -1599,9 +1276,7 @@ impl BaselineOvershoot {
         self.0
             .iter()
             .find(|section| section.section_index == section_index)
-            .map_or((0.0, 0.0), |section| {
-                (section.above, section.above + section.below)
-            })
+            .map_or((0.0, 0.0), |section| (section.above, section.above + section.below))
     }
 }
 
@@ -1622,12 +1297,7 @@ fn format_summary(job: &LayoutJob) -> FormatSummary {
     format_summary
 }
 
-fn tessellate_row(
-    point_scale: PointScale,
-    job: &LayoutJob,
-    format_summary: &FormatSummary,
-    row: &mut Row,
-) -> RowVisuals {
+fn tessellate_row(point_scale: PointScale, job: &LayoutJob, format_summary: &FormatSummary, row: &mut Row) -> RowVisuals {
     if row.glyphs.is_empty() {
         return Default::default();
     }
@@ -1666,12 +1336,7 @@ fn tessellate_row(
 
     let mesh_bounds = mesh.calc_bounds();
 
-    RowVisuals {
-        mesh,
-        mesh_bounds,
-        glyph_index_start,
-        glyph_vertex_range: glyph_vertex_start..glyph_vertex_end,
-    }
+    RowVisuals { mesh, mesh_bounds, glyph_index_start, glyph_vertex_range: glyph_vertex_start..glyph_vertex_end }
 }
 
 /// Create background for glyphs that have them.
@@ -1702,11 +1367,7 @@ fn add_row_backgrounds(point_scale: PointScale, job: &LayoutJob, row: &Row, mesh
         if color == Color32::TRANSPARENT {
             end_run(run_start.take(), last_rect.right());
         } else if let Some((existing_color, start, expand)) = run_start {
-            if existing_color == color
-                && start.top() == rect.top()
-                && start.bottom() == rect.bottom()
-                && format.expand_bg == expand
-            {
+            if existing_color == color && start.top() == rect.top() && start.bottom() == rect.bottom() && format.expand_bg == expand {
                 // continue the same background rectangle
             } else {
                 end_run(run_start.take(), last_rect.right());
@@ -1732,10 +1393,7 @@ fn tessellate_glyphs(point_scale: PointScale, job: &LayoutJob, row: &mut Row, me
             left_top.y = point_scale.round_to_pixel(left_top.y);
 
             let rect = Rect::from_min_max(left_top, left_top + uv_rect.size);
-            let uv = Rect::from_min_max(
-                pos2(uv_rect.min[0] as f32, uv_rect.min[1] as f32),
-                pos2(uv_rect.max[0] as f32, uv_rect.max[1] as f32),
-            );
+            let uv = Rect::from_min_max(pos2(uv_rect.min[0] as f32, uv_rect.min[1] as f32), pos2(uv_rect.max[0] as f32, uv_rect.max[1] as f32));
 
             let format = &job.sections[glyph.section_index as usize].format;
 
@@ -1750,26 +1408,10 @@ fn tessellate_glyphs(point_scale: PointScale, job: &LayoutJob, row: &mut Row, me
 
                 let top_offset = rect.height() * 0.25 * Vec2::X;
 
-                mesh.vertices.push(Vertex {
-                    pos: rect.left_top() + top_offset,
-                    uv: uv.left_top(),
-                    color,
-                });
-                mesh.vertices.push(Vertex {
-                    pos: rect.right_top() + top_offset,
-                    uv: uv.right_top(),
-                    color,
-                });
-                mesh.vertices.push(Vertex {
-                    pos: rect.left_bottom(),
-                    uv: uv.left_bottom(),
-                    color,
-                });
-                mesh.vertices.push(Vertex {
-                    pos: rect.right_bottom(),
-                    uv: uv.right_bottom(),
-                    color,
-                });
+                mesh.vertices.push(Vertex { pos: rect.left_top() + top_offset, uv: uv.left_top(), color });
+                mesh.vertices.push(Vertex { pos: rect.right_top() + top_offset, uv: uv.right_top(), color });
+                mesh.vertices.push(Vertex { pos: rect.left_bottom(), uv: uv.left_bottom(), color });
+                mesh.vertices.push(Vertex { pos: rect.right_bottom(), uv: uv.right_bottom(), color });
             } else {
                 mesh.add_rect_with_uv(rect, uv, color);
             }
@@ -1778,12 +1420,7 @@ fn tessellate_glyphs(point_scale: PointScale, job: &LayoutJob, row: &mut Row, me
 }
 
 /// Add a horizontal line over a row of glyphs with a stroke and y decided by a callback.
-fn add_row_hline(
-    point_scale: PointScale,
-    row: &Row,
-    mesh: &mut Mesh,
-    stroke_and_y: impl Fn(&Glyph) -> (Stroke, f32),
-) {
+fn add_row_hline(point_scale: PointScale, row: &Row, mesh: &mut Mesh, stroke_and_y: impl Fn(&Glyph) -> (Stroke, f32)) {
     let mut path = crate::tessellator::Path::default(); // reusing path to avoid re-allocations.
 
     let mut end_line = |start: Option<(Stroke, Pos2)>, stop_x: f32| {
@@ -1849,19 +1486,11 @@ impl RowBreakCandidates {
     }
 
     fn has_good_candidate(&self, break_anywhere: bool) -> bool {
-        if break_anywhere {
-            self.any.is_some()
-        } else {
-            self.soft.first().is_some_and(|&(penalty, _)| penalty == 0)
-        }
+        if break_anywhere { self.any.is_some() } else { self.soft.first().is_some_and(|&(penalty, _)| penalty == 0) }
     }
 
     fn get(&self, break_anywhere: bool) -> Option<usize> {
-        if break_anywhere {
-            self.any
-        } else {
-            self.soft.first().map(|&(_, index)| index).or(self.any)
-        }
+        if break_anywhere { self.any } else { self.soft.first().map(|&(_, index)| index).or(self.any) }
     }
 
     fn forget_before_idx(&mut self, index: usize) {
@@ -1893,13 +1522,7 @@ impl RowBreakCandidates {
 ///
 /// Results are appended to `out` (which is cleared first) to allow
 /// the caller to reuse the allocation across calls.
-fn segment_into_runs(
-    fonts: &mut FontsImpl,
-    ctx: &ShapingContext,
-    text: &str,
-    levels: Option<&[u8]>,
-    out: &mut Vec<TextRun>,
-) {
+fn segment_into_runs(fonts: &mut FontsImpl, ctx: &ShapingContext, text: &str, levels: Option<&[u8]>, out: &mut Vec<TextRun>) {
     out.clear();
 
     for (byte_offset, grapheme_str) in text.grapheme_indices(true) {
@@ -1907,19 +1530,8 @@ fn segment_into_runs(
         let byte_offset = ByteIndex(byte_offset);
         let byte_end = byte_offset + grapheme_str.len();
 
-        if let Some(raster) = fonts.rasterize_cluster(
-            FontPriority::Highest,
-            ctx.family,
-            grapheme_str,
-            ctx.pixels_per_point,
-            ctx.font_size,
-        ) {
-            out.push(TextRun {
-                font_key: FontFaceKey::INVALID,
-                byte_range: byte_offset..byte_end,
-                bidi_level,
-                raster: Some(raster),
-            });
+        if let Some(raster) = fonts.rasterize_cluster(FontPriority::Highest, ctx.family, grapheme_str, ctx.pixels_per_point, ctx.font_size) {
+            out.push(TextRun { font_key: FontFaceKey::INVALID, byte_range: byte_offset..byte_end, bidi_level, raster: Some(raster) });
             continue;
         }
 
@@ -1928,18 +1540,8 @@ fn segment_into_runs(
         if fonts.face(font_key).is_none() {
             // The family has no font at all, so there is nothing to shape with.
             // Still emit a glyph per cluster, or cursors and selections break.
-            let raster = fonts.fontless_cluster(
-                ctx.family,
-                grapheme_str,
-                ctx.pixels_per_point,
-                ctx.font_size,
-            );
-            out.push(TextRun {
-                font_key,
-                byte_range: byte_offset..byte_end,
-                bidi_level,
-                raster: Some(raster),
-            });
+            let raster = fonts.fontless_cluster(ctx.family, grapheme_str, ctx.pixels_per_point, ctx.font_size);
+            out.push(TextRun { font_key, byte_range: byte_offset..byte_end, bidi_level, raster: Some(raster) });
             continue;
         }
 
@@ -1951,12 +1553,7 @@ fn segment_into_runs(
             last_run.byte_range.end = byte_end;
             continue;
         }
-        out.push(TextRun {
-            font_key,
-            byte_range: byte_offset..byte_end,
-            bidi_level,
-            raster: None,
-        });
+        out.push(TextRun { font_key, byte_range: byte_offset..byte_end, bidi_level, raster: None });
     }
 }
 
@@ -1980,13 +1577,8 @@ struct BidiLevels {
 
 impl BidiLevels {
     fn new(text: &str, direction: TextDirection) -> Self {
-        let mut bidi = Self {
-            levels: None,
-            rtl_paragraphs: Vec::new(),
-            last_rtl: direction == TextDirection::RightToLeft,
-            text_len: text.len(),
-            direction,
-        };
+        let mut bidi =
+            Self { levels: None, rtl_paragraphs: Vec::new(), last_rtl: direction == TextDirection::RightToLeft, text_len: text.len(), direction };
         let paragraph_level = match direction {
             TextDirection::Auto | TextDirection::LeftToRight if text.is_ascii() => return bidi,
             TextDirection::Auto => None,
@@ -2003,13 +1595,8 @@ impl BidiLevels {
                 // so that a new line in right-to-left text starts on the right.
                 rtl = bidi.last_rtl;
                 if rtl {
-                    let paragraph_info = unicode_bidi::BidiInfo::new(
-                        &text[range.clone()],
-                        Some(unicode_bidi::Level::rtl()),
-                    );
-                    for (level, resolved) in
-                        levels[range.clone()].iter_mut().zip(&paragraph_info.levels)
-                    {
+                    let paragraph_info = unicode_bidi::BidiInfo::new(&text[range.clone()], Some(unicode_bidi::Level::rtl()));
+                    for (level, resolved) in levels[range.clone()].iter_mut().zip(&paragraph_info.levels) {
                         *level = resolved.number();
                     }
                 }
@@ -2036,12 +1623,8 @@ impl BidiLevels {
             TextDirection::RightToLeft => true,
             TextDirection::Auto if self.text_len <= byte_offset => self.last_rtl,
             TextDirection::Auto => {
-                let i = self
-                    .rtl_paragraphs
-                    .partition_point(|range| range.end <= byte_offset);
-                self.rtl_paragraphs
-                    .get(i)
-                    .is_some_and(|range| range.contains(&byte_offset))
+                let i = self.rtl_paragraphs.partition_point(|range| range.end <= byte_offset);
+                self.rtl_paragraphs.get(i).is_some_and(|range| range.contains(&byte_offset))
             }
         }
     }
@@ -2089,11 +1672,7 @@ fn reset_whitespace_levels(row: &mut Row) {
 /// logical order while keeping the glyphs inside a cluster (a base and its
 /// marks) in shaper order, because the marks' offsets are relative to the base.
 fn logical_clusters(infos: &[harfrust::GlyphInfo], rtl: bool) -> LogicalClusters<'_> {
-    LogicalClusters {
-        infos,
-        remaining: 0..infos.len(),
-        rtl,
-    }
+    LogicalClusters { infos, remaining: 0..infos.len(), rtl }
 }
 
 /// See [`logical_clusters`].
@@ -2117,17 +1696,11 @@ impl Iterator for LogicalClusters<'_> {
         let offset = self.remaining.start;
 
         if self.rtl {
-            let start = unyielded
-                .iter()
-                .rposition(|info| info.cluster != last.cluster)
-                .map_or(0, |i| i + 1);
+            let start = unyielded.iter().rposition(|info| info.cluster != last.cluster).map_or(0, |i| i + 1);
             self.remaining.end = offset + start;
             Some(offset + start..offset + unyielded.len())
         } else {
-            let end = unyielded
-                .iter()
-                .position(|info| info.cluster != first.cluster)
-                .unwrap_or(unyielded.len());
+            let end = unyielded.iter().position(|info| info.cluster != first.cluster).unwrap_or(unyielded.len());
             self.remaining.start = offset + end;
             Some(offset..offset + end)
         }
@@ -2173,20 +1746,14 @@ fn reorder_row_visually(point_scale: PointScale, row: &mut Row) {
     let mut blocks: Vec<Range<usize>> = Vec::new();
     for (i, glyph) in glyphs.iter().enumerate() {
         match blocks.last_mut() {
-            Some(last)
-                if glyph.advance_width <= 0.0
-                    && glyph.bidi_level == glyphs[last.start].bidi_level =>
-            {
+            Some(last) if glyph.advance_width <= 0.0 && glyph.bidi_level == glyphs[last.start].bidi_level => {
                 last.end = i + 1;
             }
             _ => blocks.push(i..i + 1),
         }
     }
     count_reorder_steps(glyphs.len());
-    let origins: Vec<f32> = blocks
-        .iter()
-        .map(|block| glyphs[block.start].pos.x)
-        .collect();
+    let origins: Vec<f32> = blocks.iter().map(|block| glyphs[block.start].pos.x).collect();
     // A block's width is the distance to the next one, which includes any
     // extra letter spacing; the last block ends where its glyphs end.
     let widths: Vec<f32> = blocks
@@ -2194,13 +1761,7 @@ fn reorder_row_visually(point_scale: PointScale, row: &mut Row) {
         .enumerate()
         .map(|(b, block)| match origins.get(b + 1) {
             Some(next_origin) => next_origin - origins[b],
-            None => {
-                glyphs[block.clone()]
-                    .iter()
-                    .map(Glyph::max_x)
-                    .fold(origins[b], f32::max)
-                    - origins[b]
-            }
+            None => glyphs[block.clone()].iter().map(Glyph::max_x).fold(origins[b], f32::max) - origins[b],
         })
         .collect();
 
@@ -2247,8 +1808,7 @@ fn reorder_row_visually(point_scale: PointScale, row: &mut Row) {
     let mut visual_order = Vec::with_capacity(glyphs.len());
     let mut pen = origins[0];
     for &r in &order {
-        let reversed =
-            lowest_odd <= run_levels[r] && (run_levels[r] - lowest_odd).is_multiple_of(2);
+        let reversed = lowest_odd <= run_levels[r] && (run_levels[r] - lowest_odd).is_multiple_of(2);
         let run = runs[r].clone();
         let mut place = |b: usize| {
             for i in blocks[b].clone() {
@@ -2269,10 +1829,7 @@ fn reorder_row_visually(point_scale: PointScale, row: &mut Row) {
 }
 
 /// The indices of `len` glyphs from left to right, given a [`Row::visual_order`].
-pub(crate) fn visual_indices(
-    visual_order: &[u32],
-    len: usize,
-) -> impl DoubleEndedIterator<Item = usize> + Clone + '_ {
+pub(crate) fn visual_indices(visual_order: &[u32], len: usize) -> impl DoubleEndedIterator<Item = usize> + Clone + '_ {
     // Rows that need no reordering have no `visual_order`; a row whose glyphs were
     // changed after layout gets the logical order rather than a panic.
     let identity = if visual_order.len() == len { 0 } else { len };
@@ -2297,34 +1854,19 @@ fn shape_text(
     let tweak = font_face.tweak();
 
     // Build shaper with variable font instance if variation coordinates are set.
-    let variations: Vec<harfrust::Variation> = iter::chain(tweak.coords.as_ref(), coords.as_ref())
-        .map(|&(tag, value)| harfrust::Variation { tag, value })
-        .collect();
+    let variations: Vec<harfrust::Variation> =
+        iter::chain(tweak.coords.as_ref(), coords.as_ref()).map(|&(tag, value)| harfrust::Variation { tag, value }).collect();
 
-    let instance = if variations.is_empty() {
-        None
-    } else {
-        Some(harfrust::ShaperInstance::from_variations(
-            font_ref, variations,
-        ))
-    };
+    let instance = if variations.is_empty() { None } else { Some(harfrust::ShaperInstance::from_variations(font_ref, variations)) };
 
-    let shaper = font_face
-        .shaper_data()
-        .shaper(font_ref)
-        .instance(instance.as_ref())
-        .build();
+    let shaper = font_face.shaper_data().shaper(font_ref).instance(instance.as_ref()).build();
 
     buffer.set_flags(flags);
     buffer.push_str(text);
     // The direction is decided by the bidi algorithm, per run;
     // the shaper only guesses the script (and would guess the direction wrong
     // for digits inside right-to-left text).
-    buffer.set_direction(if rtl {
-        harfrust::Direction::RightToLeft
-    } else {
-        harfrust::Direction::LeftToRight
-    });
+    buffer.set_direction(if rtl { harfrust::Direction::RightToLeft } else { harfrust::Direction::LeftToRight });
     buffer.guess_segment_properties();
 
     shaper.shape(buffer, harfrust::ShapeOptions::new())
@@ -2346,38 +1888,26 @@ mod tests {
     }
 
     fn layout_without_fonts(text: &str, policy: MissingGlyphPolicy) -> Arc<Galley> {
-        let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::empty())
-            .with_missing_glyph_policy(policy);
-        fonts.with_pixels_per_point(2.0).layout_no_wrap(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        )
+        let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::empty()).with_missing_glyph_policy(policy);
+        fonts.with_pixels_per_point(2.0).layout_no_wrap(text.to_owned(), FontId::proportional(14.0), Color32::WHITE)
     }
 
     /// Chinese closes a clause with full-width marks (，：；？！）), and those must never start a row:
     /// <https://en.wikipedia.org/wiki/Line_breaking_rules_in_East_Asian_languages>
     #[test]
     fn cjk_row_never_starts_with_full_width_closing_punctuation() {
-        let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::empty())
-            .with_missing_glyph_policy(MissingGlyphPolicy::Tofu);
+        let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::empty()).with_missing_glyph_policy(MissingGlyphPolicy::Tofu);
         let mut fonts = fonts.with_pixels_per_point(2.0);
         let font_id = FontId::proportional(14.0);
         let text = "一二三，四五六：七八九？十一二！三四五）六七八";
-        let one = fonts
-            .layout_no_wrap("一".to_owned(), font_id.clone(), Color32::WHITE)
-            .size()
-            .x;
+        let one = fonts.layout_no_wrap("一".to_owned(), font_id.clone(), Color32::WHITE).size().x;
         // Every width that fits a few glyphs, so some row would end just before each mark.
         for glyphs in 2..12 {
             let width = one * glyphs as f32 + 0.5 * one;
             let galley = fonts.layout(text.to_owned(), font_id.clone(), Color32::WHITE, width);
             for placed in galley.rows.iter().skip(1) {
                 let first = placed.row.glyphs.first().map(|g| g.chr);
-                assert!(
-                    !matches!(first, Some('，' | '：' | '？' | '！' | '）')),
-                    "a row starts with {first:?} at {glyphs} glyphs wide"
-                );
+                assert!(!matches!(first, Some('，' | '：' | '？' | '！' | '）')), "a row starts with {first:?} at {glyphs} glyphs wide");
             }
         }
     }
@@ -2399,10 +1929,7 @@ mod tests {
             assert!(!glyph.uv_rect.is_nothing(), "glyph {i}: {glyph:?}");
             assert!(0.0 < glyph.advance_width, "glyph {i}: {glyph:?}");
             assert_eq!(galley.clamp_cursor(&CCursor::new(i)).index.0, i);
-            assert!(
-                glyph.pos.x.is_finite() && glyph.pos.y.is_finite(),
-                "{glyph:?}"
-            );
+            assert!(glyph.pos.x.is_finite() && glyph.pos.y.is_finite(), "{glyph:?}");
         }
         assert_eq!(galley.clamp_cursor(&CCursor::new(4)).index.0, 4);
         assert_eq!(galley.end().index.0, 4);
@@ -2414,10 +1941,7 @@ mod tests {
         let mut view = fonts.with_pixels_per_point(1.0);
         let a = view.layout_no_wrap("a".into(), FontId::proportional(14.0), Color32::WHITE);
         let b = view.layout_no_wrap("b".into(), FontId::proportional(14.0), Color32::WHITE);
-        assert_eq!(
-            a.rows[0].row.glyphs[0].uv_rect.min, b.rows[0].row.glyphs[0].uv_rect.min,
-            "the same synthetic tofu box should be reused"
-        );
+        assert_eq!(a.rows[0].row.glyphs[0].uv_rect.min, b.rows[0].row.glyphs[0].uv_rect.min, "the same synthetic tofu box should be reused");
     }
 
     #[test]
@@ -2442,47 +1966,28 @@ mod tests {
 
     #[test]
     #[cfg(feature = "default_fonts")] // Needs `hack_only`
-    #[should_panic(
-        expected = "No glyph for \"😀\" (U+1F600) in Proportional. Installed fonts: [\"Hack\"]"
-    )]
+    #[should_panic(expected = "No glyph for \"😀\" (U+1F600) in Proportional. Installed fonts: [\"Hack\"]")]
     fn missing_glyph_policy_panic_with_fonts() {
-        let mut fonts = Fonts::new(TextOptions::default(), hack_only())
-            .with_missing_glyph_policy(MissingGlyphPolicy::Panic);
-        let _ = fonts.with_pixels_per_point(1.0).layout_no_wrap(
-            "a😀".into(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        );
+        let mut fonts = Fonts::new(TextOptions::default(), hack_only()).with_missing_glyph_policy(MissingGlyphPolicy::Panic);
+        let _ = fonts.with_pixels_per_point(1.0).layout_no_wrap("a😀".into(), FontId::proportional(14.0), Color32::WHITE);
     }
 
     /// Fonts have no glyphs for control characters like `\t`; that is not a missing glyph.
     #[test]
     #[cfg(feature = "default_fonts")] // Needs `hack_only`
     fn missing_glyph_policy_panic_ignores_tab_with_fonts() {
-        let mut fonts = Fonts::new(TextOptions::default(), hack_only())
-            .with_missing_glyph_policy(MissingGlyphPolicy::Panic);
-        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(
-            "a\tb".into(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        );
+        let mut fonts = Fonts::new(TextOptions::default(), hack_only()).with_missing_glyph_policy(MissingGlyphPolicy::Panic);
+        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap("a\tb".into(), FontId::proportional(14.0), Color32::WHITE);
         assert_eq!(galley.rows[0].row.glyphs.len(), 3);
     }
 
     #[test]
     #[cfg(feature = "default_fonts")] // Needs `hack_only`
     fn missing_glyph_policy_panic_is_satisfied_by_a_fallback_rasterizer() {
-        let rasterizer = GlyphRasterizer::new("test", |_: &GlyphRasterizerRequest<'_>| {
-            Some(white_raster_glyph())
-        });
-        let mut fonts = Fonts::new(TextOptions::default(), hack_only())
-            .with_glyph_rasterizer(rasterizer)
-            .with_missing_glyph_policy(MissingGlyphPolicy::Panic);
-        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(
-            "a😀".into(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        );
+        let rasterizer = GlyphRasterizer::new("test", |_: &GlyphRasterizerRequest<'_>| Some(white_raster_glyph()));
+        let mut fonts =
+            Fonts::new(TextOptions::default(), hack_only()).with_glyph_rasterizer(rasterizer).with_missing_glyph_policy(MissingGlyphPolicy::Panic);
+        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap("a😀".into(), FontId::proportional(14.0), Color32::WHITE);
         assert_eq!(galley.rows[0].row.glyphs.len(), 2);
     }
 
@@ -2490,13 +1995,8 @@ mod tests {
     #[cfg(feature = "default_fonts")]
     fn hack_only() -> FontDefinitions {
         let mut definitions = FontDefinitions::empty();
-        definitions.font_data.insert(
-            "Hack".to_owned(),
-            Arc::new(FontData::from_static(epaint_default_fonts::HACK_REGULAR)),
-        );
-        definitions
-            .families
-            .insert(FontFamily::Proportional, vec!["Hack".to_owned()]);
+        definitions.font_data.insert("Hack".to_owned(), Arc::new(FontData::from_static(epaint_default_fonts::HACK_REGULAR)));
+        definitions.families.insert(FontFamily::Proportional, vec!["Hack".to_owned()]);
         definitions
     }
 
@@ -2514,21 +2014,11 @@ mod tests {
 
         let letter = &glyphs[1];
         assert!(!letter.uv_rect.is_nothing(), "the composed letter is drawn");
-        assert!(
-            plain.rows[0].row.glyphs[1].uv_rect.size.y < letter.uv_rect.size.y,
-            "its bitmap covers the acute above the ring"
-        );
-        assert_eq!(
-            composed.size(),
-            plain.size(),
-            "the cluster keeps the shaper's advance"
-        );
+        assert!(plain.rows[0].row.glyphs[1].uv_rect.size.y < letter.uv_rect.size.y, "its bitmap covers the acute above the ring");
+        assert_eq!(composed.size(), plain.size(), "the cluster keeps the shaper's advance");
 
         for i in 0..=3 {
-            let cursor = CCursor {
-                index: CharIndex(i),
-                prefer_next_row: false,
-            };
+            let cursor = CCursor { index: CharIndex(i), prefer_next_row: false };
             let rect = composed.pos_from_cursor(cursor);
             let back = composed.cursor_from_pos(rect.center().to_vec2());
             assert_eq!(back.index.0, i, "cursor round-trip at {i}");
@@ -2537,105 +2027,61 @@ mod tests {
 
     #[test]
     fn color_raster_glyph_is_not_tinted() {
-        let rasterizer = GlyphRasterizer::new("test", |request: &GlyphRasterizerRequest<'_>| {
-            (request.cluster == "한").then(color_raster_glyph)
-        });
-        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default())
-            .with_glyph_rasterizer(rasterizer);
+        let rasterizer = GlyphRasterizer::new("test", |request: &GlyphRasterizerRequest<'_>| (request.cluster == "한").then(color_raster_glyph));
+        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default()).with_glyph_rasterizer(rasterizer);
 
         // Returns the tessellated vertex color of 'a' (a normal glyph) and '한' (a color glyph).
         let mut glyph_colors = |text_color: Color32, override_text_color: Option<Color32>| {
-            let job = LayoutJob::simple(
-                "a한".into(),
-                FontId::proportional(14.0),
-                text_color,
-                f32::INFINITY,
-            );
+            let job = LayoutJob::simple("a한".into(), FontId::proportional(14.0), text_color, f32::INFINITY);
             let galley = layout(&mut fonts, 1.0, Arc::new(job));
             let row = &galley.rows[0].row;
             assert!(!row.glyphs[0].is_color);
             assert!(row.glyphs[1].is_color);
-            let first_vertices = [
-                row.glyphs[0].first_vertex as usize,
-                row.glyphs[1].first_vertex as usize,
-            ];
+            let first_vertices = [row.glyphs[0].first_vertex as usize, row.glyphs[1].first_vertex as usize];
 
-            let mut text_shape =
-                crate::TextShape::new(Pos2::ZERO, Arc::new(galley), Color32::GREEN);
+            let mut text_shape = crate::TextShape::new(Pos2::ZERO, Arc::new(galley), Color32::GREEN);
             text_shape.override_text_color = override_text_color;
             let mut mesh = crate::Mesh::default();
-            crate::Tessellator::new(1.0, Default::default(), [1024, 1024], vec![])
-                .tessellate_text(&text_shape, &mut mesh);
+            crate::Tessellator::new(1.0, Default::default(), [1024, 1024], vec![]).tessellate_text(&text_shape, &mut mesh);
             first_vertices.map(|i| mesh.vertices[i].color)
         };
 
         let half_alpha = Color32::from_white_alpha(128);
 
         // Explicit text color:
-        assert_eq!(
-            glyph_colors(Color32::BLUE, None),
-            [Color32::BLUE, Color32::WHITE]
-        );
+        assert_eq!(glyph_colors(Color32::BLUE, None), [Color32::BLUE, Color32::WHITE]);
 
         // Delayed text color, resolved by the tessellator (used by most widgets):
-        assert_eq!(
-            glyph_colors(Color32::PLACEHOLDER, None),
-            [Color32::GREEN, Color32::WHITE]
-        );
+        assert_eq!(glyph_colors(Color32::PLACEHOLDER, None), [Color32::GREEN, Color32::WHITE]);
 
         // Override, e.g. for disabled widgets. The alpha should still apply:
-        assert_eq!(
-            glyph_colors(Color32::BLUE, Some(Color32::from_black_alpha(128))),
-            [Color32::from_black_alpha(128), half_alpha]
-        );
+        assert_eq!(glyph_colors(Color32::BLUE, Some(Color32::from_black_alpha(128))), [Color32::from_black_alpha(128), half_alpha]);
     }
 
     #[test]
     fn color_raster_glyph_keeps_color_in_atlas() {
-        let rasterizer = GlyphRasterizer::new("test", |_: &GlyphRasterizerRequest<'_>| {
-            Some(color_raster_glyph())
-        });
+        let rasterizer = GlyphRasterizer::new("test", |_: &GlyphRasterizerRequest<'_>| Some(color_raster_glyph()));
         // The default transfer function discards color for regular (white) glyphs:
-        let options = TextOptions {
-            color_transfer_function: crate::FontColorTransferFunction::TwoCoverageMinusCoverageSq,
-            ..Default::default()
-        };
-        let mut fonts =
-            Fonts::new(options, FontDefinitions::default()).with_glyph_rasterizer(rasterizer);
-        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(
-            "한".into(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        );
+        let options = TextOptions { color_transfer_function: crate::FontColorTransferFunction::TwoCoverageMinusCoverageSq, ..Default::default() };
+        let mut fonts = Fonts::new(options, FontDefinitions::default()).with_glyph_rasterizer(rasterizer);
+        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap("한".into(), FontId::proportional(14.0), Color32::WHITE);
 
         let [x, y] = galley.rows[0].row.glyphs[0].uv_rect.min;
         assert_eq!(fonts.image()[(x as usize, y as usize)], Color32::RED);
     }
 
     /// A rasterizer that records the requests it gets and returns a fixed glyph.
-    fn recording_rasterizer(
-        requests: &Arc<crate::mutex::Mutex<Vec<(String, FontFamily)>>>,
-        result: Option<RasterizedGlyph>,
-    ) -> GlyphRasterizer {
+    fn recording_rasterizer(requests: &Arc<crate::mutex::Mutex<Vec<(String, FontFamily)>>>, result: Option<RasterizedGlyph>) -> GlyphRasterizer {
         let requests = Arc::clone(requests);
-        GlyphRasterizer::new(
-            unique_test_key(),
-            move |request: &GlyphRasterizerRequest<'_>| {
-                requests
-                    .lock()
-                    .push((request.cluster.to_owned(), request.family.clone()));
-                result.clone()
-            },
-        )
+        GlyphRasterizer::new(unique_test_key(), move |request: &GlyphRasterizerRequest<'_>| {
+            requests.lock().push((request.cluster.to_owned(), request.family.clone()));
+            result.clone()
+        })
     }
 
     fn white_raster_glyph() -> RasterizedGlyph {
         RasterizedGlyph {
-            bitmap: GlyphBitmap {
-                image: ColorImage::new([1, 1], vec![Color32::WHITE]),
-                offset_px: Vec2::ZERO,
-                is_color: false,
-            },
+            bitmap: GlyphBitmap { image: ColorImage::new([1, 1], vec![Color32::WHITE]), offset_px: Vec2::ZERO, is_color: false },
             advance_px: 10.0,
         }
     }
@@ -2649,11 +2095,7 @@ mod tests {
 
     fn color_raster_glyph() -> RasterizedGlyph {
         RasterizedGlyph {
-            bitmap: GlyphBitmap {
-                image: ColorImage::new([1, 1], vec![Color32::RED]),
-                is_color: true,
-                ..white_raster_glyph().bitmap
-            },
+            bitmap: GlyphBitmap { image: ColorImage::new([1, 1], vec![Color32::RED]), is_color: true, ..white_raster_glyph().bitmap },
             ..white_raster_glyph()
         }
     }
@@ -2661,12 +2103,7 @@ mod tests {
     /// `(chr, is_color, has_pixels)` for each glyph.
     #[cfg(feature = "default_fonts")]
     fn glyph_summary(galley: &Galley) -> Vec<(char, bool, bool)> {
-        galley
-            .rows
-            .iter()
-            .flat_map(|row| &row.row.glyphs)
-            .map(|glyph| (glyph.chr, glyph.is_color, !glyph.uv_rect.is_nothing()))
-            .collect()
+        galley.rows.iter().flat_map(|row| &row.row.glyphs).map(|glyph| (glyph.chr, glyph.is_color, !glyph.uv_rect.is_nothing())).collect()
     }
 
     #[test]
@@ -2675,15 +2112,9 @@ mod tests {
         let requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let rasterizer = recording_rasterizer(&requests, Some(color_raster_glyph()));
         // No font has the emoji, so the rasterizer gets the whole cluster:
-        let mut fonts =
-            FontsImpl::new(TextOptions::default(), hack_only()).with_glyph_rasterizer(rasterizer);
+        let mut fonts = FontsImpl::new(TextOptions::default(), hack_only()).with_glyph_rasterizer(rasterizer);
         let family = "👨\u{200D}👩\u{200D}👧";
-        let job = LayoutJob::simple(
-            family.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple(family.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, 1.0, Arc::new(job));
 
         // One visible glyph for the whole cluster, plus zero-width continuation glyphs:
@@ -2691,50 +2122,29 @@ mod tests {
         assert_eq!(summary.len(), family.chars().count());
         assert_eq!(summary[0], ('👨', true, true));
         assert!(summary[1..].iter().all(|(_, _, has_pixels)| !has_pixels));
-        assert_eq!(
-            *requests.lock(),
-            [(family.to_owned(), FontFamily::Proportional)]
-        );
+        assert_eq!(*requests.lock(), [(family.to_owned(), FontFamily::Proportional)]);
     }
 
     #[test]
     fn raster_glyph_cache_is_keyed_by_family() {
         let requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let rasterizer = recording_rasterizer(&requests, Some(white_raster_glyph()));
-        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default())
-            .with_glyph_rasterizer(rasterizer);
+        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default()).with_glyph_rasterizer(rasterizer);
 
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
-            let job = LayoutJob::simple(
-                "한".into(),
-                FontId::new(14.0, family),
-                Color32::WHITE,
-                f32::INFINITY,
-            );
+            let job = LayoutJob::simple("한".into(), FontId::new(14.0, family), Color32::WHITE, f32::INFINITY);
             layout(&mut fonts, 1.0, Arc::new(job));
         }
 
-        assert_eq!(
-            *requests.lock(),
-            vec![
-                ("한".to_owned(), FontFamily::Proportional),
-                ("한".to_owned(), FontFamily::Monospace),
-            ]
-        );
+        assert_eq!(*requests.lock(), vec![("한".to_owned(), FontFamily::Proportional), ("한".to_owned(), FontFamily::Monospace),]);
     }
 
     #[test]
     fn raster_glyph_failure_is_cached_and_falls_back_to_replacement() {
         let requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let rasterizer = recording_rasterizer(&requests, None);
-        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default())
-            .with_glyph_rasterizer(rasterizer);
-        let job = Arc::new(LayoutJob::simple(
-            "한".into(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        ));
+        let mut fonts = FontsImpl::new(TextOptions::default(), FontDefinitions::default()).with_glyph_rasterizer(rasterizer);
+        let job = Arc::new(LayoutJob::simple("한".into(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY));
 
         let galley = layout(&mut fonts, 1.0, Arc::clone(&job));
         layout(&mut fonts, 1.0, job);
@@ -2742,37 +2152,21 @@ mod tests {
         assert_eq!(requests.lock().len(), 1, "Failures should be cached");
         let glyph = &galley.rows[0].row.glyphs[0];
         assert_eq!(glyph.chr, '한');
-        assert!(
-            !glyph.uv_rect.is_nothing(),
-            "Should render the `.notdef` glyph"
-        );
+        assert!(!glyph.uv_rect.is_nothing(), "Should render the `.notdef` glyph");
     }
 
     /// A priority rasterizer that only handles `cluster`, and records every request.
-    fn priority_rasterizer_for(
-        cluster: &'static str,
-        requests: &Arc<crate::mutex::Mutex<Vec<(String, FontFamily)>>>,
-    ) -> GlyphRasterizer {
+    fn priority_rasterizer_for(cluster: &'static str, requests: &Arc<crate::mutex::Mutex<Vec<(String, FontFamily)>>>) -> GlyphRasterizer {
         let requests = Arc::clone(requests);
-        GlyphRasterizer::new(
-            unique_test_key(),
-            move |request: &GlyphRasterizerRequest<'_>| {
-                requests
-                    .lock()
-                    .push((request.cluster.to_owned(), request.family.clone()));
-                (request.cluster == cluster).then(color_raster_glyph)
-            },
-        )
+        GlyphRasterizer::new(unique_test_key(), move |request: &GlyphRasterizerRequest<'_>| {
+            requests.lock().push((request.cluster.to_owned(), request.family.clone()));
+            (request.cluster == cluster).then(color_raster_glyph)
+        })
         .with_priority(FontPriority::Highest)
     }
 
     fn layout_simple(fonts: &mut FontsImpl, text: &str) -> Galley {
-        let job = LayoutJob::simple(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         layout(fonts, 1.0, Arc::new(job))
     }
 
@@ -2785,15 +2179,8 @@ mod tests {
 
         let galley = layout_simple(&mut fonts, "a…b");
 
-        assert_eq!(
-            glyph_summary(&galley),
-            [('a', false, true), ('…', true, true), ('b', false, true)]
-        );
-        let clusters: Vec<_> = requests
-            .lock()
-            .iter()
-            .map(|(cluster, _)| cluster.clone())
-            .collect();
+        assert_eq!(glyph_summary(&galley), [('a', false, true), ('…', true, true), ('b', false, true)]);
+        let clusters: Vec<_> = requests.lock().iter().map(|(cluster, _)| cluster.clone()).collect();
         assert_eq!(clusters, ["a", "…", "b"], "Asked about every cluster");
     }
 
@@ -2804,24 +2191,14 @@ mod tests {
         let fallback_requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let mut fonts = test_fonts()
             .with_glyph_rasterizer(priority_rasterizer_for("never", &priority_requests))
-            .with_glyph_rasterizer(recording_rasterizer(
-                &fallback_requests,
-                Some(color_raster_glyph()),
-            ));
+            .with_glyph_rasterizer(recording_rasterizer(&fallback_requests, Some(color_raster_glyph())));
 
         let galley = layout_simple(&mut fonts, "a한");
 
         // 'a' comes from the font, '한' from the fallback:
-        assert_eq!(
-            glyph_summary(&galley),
-            [('a', false, true), ('한', true, true)]
-        );
+        assert_eq!(glyph_summary(&galley), [('a', false, true), ('한', true, true)]);
         assert_eq!(priority_requests.lock().len(), 2);
-        assert_eq!(
-            *fallback_requests.lock(),
-            [("한".to_owned(), FontFamily::Proportional)],
-            "The fallback should only see what the fonts lack"
-        );
+        assert_eq!(*fallback_requests.lock(), [("한".to_owned(), FontFamily::Proportional)], "The fallback should only see what the fonts lack");
     }
 
     #[test]
@@ -2831,25 +2208,15 @@ mod tests {
         let third_requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let mut fonts = test_fonts()
             .with_glyph_rasterizer(recording_rasterizer(&first_requests, None))
-            .with_glyph_rasterizer(recording_rasterizer(
-                &second_requests,
-                Some(white_raster_glyph()),
-            ))
-            .with_glyph_rasterizer(recording_rasterizer(
-                &third_requests,
-                Some(white_raster_glyph()),
-            ));
+            .with_glyph_rasterizer(recording_rasterizer(&second_requests, Some(white_raster_glyph())))
+            .with_glyph_rasterizer(recording_rasterizer(&third_requests, Some(white_raster_glyph())));
 
         let galley = layout_simple(&mut fonts, "한");
 
         assert!(!galley.rows[0].row.glyphs[0].uv_rect.is_nothing());
         assert_eq!(first_requests.lock().len(), 1);
         assert_eq!(second_requests.lock().len(), 1);
-        assert_eq!(
-            third_requests.lock().len(),
-            0,
-            "The second one already succeeded"
-        );
+        assert_eq!(third_requests.lock().len(), 0, "The second one already succeeded");
     }
 
     #[test]
@@ -2857,8 +2224,7 @@ mod tests {
     fn priority_rasterizer_keeps_one_glyph_per_char() {
         let requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let family = "👨\u{200D}👩\u{200D}👧";
-        let mut fonts =
-            test_fonts().with_glyph_rasterizer(priority_rasterizer_for(family, &requests));
+        let mut fonts = test_fonts().with_glyph_rasterizer(priority_rasterizer_for(family, &requests));
 
         let galley = layout_simple(&mut fonts, family);
 
@@ -2873,12 +2239,7 @@ mod tests {
         let requests = Arc::new(crate::mutex::Mutex::new(Vec::new()));
         let mut fonts = test_fonts().with_glyph_rasterizer(priority_rasterizer_for("…", &requests));
 
-        let mut job = LayoutJob::simple(
-            "Hello wide world".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let mut job = LayoutJob::simple("Hello wide world".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         job.wrap = TextWrapping::truncate_at_width(40.0);
         let galley = layout(&mut fonts, 1.0, Arc::new(job));
 
@@ -2906,16 +2267,12 @@ mod tests {
         let pixels_per_point = 1.0;
 
         let mut fonts = test_fonts();
-        let text_format = TextFormat {
-            font_id: FontId::monospace(12.0),
-            ..Default::default()
-        };
+        let text_format = TextFormat { font_id: FontId::monospace(12.0), ..Default::default() };
 
         for text in ["Hello\nworld", "\nfoo"] {
             for break_anywhere in [false, true] {
                 for max_width in [0.0, 5.0, 10.0, 20.0, f32::INFINITY] {
-                    let mut layout_job =
-                        LayoutJob::single_section(text.into(), text_format.clone());
+                    let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
                     layout_job.wrap.max_width = max_width;
                     layout_job.wrap.max_rows = 1;
                     layout_job.wrap.break_anywhere = break_anywhere;
@@ -2955,16 +2312,10 @@ mod tests {
     fn test_cjk() {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
-        let mut layout_job = LayoutJob::single_section(
-            "日本語とEnglishの混在した文章".into(),
-            TextFormat::default(),
-        );
+        let mut layout_job = LayoutJob::single_section("日本語とEnglishの混在した文章".into(), TextFormat::default());
         layout_job.wrap.max_width = 90.0;
         let galley = layout(&mut fonts, pixels_per_point, layout_job.into());
-        assert_eq!(
-            galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(),
-            vec!["日本語とEnglishの混", "在した文章"]
-        );
+        assert_eq!(galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(), vec!["日本語とEnglishの混", "在した文章"]);
     }
 
     #[test]
@@ -2974,33 +2325,23 @@ mod tests {
     fn test_pre_cjk() {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
-        let mut layout_job = LayoutJob::single_section(
-            "日本語とEnglishの混在した文章".into(),
-            TextFormat::default(),
-        );
+        let mut layout_job = LayoutJob::single_section("日本語とEnglishの混在した文章".into(), TextFormat::default());
         layout_job.wrap.max_width = 110.0;
         let galley = layout(&mut fonts, pixels_per_point, layout_job.into());
-        assert_eq!(
-            galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(),
-            vec!["日本語とEnglishの混在した", "文章"]
-        );
+        assert_eq!(galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(), vec!["日本語とEnglishの混在した", "文章"]);
     }
 
     #[test]
     fn test_truncate_width() {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
-        let mut layout_job =
-            LayoutJob::single_section("# DNA\nMore text".into(), TextFormat::default());
+        let mut layout_job = LayoutJob::single_section("# DNA\nMore text".into(), TextFormat::default());
         layout_job.wrap.max_width = f32::INFINITY;
         layout_job.wrap.max_rows = 1;
         layout_job.round_output_to_gui = false;
         let galley = layout(&mut fonts, pixels_per_point, layout_job.into());
         assert!(galley.elided);
-        assert_eq!(
-            galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(),
-            vec!["# DNA…"]
-        );
+        assert_eq!(galley.rows.iter().map(|row| row.text()).collect::<Vec<_>>(), vec!["# DNA…"]);
         let row = &galley.rows[0];
         assert_eq!(row.pos, Pos2::ZERO);
         assert_eq!(row.rect().max.x, row.glyphs.last().unwrap().max_x());
@@ -3010,9 +2351,7 @@ mod tests {
     fn test_truncate_with_pixels_per_point() {
         let mut fonts = test_fonts();
 
-        for pixels_per_point in [
-            0.33, 0.5, 0.67, 1.0, 1.25, 1.33, 1.5, 1.75, 2.0, 3.0, 4.0, 5.0,
-        ] {
+        for pixels_per_point in [0.33, 0.5, 0.67, 1.0, 1.25, 1.33, 1.5, 1.75, 2.0, 3.0, 4.0, 5.0] {
             for ch in ['W', 'A', 'n', 't', 'i'] {
                 let target_width = 50.0;
                 let text = (0..20).map(|_| ch).collect::<String>();
@@ -3027,11 +2366,7 @@ mod tests {
                     &mut fonts,
                     pixels_per_point,
                     Arc::new(LayoutJob::single_section(
-                        iter::chain(
-                            (0..elided_galley.rows[0].char_count_excluding_newline().0).map(|_| ch),
-                            iter::once('…'),
-                        )
-                        .collect::<String>(),
+                        iter::chain((0..elided_galley.rows[0].char_count_excluding_newline().0).map(|_| ch), iter::once('…')).collect::<String>(),
                         TextFormat::default(),
                     )),
                 );
@@ -3050,35 +2385,16 @@ mod tests {
 
         let font_id = FontId::default();
         let family = fonts.family_key(&font_id.family);
-        let font_height = fonts
-            .family_metrics(
-                family,
-                pixels_per_point,
-                font_id.size,
-                &VariationCoords::default(),
-            )
-            .row_height;
+        let font_height = fonts.family_metrics(family, pixels_per_point, font_id.size, &VariationCoords::default()).row_height;
 
         let job = LayoutJob::simple(String::new(), font_id, Color32::WHITE, f32::INFINITY);
 
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 1, "Expected one row");
-        assert_eq!(
-            galley.rows[0].row.glyphs.len(),
-            0,
-            "Expected no glyphs in the empty row"
-        );
-        assert_eq!(
-            galley.size(),
-            Vec2::new(0.0, font_height.round()),
-            "Unexpected galley size"
-        );
-        assert_eq!(
-            galley.intrinsic_size(),
-            Vec2::new(0.0, font_height.round()),
-            "Unexpected intrinsic size"
-        );
+        assert_eq!(galley.rows[0].row.glyphs.len(), 0, "Expected no glyphs in the empty row");
+        assert_eq!(galley.size(), Vec2::new(0.0, font_height.round()), "Unexpected galley size");
+        assert_eq!(galley.intrinsic_size(), Vec2::new(0.0, font_height.round()), "Unexpected intrinsic size");
     }
 
     #[test]
@@ -3089,35 +2405,16 @@ mod tests {
 
         let font_id = FontId::default();
         let family = fonts.family_key(&font_id.family);
-        let font_height = fonts
-            .family_metrics(
-                family,
-                pixels_per_point,
-                font_id.size,
-                &VariationCoords::default(),
-            )
-            .row_height;
+        let font_height = fonts.family_metrics(family, pixels_per_point, font_id.size, &VariationCoords::default()).row_height;
 
         let job = LayoutJob::simple("Hi!\n".to_owned(), font_id, Color32::WHITE, f32::INFINITY);
 
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 2, "Expected two rows");
-        assert_eq!(
-            galley.rows[1].row.glyphs.len(),
-            0,
-            "Expected no glyphs in the empty row"
-        );
-        assert_eq!(
-            galley.size().round(),
-            Vec2::new(17.0, font_height.round() * 2.0),
-            "Unexpected galley size"
-        );
-        assert_eq!(
-            galley.intrinsic_size().round(),
-            Vec2::new(17.0, font_height.round() * 2.0),
-            "Unexpected intrinsic size"
-        );
+        assert_eq!(galley.rows[1].row.glyphs.len(), 0, "Expected no glyphs in the empty row");
+        assert_eq!(galley.size().round(), Vec2::new(17.0, font_height.round() * 2.0), "Unexpected galley size");
+        assert_eq!(galley.intrinsic_size().round(), Vec2::new(17.0, font_height.round() * 2.0), "Unexpected intrinsic size");
     }
 
     #[test]
@@ -3127,14 +2424,7 @@ mod tests {
 
         let font_id = FontId::default();
         let family = fonts.family_key(&font_id.family);
-        let font_height = fonts
-            .family_metrics(
-                family,
-                pixels_per_point,
-                font_id.size,
-                &VariationCoords::default(),
-            )
-            .row_height;
+        let font_height = fonts.family_metrics(family, pixels_per_point, font_id.size, &VariationCoords::default()).row_height;
         let extra_height = 20.0;
         let line_height = (font_height + extra_height).round();
         let free_space = line_height - font_height;
@@ -3143,16 +2433,7 @@ mod tests {
         let mut glyph_y = |sections: &[(Option<f32>, Align)]| {
             let mut job = LayoutJob::default();
             for &(line_height, valign) in sections {
-                job.append(
-                    "Hello",
-                    0.0,
-                    TextFormat {
-                        font_id: font_id.clone(),
-                        line_height,
-                        valign,
-                        ..Default::default()
-                    },
-                );
+                job.append("Hello", 0.0, TextFormat { font_id: font_id.clone(), line_height, valign, ..Default::default() });
             }
             let galley = layout(&mut fonts, pixels_per_point, job.into());
             assert_eq!(galley.rows.len(), 1);
@@ -3165,17 +2446,9 @@ mod tests {
 
         // A custom line height always centers the text, regardless of `valign`
         // (including the default `valign`):
-        for valign in [
-            TextFormat::default().valign,
-            Align::TOP,
-            Align::Center,
-            Align::BOTTOM,
-        ] {
+        for valign in [TextFormat::default().valign, Align::TOP, Align::Center, Align::BOTTOM] {
             let (height, y) = glyph_y(&[(Some(line_height), valign)]);
-            assert_eq!(
-                height, line_height,
-                "Row should have the custom line height"
-            );
+            assert_eq!(height, line_height, "Row should have the custom line height");
             assert!(
                 (y - baseline_y - 0.5 * free_space).abs() <= 1.0,
                 "{valign:?}: text should be centered in the line: baseline_y={baseline_y}, y={y}, free_space={free_space}"
@@ -3189,14 +2462,8 @@ mod tests {
         let (_, center) = glyph_y(&[tall, (None, Align::Center)]);
         let (_, bottom) = glyph_y(&[tall, (None, Align::BOTTOM)]);
         assert!((top - baseline_y).abs() <= 1.0, "top={top}");
-        assert!(
-            (center - top - 0.5 * free_space).abs() <= 1.0,
-            "top={top}, center={center}, free_space={free_space}"
-        );
-        assert!(
-            (bottom - top - free_space).abs() <= 1.0,
-            "top={top}, bottom={bottom}, free_space={free_space}"
-        );
+        assert!((center - top - 0.5 * free_space).abs() <= 1.0, "top={top}, center={center}, free_space={free_space}");
+        assert!((bottom - top - free_space).abs() <= 1.0, "top={top}, bottom={bottom}, free_space={free_space}");
     }
 
     #[test]
@@ -3209,20 +2476,10 @@ mod tests {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
 
-        let job_combined = LayoutJob::simple(
-            "ɔ\u{0303}".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job_combined = LayoutJob::simple("ɔ\u{0303}".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley_combined = layout(&mut fonts, pixels_per_point, job_combined.into());
 
-        let job_base = LayoutJob::simple(
-            "ɔ".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job_base = LayoutJob::simple("ɔ".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley_base = layout(&mut fonts, pixels_per_point, job_base.into());
 
         let width_combined = galley_combined.size().x;
@@ -3244,12 +2501,7 @@ mod tests {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
 
-        let job = LayoutJob::simple(
-            "Hello".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple("Hello".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 1);
@@ -3262,12 +2514,7 @@ mod tests {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
 
-        let job = LayoutJob::simple(
-            String::new(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple(String::new(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 1);
@@ -3279,12 +2526,7 @@ mod tests {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
 
-        let job = LayoutJob::simple(
-            "A\n\nB".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple("A\n\nB".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 3, "Expected 3 rows for 'A\\n\\nB'");
@@ -3300,21 +2542,12 @@ mod tests {
         let pixels_per_point = 1.0;
         let mut fonts = test_fonts();
 
-        let job = LayoutJob::simple(
-            "Hi 🎉 bye".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple("Hi 🎉 bye".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         assert_eq!(galley.rows.len(), 1);
         // "Hi " (3) + "🎉" (1) + " bye" (4) = at least 8 glyphs
-        assert!(
-            galley.rows[0].row.glyphs.len() >= 8,
-            "Expected >= 8 glyphs, got {}",
-            galley.rows[0].row.glyphs.len()
-        );
+        assert!(galley.rows[0].row.glyphs.len() >= 8, "Expected >= 8 glyphs, got {}", galley.rows[0].row.glyphs.len());
     }
 
     #[test]
@@ -3331,18 +2564,8 @@ mod tests {
         for pair in ["AV", "VA", "AT"] {
             let (pair_w, _, _) = measure_text(&mut fonts, pair, &font_id, pixels_per_point);
             let chars: Vec<char> = pair.chars().collect();
-            let (w1, _, _) = measure_text(
-                &mut fonts,
-                &chars[0].to_string(),
-                &font_id,
-                pixels_per_point,
-            );
-            let (w2, _, _) = measure_text(
-                &mut fonts,
-                &chars[1].to_string(),
-                &font_id,
-                pixels_per_point,
-            );
+            let (w1, _, _) = measure_text(&mut fonts, &chars[0].to_string(), &font_id, pixels_per_point);
+            let (w2, _, _) = measure_text(&mut fonts, &chars[1].to_string(), &font_id, pixels_per_point);
             let sum = w1 + w2;
             let kern_adjustment = sum - pair_w;
 
@@ -3381,12 +2604,7 @@ mod tests {
         ];
 
         for &(text, expected_chars) in cases {
-            let job = LayoutJob::simple(
-                text.to_owned(),
-                font_id.clone(),
-                Color32::WHITE,
-                f32::INFINITY,
-            );
+            let job = LayoutJob::simple(text.to_owned(), font_id.clone(), Color32::WHITE, f32::INFINITY);
             let galley = layout(&mut fonts, pixels_per_point, job.into());
 
             let total_glyphs: usize = galley.rows.iter().map(|r| r.row.glyphs.len()).sum();
@@ -3397,12 +2615,7 @@ mod tests {
                 "Glyph count mismatch for {text:?}: \
                  expected {expected_chars} glyphs (one per char), got {total_glyphs}. \
                  Glyphs: {:?}",
-                galley.rows[0]
-                    .row
-                    .glyphs
-                    .iter()
-                    .map(|g| (g.chr, g.advance_width))
-                    .collect::<Vec<_>>(),
+                galley.rows[0].row.glyphs.iter().map(|g| (g.chr, g.advance_width)).collect::<Vec<_>>(),
             );
 
             // Verify that Row::text() reconstructs the input text.
@@ -3410,11 +2623,7 @@ mod tests {
             assert_eq!(row_text, text, "Row::text() mismatch for {text:?}");
 
             // Verify cursor round-trip: end cursor index == char count.
-            assert_eq!(
-                galley.end().index.0,
-                expected_chars,
-                "Galley::end().index mismatch for {text:?}",
-            );
+            assert_eq!(galley.end().index.0, expected_chars, "Galley::end().index mismatch for {text:?}",);
         }
     }
 
@@ -3428,25 +2637,14 @@ mod tests {
 
         // "A" + flag emoji (2 codepoints) + "B" = 4 chars
         let text = "A\u{1F1EF}\u{1F1F5}B";
-        let job = LayoutJob::simple(
-            text.to_owned(),
-            font_id.clone(),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let job = LayoutJob::simple(text.to_owned(), font_id.clone(), Color32::WHITE, f32::INFINITY);
         let galley = layout(&mut fonts, pixels_per_point, job.into());
 
         // Walking through every cursor index should produce valid positions.
         for i in 0..=galley.end().index.0 {
-            let cursor = CCursor {
-                index: CharIndex(i),
-                prefer_next_row: false,
-            };
+            let cursor = CCursor { index: CharIndex(i), prefer_next_row: false };
             let rect = galley.pos_from_cursor(cursor);
-            assert!(
-                rect.is_finite(),
-                "pos_from_cursor returned non-finite rect for index {i}",
-            );
+            assert!(rect.is_finite(), "pos_from_cursor returned non-finite rect for index {i}",);
 
             // Round-trip: position → cursor → position should be stable.
             let cursor2 = galley.cursor_from_pos(Vec2::new(rect.center().x, rect.center().y));
@@ -3480,13 +2678,7 @@ mod tests {
     fn rtl_rows_are_placed_in_visual_order() {
         let mut fonts = test_fonts();
         let x_of = |galley: &Galley, chr: char| {
-            galley.rows[0]
-                .row
-                .glyphs
-                .iter()
-                .find(|g| g.chr == chr)
-                .map(|g| g.pos.x)
-                .unwrap_or_else(|| panic!("no glyph for {chr:?}"))
+            galley.rows[0].row.glyphs.iter().find(|g| g.chr == chr).map(|g| g.pos.x).unwrap_or_else(|| panic!("no glyph for {chr:?}"))
         };
 
         // A right-to-left paragraph: the first word ends up on the right,
@@ -3496,12 +2688,7 @@ mod tests {
         assert!(xs.is_sorted(), "visual order of \"אב 12\": {xs:?}");
         // The space takes the paragraph direction (UAX #9 N1/N2); the digits do not.
         for glyph in &galley.rows[0].row.glyphs {
-            assert_eq!(
-                glyph.is_rtl(),
-                matches!(glyph.chr, 'א' | 'ב' | ' '),
-                "{:?}",
-                glyph.chr
-            );
+            assert_eq!(glyph.is_rtl(), matches!(glyph.chr, 'א' | 'ב' | ' '), "{:?}", glyph.chr);
         }
 
         // A left-to-right paragraph with a Hebrew word in it:
@@ -3528,10 +2715,7 @@ mod tests {
         assert_eq!(row.x_offset(CharIndex(2)), bet.pos.x);
 
         for i in 0..=2 {
-            let cursor = CCursor {
-                index: CharIndex(i),
-                prefer_next_row: false,
-            };
+            let cursor = CCursor { index: CharIndex(i), prefer_next_row: false };
             let rect = galley.pos_from_cursor(cursor);
             let back = galley.cursor_from_pos(rect.center().to_vec2());
             assert_eq!(back.index.0, i, "cursor round-trip at {i}");
@@ -3560,23 +2744,14 @@ mod tests {
         ];
 
         for text in cases {
-            let job = LayoutJob::simple(
-                text.to_owned(),
-                font_id.clone(),
-                Color32::WHITE,
-                f32::INFINITY,
-            );
+            let job = LayoutJob::simple(text.to_owned(), font_id.clone(), Color32::WHITE, f32::INFINITY);
             let galley = layout(&mut fonts, pixels_per_point, job.into());
 
             let total_glyphs: usize = galley.rows.iter().map(|r| r.row.glyphs.len()).sum();
             let num_chars = text.chars().count();
 
             assert_eq!(total_glyphs, num_chars, "Glyph count mismatch for {text:?}");
-            assert_eq!(
-                galley.end().index.0,
-                num_chars,
-                "Galley::end().index mismatch for {text:?}",
-            );
+            assert_eq!(galley.end().index.0, num_chars, "Galley::end().index mismatch for {text:?}",);
         }
     }
 
@@ -3591,24 +2766,12 @@ mod tests {
             let glyphs = &galley.rows[0].row.glyphs;
             assert_eq!(glyphs.len(), text.chars().count(), "{text:?}");
             assert_eq!(galley.rows[0].row.text(), text);
-            assert!(
-                glyphs[0].pos.x < glyphs[1].pos.x,
-                "{text:?}: four is drawn left of five"
-            );
+            assert!(glyphs[0].pos.x < glyphs[1].pos.x, "{text:?}: four is drawn left of five");
         }
     }
 
-    fn layout_with_direction(
-        fonts: &mut FontsImpl,
-        text: &str,
-        direction: TextDirection,
-    ) -> Galley {
-        let mut job = LayoutJob::simple(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+    fn layout_with_direction(fonts: &mut FontsImpl, text: &str, direction: TextDirection) -> Galley {
+        let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         job.direction = direction;
         layout(fonts, 1.0, Arc::new(job))
     }
@@ -3619,8 +2782,7 @@ mod tests {
 
         // Each paragraph takes the direction of its first strong character,
         // or of the paragraph before it if it has none:
-        let galley =
-            layout_with_direction(&mut fonts, "abc אבג\nאבג abc\n123", TextDirection::Auto);
+        let galley = layout_with_direction(&mut fonts, "abc אבג\nאבג abc\n123", TextDirection::Auto);
         let rtl: Vec<bool> = galley.rows.iter().map(|row| row.rtl_paragraph).collect();
         assert_eq!(rtl, [false, true, true]);
         assert_visual_order(&galley.rows[0].row, &[0, 1, 2, 6, 5, 4]);
@@ -3638,12 +2800,7 @@ mod tests {
         // Text without a right-to-left character can still be in a right-to-left paragraph:
         let galley = layout_with_direction(&mut fonts, "abc", TextDirection::RightToLeft);
         assert!(galley.rows[0].rtl_paragraph);
-        assert!(
-            galley.rows[0]
-                .glyphs
-                .iter()
-                .all(|glyph| glyph.bidi_level == 2)
-        );
+        assert!(galley.rows[0].glyphs.iter().all(|glyph| glyph.bidi_level == 2));
         assert_visual_order(&galley.rows[0].row, &[0, 1, 2]);
     }
 
@@ -3665,12 +2822,7 @@ mod tests {
         let mut cached = Fonts::new(TextOptions::default(), FontDefinitions::default());
         for (text, expected) in cases {
             let whole = layout_with_direction(&mut fonts, text, TextDirection::Auto);
-            let job = LayoutJob::simple(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-                f32::INFINITY,
-            );
+            let job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
             let split = cached.with_pixels_per_point(1.0).layout_job(job);
             for galley in [&whole, &*split] {
                 let rtl: Vec<bool> = galley.rows.iter().map(|row| row.rtl_paragraph).collect();
@@ -3691,12 +2843,7 @@ mod tests {
     #[test]
     fn paragraph_direction_survives_the_paragraph_cache() {
         let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::default());
-        let mut job = LayoutJob::simple(
-            "abc\ndef\n".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+        let mut job = LayoutJob::simple("abc\ndef\n".to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
         job.direction = TextDirection::RightToLeft;
         let galley = fonts.with_pixels_per_point(1.0).layout_job(job);
         assert_eq!(galley.rows.len(), 3);
@@ -3705,14 +2852,8 @@ mod tests {
 
     /// The left and right edge of the visible glyphs of a row, in galley coordinates.
     fn visible_x_range(placed_row: &PlacedRow) -> Rangef {
-        let visible = placed_row
-            .glyphs
-            .iter()
-            .filter(|glyph| !glyph.chr.is_whitespace());
-        let min = visible
-            .clone()
-            .map(|g| g.pos.x)
-            .fold(f32::INFINITY, f32::min);
+        let visible = placed_row.glyphs.iter().filter(|glyph| !glyph.chr.is_whitespace());
+        let min = visible.clone().map(|g| g.pos.x).fold(f32::INFINITY, f32::min);
         let max = visible.map(Glyph::max_x).fold(f32::NEG_INFINITY, f32::max);
         Rangef::new(placed_row.pos.x + min, placed_row.pos.x + max)
     }
@@ -3721,12 +2862,7 @@ mod tests {
     fn rtl_paragraphs_start_on_the_right() {
         let text = "abcdefghij\nאב גד\nאב";
         let job = |halign: Align, halign_min_is_start: bool| {
-            let mut job = LayoutJob::simple(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-                f32::INFINITY,
-            );
+            let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY);
             job.halign = halign;
             job.halign_min_is_start = halign_min_is_start;
             job
@@ -3746,9 +2882,7 @@ mod tests {
         }
 
         // `Fonts` lays out each paragraph on its own, then joins them:
-        let joined = Fonts::new(TextOptions::default(), FontDefinitions::default())
-            .with_pixels_per_point(1.0)
-            .layout_job(job(Align::LEFT, true));
+        let joined = Fonts::new(TextOptions::default(), FontDefinitions::default()).with_pixels_per_point(1.0).layout_job(job(Align::LEFT, true));
         let joined_ranges: Vec<Rangef> = joined.rows.iter().map(visible_x_range).collect();
         assert_eq!(joined_ranges, ranges);
         assert_eq!(joined.rect.min.x, 0.0);
@@ -3774,17 +2908,10 @@ mod tests {
     #[test]
     fn elision_is_at_the_visual_end_of_the_row() {
         let mut fonts = test_fonts();
-        for (text, rtl) in [
-            ("אבגד הוזח טיכל מנסע", true),
-            ("שלום hello world again", true),
-            ("ab אבגד הוזח טיכל מנסע", false),
-        ] {
+        for (text, rtl) in [("אבגד הוזח טיכל מנסע", true), ("שלום hello world again", true), ("ab אבגד הוזח טיכל מנסע", false)]
+        {
             let full_width = layout_simple(&mut fonts, text).size().x;
-            let mut job = LayoutJob::simple_singleline(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-            );
+            let mut job = LayoutJob::simple_singleline(text.to_owned(), FontId::proportional(14.0), Color32::WHITE);
             job.wrap = TextWrapping::truncate_at_width(full_width / 2.0);
             let galley = layout(&mut fonts, 1.0, Arc::new(job));
             assert!(galley.elided);
@@ -3804,11 +2931,7 @@ mod tests {
             assert_eq!(visible, cfg!(feature = "default_fonts"));
             if visible {
                 let at_visual_end = |g: &Glyph| {
-                    if rtl {
-                        ellipsis.max_x() <= g.pos.x
-                    } else {
-                        g.max_x() <= ellipsis.pos.x
-                    }
+                    if rtl { ellipsis.max_x() <= g.pos.x } else { g.max_x() <= ellipsis.pos.x }
                 };
                 assert!(others.iter().all(at_visual_end), "{kept:?}");
             }
@@ -3819,17 +2942,11 @@ mod tests {
     fn whitespace_at_the_end_of_a_row_takes_the_paragraph_level() {
         let mut fonts = test_fonts();
         let mut layout_left = |text: &str, max_width: f32| {
-            let mut job = LayoutJob::simple(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-                max_width,
-            );
+            let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, max_width);
             job.halign_min_is_start = false;
             layout(&mut fonts, 1.0, Arc::new(job))
         };
-        for (first_row, rest, rtl) in [("אבג abc ", "def", true), ("abc אבג ", "דהו", false)]
-        {
+        for (first_row, rest, rtl) in [("אבג abc ", "def", true), ("abc אבג ", "דהו", false)] {
             let width = layout_left(first_row, f32::INFINITY).size().x;
             let galley = layout_left(&format!("{first_row}{rest}"), width + 1.0);
             assert_eq!(galley.rows.len(), 2);
@@ -3864,28 +2981,16 @@ mod tests {
 
         for max_width in [f32::INFINITY, 300.0] {
             REORDER_STEPS.with(|steps| steps.set(0));
-            let job = LayoutJob::simple(
-                text.clone(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-                max_width,
-            );
+            let job = LayoutJob::simple(text.clone(), FontId::proportional(14.0), Color32::WHITE, max_width);
             let galley = layout(&mut fonts, 1.0, Arc::new(job));
             let steps = REORDER_STEPS.with(core::cell::Cell::get);
-            assert!(
-                0 < steps && steps <= 6 * num_chars,
-                "{steps} steps for {num_chars} chars"
-            );
+            assert!(0 < steps && steps <= 6 * num_chars, "{steps} steps for {num_chars} chars");
 
             // The cached order is a permutation that matches where the glyphs are:
             for placed_row in &galley.rows {
                 let row = &placed_row.row;
                 let mut order: Vec<usize> = row.visual_order().collect();
-                let xs: Vec<f32> = order
-                    .iter()
-                    .filter(|&&i| 0.0 < row.glyphs[i].advance_width)
-                    .map(|&i| row.glyphs[i].pos.x)
-                    .collect();
+                let xs: Vec<f32> = order.iter().filter(|&&i| 0.0 < row.glyphs[i].advance_width).map(|&i| row.glyphs[i].pos.x).collect();
                 assert!(xs.is_sorted(), "{:?}", row.text());
                 order.sort_unstable();
                 assert!(order.into_iter().eq(0..row.glyphs.len()));
@@ -3897,24 +3002,14 @@ mod tests {
     #[track_caller]
     fn assert_visual_order(row: &Row, left_to_right: &[usize]) {
         let xs: Vec<f32> = left_to_right.iter().map(|&i| row.glyphs[i].pos.x).collect();
-        assert!(
-            xs.is_sorted_by(|a, b| a < b),
-            "{:?}: glyphs {left_to_right:?} are at {xs:?}",
-            row.text()
-        );
+        assert!(xs.is_sorted_by(|a, b| a < b), "{:?}: glyphs {left_to_right:?} are at {xs:?}", row.text());
     }
 
     #[test]
     #[cfg(feature = "default_fonts")]
     fn arabic_with_digits_and_brackets() {
         let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::default());
-        let mut layout = |text: &str| {
-            fonts.with_pixels_per_point(1.0).layout_no_wrap(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-            )
-        };
+        let mut layout = |text: &str| fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(14.0), Color32::WHITE);
         let text = "عدد (123) هنا";
         let galley = layout(text);
         let row = &galley.rows[0].row;
@@ -3936,11 +3031,7 @@ mod tests {
             let ink: Vec<f32> = (x0..x1).map(|x| f32::from(image[(x, y)].a())).collect();
             let weighted: f32 = ink.iter().enumerate().map(|(i, a)| i as f32 * a).sum();
             let centroid = weighted / ink.iter().sum::<f32>();
-            if centroid < (ink.len() - 1) as f32 / 2.0 {
-                '('
-            } else {
-                ')'
-            }
+            if centroid < (ink.len() - 1) as f32 / 2.0 { '(' } else { ')' }
         };
         assert_eq!(shape(&ltr.rows[0].row.glyphs[0]), '(');
         assert_eq!(shape(&ltr.rows[0].row.glyphs[2]), ')');
@@ -3964,12 +3055,7 @@ mod tests {
 
         // Each wrapped row is reordered on its own, and keeps its logical chars:
         let width = layout_simple(&mut fonts, "Hello ").size().x;
-        let job = LayoutJob::simple(
-            "שלום Hello עולם".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            width + 1.0,
-        );
+        let job = LayoutJob::simple("שלום Hello עולם".to_owned(), FontId::proportional(14.0), Color32::WHITE, width + 1.0);
         let galley = layout(&mut fonts, 1.0, Arc::new(job));
         let texts: Vec<String> = galley.rows.iter().map(|row| row.row.text()).collect();
         assert_eq!(texts, ["שלום ", "Hello ", "עולם"]);
@@ -3992,11 +3078,7 @@ mod tests {
                 let rect = glyph.logical_rect();
                 let left = galley.cursor_from_pos(vec2(rect.lerp_inside([0.25, 0.5]).x, y));
                 let right = galley.cursor_from_pos(vec2(rect.lerp_inside([0.75, 0.5]).x, y));
-                let (before, after) = if glyph.is_rtl() {
-                    (right, left)
-                } else {
-                    (left, right)
-                };
+                let (before, after) = if glyph.is_rtl() { (right, left) } else { (left, right) };
                 assert_eq!(before.index.0, i, "{text:?}: before {:?}", glyph.chr);
                 assert_eq!(after.index.0, i + 1, "{text:?}: after {:?}", glyph.chr);
             }
@@ -4012,14 +3094,10 @@ mod tests {
         let span = |chars: Range<usize>| {
             let glyphs = &row.glyphs[chars];
             let min = glyphs.iter().map(|g| g.pos.x).fold(f32::INFINITY, f32::min);
-            let max = glyphs
-                .iter()
-                .map(Glyph::max_x)
-                .fold(f32::NEG_INFINITY, f32::max);
+            let max = glyphs.iter().map(Glyph::max_x).fold(f32::NEG_INFINITY, f32::max);
             Rangef::new(min, max)
         };
-        let ranges =
-            |chars: Range<usize>| row.x_ranges(CharIndex(chars.start)..CharIndex(chars.end));
+        let ranges = |chars: Range<usize>| row.x_ranges(CharIndex(chars.start)..CharIndex(chars.end));
 
         // "abc א" is "abc " on the left and "א" at the right end of the Hebrew word:
         assert_eq!(ranges(0..5).as_slice(), [span(0..4), span(4..5)]);
@@ -4031,13 +3109,7 @@ mod tests {
         // Left-to-right text: one range, from cursor to cursor.
         let galley = layout_simple(&mut fonts, "abc def");
         let row = &galley.rows[0].row;
-        assert_eq!(
-            row.x_ranges(CharIndex(1)..CharIndex(5)).as_slice(),
-            [Rangef::new(
-                row.x_offset(CharIndex(1)),
-                row.x_offset(CharIndex(5))
-            )]
-        );
+        assert_eq!(row.x_ranges(CharIndex(1)..CharIndex(5)).as_slice(), [Rangef::new(row.x_offset(CharIndex(1)), row.x_offset(CharIndex(5)))]);
     }
 
     /// The end of a right-to-left row that ends in left-to-right text is after that text.
@@ -4049,11 +3121,7 @@ mod tests {
             let row = &galley.rows[0].row;
             let last = row.glyphs.last().unwrap();
             assert!(!last.is_rtl());
-            assert_eq!(
-                row.x_offset(row.char_count_excluding_newline()),
-                last.max_x(),
-                "{text:?}"
-            );
+            assert_eq!(row.x_offset(row.char_count_excluding_newline()), last.max_x(), "{text:?}");
         }
     }
 
@@ -4073,12 +3141,7 @@ mod tests {
         assert!(!acute.uv_rect.is_nothing(), "the acute is drawn");
         assert!(bet.pos.x < alef.pos.x, "bet is drawn left of alef");
         let acute_x = acute.pos.x + acute.uv_rect.offset.x;
-        assert!(
-            alef.pos.x <= acute_x && acute_x <= alef.max_x(),
-            "the acute at {acute_x} is over alef at {}..{}",
-            alef.pos.x,
-            alef.max_x()
-        );
+        assert!(alef.pos.x <= acute_x && acute_x <= alef.max_x(), "the acute at {acute_x} is over alef at {}..{}", alef.pos.x, alef.max_x());
     }
 
     /// A base and a mark that the font draws as two glyphs of one cluster
@@ -4152,11 +3215,7 @@ mod tests {
 
     /// The chars of the advancing glyphs of a row, left to right as drawn.
     fn drawn(row: &Row) -> String {
-        let mut glyphs: Vec<&Glyph> = row
-            .glyphs
-            .iter()
-            .filter(|g| 0.0 < g.advance_width)
-            .collect();
+        let mut glyphs: Vec<&Glyph> = row.glyphs.iter().filter(|g| 0.0 < g.advance_width).collect();
         glyphs.sort_by(|a, b| a.pos.x.total_cmp(&b.pos.x));
         glyphs.iter().map(|g| g.chr).collect()
     }
@@ -4187,62 +3246,29 @@ mod tests {
         let rtl = TextDirection::RightToLeft;
 
         // A right-to-left menu path: a Hebrew part, then a Latin id, each in its own isolate.
-        assert_eq!(
-            drawn_with(&format!("{FSI}קובץ{PDI}{FSI}abc{PDI}"), rtl),
-            "abcץבוק"
-        );
-        assert_eq!(
-            drawn_with(&format!("קובץ {FSI}abc{PDI}"), TextDirection::Auto),
-            "abc ץבוק"
-        );
+        assert_eq!(drawn_with(&format!("{FSI}קובץ{PDI}{FSI}abc{PDI}"), rtl), "abcץבוק");
+        assert_eq!(drawn_with(&format!("קובץ {FSI}abc{PDI}"), TextDirection::Auto), "abc ץבוק");
 
         // Two Latin isolates in right-to-left text stay two runs, the first on the right:
-        assert_eq!(
-            drawn_with(&format!("{FSI}abc{PDI}{FSI}def{PDI}"), rtl),
-            "defabc"
-        );
-        assert_eq!(
-            drawn_with(&format!("א {LRI}abc{PDI}{LRI}def{PDI} ב"), rtl),
-            "ב defabc א"
-        );
+        assert_eq!(drawn_with(&format!("{FSI}abc{PDI}{FSI}def{PDI}"), rtl), "defabc");
+        assert_eq!(drawn_with(&format!("א {LRI}abc{PDI}{LRI}def{PDI} ב"), rtl), "ב defabc א");
 
         // A number in an isolate inside Arabic:
-        assert_eq!(
-            drawn_with(&format!("عدد {LRI}123{PDI} هنا"), TextDirection::Auto),
-            "انه 123 ددع"
-        );
+        assert_eq!(drawn_with(&format!("عدد {LRI}123{PDI} هنا"), TextDirection::Auto), "انه 123 ددع");
 
         // Nested isolates: two left-to-right isolates inside a right-to-left one,
         // inside a left-to-right paragraph.
-        assert_eq!(
-            drawn_with(
-                &format!("x {RLI}אב {LRI}cd{PDI}{LRI}ef{PDI}{PDI} y"),
-                TextDirection::Auto
-            ),
-            "x efcd בא y"
-        );
+        assert_eq!(drawn_with(&format!("x {RLI}אב {LRI}cd{PDI}{LRI}ef{PDI}{PDI} y"), TextDirection::Auto), "x efcd בא y");
 
         // An RLM at the start makes the paragraph right to left, and an RLM between
         // Latin words splits them into two runs:
-        assert_eq!(
-            drawn_with(&format!("{RLM}abc אבג"), TextDirection::Auto),
-            "גבא abc"
-        );
-        assert_eq!(
-            drawn_with(&format!("{RLM}abc{RLM}def"), TextDirection::Auto),
-            "defabc"
-        );
+        assert_eq!(drawn_with(&format!("{RLM}abc אבג"), TextDirection::Auto), "גבא abc");
+        assert_eq!(drawn_with(&format!("{RLM}abc{RLM}def"), TextDirection::Auto), "defabc");
         let galley = layout_simple(&mut fonts, &format!("{RLM}abc אבג"));
         let row = &galley.rows[0].row;
-        let right_end = row.glyphs[1..]
-            .iter()
-            .map(Glyph::max_x)
-            .fold(f32::MIN, f32::max);
+        let right_end = row.glyphs[1..].iter().map(Glyph::max_x).fold(f32::MIN, f32::max);
         let rlm_x = row.glyphs[0].pos.x;
-        assert!(
-            (rlm_x - right_end).abs() < 1.0,
-            "the RLM at {rlm_x} is at the right end, {right_end}"
-        );
+        assert!((rlm_x - right_end).abs() < 1.0, "the RLM at {rlm_x} is at the right end, {right_end}");
     }
 
     /// Glyph and row positions of left-to-right text: no wrapping, centered and justified.
@@ -4252,28 +3278,14 @@ mod tests {
         let mut fonts = test_fonts();
         let text = "Hello, wörld! fi ffi 123 (x) — ok\tdone";
         let mut lines = Vec::new();
-        for (max_width, halign, justify) in [
-            (f32::INFINITY, Align::LEFT, false),
-            (80.0, Align::Center, false),
-            (80.0, Align::LEFT, true),
-        ] {
-            let mut job = LayoutJob::simple(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-                max_width,
-            );
+        for (max_width, halign, justify) in [(f32::INFINITY, Align::LEFT, false), (80.0, Align::Center, false), (80.0, Align::LEFT, true)] {
+            let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, max_width);
             job.halign = halign;
             job.justify = justify;
             let galley = layout(&mut fonts, 1.0, Arc::new(job));
             for placed_row in &galley.rows {
                 assert!(placed_row.row.glyphs.iter().all(|g| g.bidi_level == 0));
-                let xs: Vec<String> = placed_row
-                    .row
-                    .glyphs
-                    .iter()
-                    .map(|glyph| format!("{:.2}", glyph.pos.x))
-                    .collect();
+                let xs: Vec<String> = placed_row.row.glyphs.iter().map(|glyph| format!("{:.2}", glyph.pos.x)).collect();
                 lines.push(format!(
                     "{:.2},{:.2} {:.2}x{:.2}: {}",
                     placed_row.pos.x,
@@ -4306,20 +3318,8 @@ mod tests {
             .rows
             .iter()
             .map(|placed_row| {
-                let ys: Vec<String> = placed_row
-                    .row
-                    .glyphs
-                    .iter()
-                    .map(|glyph| format!("{:?}", glyph.pos.y))
-                    .collect();
-                format!(
-                    "{:?},{:?} {:?}x{:?}: {}",
-                    placed_row.pos.x,
-                    placed_row.pos.y,
-                    placed_row.row.size.x,
-                    placed_row.row.size.y,
-                    ys.join(" ")
-                )
+                let ys: Vec<String> = placed_row.row.glyphs.iter().map(|glyph| format!("{:?}", glyph.pos.y)).collect();
+                format!("{:?},{:?} {:?}x{:?}: {}", placed_row.pos.x, placed_row.pos.y, placed_row.row.size.x, placed_row.row.size.y, ys.join(" "))
             })
             .collect()
     }
@@ -4331,22 +3331,8 @@ mod tests {
         job.wrap.max_width = 120.0;
         let body = TextFormat::simple(FontId::proportional(14.0), Color32::WHITE);
         job.append("Text \u{e618} with ", 0.0, body.clone());
-        job.append(
-            "mono ƀƁ\u{e61f}",
-            0.0,
-            TextFormat {
-                valign: Align::Center,
-                ..TextFormat::simple(FontId::monospace(20.0), Color32::WHITE)
-            },
-        );
-        job.append(
-            " tall ƀ rows\nand more",
-            0.0,
-            TextFormat {
-                line_height: Some(24.0),
-                ..body
-            },
-        );
+        job.append("mono ƀƁ\u{e61f}", 0.0, TextFormat { valign: Align::Center, ..TextFormat::simple(FontId::monospace(20.0), Color32::WHITE) });
+        job.append(" tall ƀ rows\nand more", 0.0, TextFormat { line_height: Some(24.0), ..body });
         job
     }
 
@@ -4368,44 +3354,15 @@ mod tests {
 
     /// The proportional family `primary`, `fallback` (aligned with `align`), `egui-icons`.
     #[cfg(feature = "default_fonts")]
-    fn fonts_with_fallback(
-        primary: &'static [u8],
-        fallback: &'static [u8],
-        align: FallbackAlign,
-    ) -> FontsImpl {
+    fn fonts_with_fallback(primary: &'static [u8], fallback: &'static [u8], align: FallbackAlign) -> FontsImpl {
         let mut definitions = FontDefinitions::empty();
-        let tweaked =
-            |data: &'static [u8], tweak| Arc::new(FontData::from_static(data).tweak(tweak));
-        definitions.font_data.insert(
-            "primary".to_owned(),
-            Arc::new(FontData::from_static(primary)),
-        );
-        definitions.font_data.insert(
-            "fallback".to_owned(),
-            tweaked(
-                fallback,
-                FontTweak {
-                    fallback_align: align,
-                    ..Default::default()
-                },
-            ),
-        );
-        definitions.font_data.insert(
-            "egui-icons".to_owned(),
-            tweaked(
-                epaint_default_fonts::EGUI_ICONS,
-                FontTweak {
-                    scale: 0.9,
-                    ..Default::default()
-                },
-            ),
-        );
-        definitions.families.insert(
-            FontFamily::Proportional,
-            ["primary", "fallback", "egui-icons"]
-                .map(str::to_owned)
-                .into(),
-        );
+        let tweaked = |data: &'static [u8], tweak| Arc::new(FontData::from_static(data).tweak(tweak));
+        definitions.font_data.insert("primary".to_owned(), Arc::new(FontData::from_static(primary)));
+        definitions.font_data.insert("fallback".to_owned(), tweaked(fallback, FontTweak { fallback_align: align, ..Default::default() }));
+        definitions
+            .font_data
+            .insert("egui-icons".to_owned(), tweaked(epaint_default_fonts::EGUI_ICONS, FontTweak { scale: 0.9, ..Default::default() }));
+        definitions.families.insert(FontFamily::Proportional, ["primary", "fallback", "egui-icons"].map(str::to_owned).into());
         FontsImpl::new(TextOptions::default(), definitions)
     }
 
@@ -4417,17 +3374,10 @@ mod tests {
         use epaint_default_fonts::{HACK_REGULAR, UBUNTU_LIGHT};
 
         // `Ա` is only in Hack, `ƀ` only in Ubuntu, `\u{e618}` only in egui-icons.
-        for (primary, fallback, text) in [
-            (UBUNTU_LIGHT, HACK_REGULAR, "xԱ\u{e618}"),
-            (HACK_REGULAR, UBUNTU_LIGHT, "xƀ\u{e618}"),
-        ] {
+        for (primary, fallback, text) in [(UBUNTU_LIGHT, HACK_REGULAR, "xԱ\u{e618}"), (HACK_REGULAR, UBUNTU_LIGHT, "xƀ\u{e618}")] {
             let layout_with = |align, text: &str| {
                 let mut fonts = fonts_with_fallback(primary, fallback, align);
-                let job = LayoutJob::simple_singleline(
-                    text.to_owned(),
-                    FontId::proportional(100.0),
-                    Color32::WHITE,
-                );
+                let job = LayoutJob::simple_singleline(text.to_owned(), FontId::proportional(100.0), Color32::WHITE);
                 layout(&mut fonts, 1.0, Arc::new(job))
             };
             let centered = layout_with(FallbackAlign::Center, text);
@@ -4438,36 +3388,20 @@ mod tests {
             };
             assert_ne!(x.font_face_height, other.font_face_height);
             assert_eq!(x.pos.y, other.pos.y, "{text}: one baseline");
-            assert_ne!(
-                centered.rows[0].row.glyphs[0].pos.y, centered.rows[0].row.glyphs[1].pos.y,
-                "{text}: centered fallbacks sit elsewhere"
-            );
+            assert_ne!(centered.rows[0].row.glyphs[0].pos.y, centered.rows[0].row.glyphs[1].pos.y, "{text}: centered fallbacks sit elsewhere");
 
             let ascent = x.font_ascent.max(other.font_face_ascent);
-            let descent = (x.font_height - x.font_ascent)
-                .max(other.font_face_height - other.font_face_ascent);
+            let descent = (x.font_height - x.font_ascent).max(other.font_face_height - other.font_face_ascent);
             assert_eq!(x.pos.y, ascent.round(), "{text}");
-            assert_eq!(
-                on_baseline.rows[0].height(),
-                (ascent + descent).round(),
-                "{text}"
-            );
-            assert!(
-                centered.rows[0].height() < on_baseline.rows[0].height(),
-                "{text}: the row grows"
-            );
+            assert_eq!(on_baseline.rows[0].height(), (ascent + descent).round(), "{text}");
+            assert!(centered.rows[0].height() < on_baseline.rows[0].height(), "{text}: the row grows");
 
             // The icon keeps its place relative to the text:
             let icon_to_text = |galley: &Galley| {
                 let glyphs = &galley.rows[0].row.glyphs;
                 glyphs[2].pos.y - glyphs[0].pos.y
             };
-            assert!(
-                (icon_to_text(&on_baseline) - icon_to_text(&centered)).abs() <= 1.0,
-                "{text}: icon at {} with text at {}",
-                icon.pos.y,
-                x.pos.y
-            );
+            assert!((icon_to_text(&on_baseline) - icon_to_text(&centered)).abs() <= 1.0, "{text}: icon at {} with text at {}", icon.pos.y, x.pos.y);
 
             // Text in the first font alone doesn't move:
             assert_eq!(
@@ -4478,18 +3412,8 @@ mod tests {
     }
 
     #[cfg(feature = "default_fonts")]
-    fn measure_text(
-        fonts: &mut FontsImpl,
-        text: &str,
-        font_id: &FontId,
-        pixels_per_point: f32,
-    ) -> (f32, usize, Vec<(char, f32)>) {
-        let job = LayoutJob::simple(
-            text.to_owned(),
-            font_id.clone(),
-            Color32::WHITE,
-            f32::INFINITY,
-        );
+    fn measure_text(fonts: &mut FontsImpl, text: &str, font_id: &FontId, pixels_per_point: f32) -> (f32, usize, Vec<(char, f32)>) {
+        let job = LayoutJob::simple(text.to_owned(), font_id.clone(), Color32::WHITE, f32::INFINITY);
         let galley = layout(fonts, pixels_per_point, job.into());
         let glyphs = &galley.rows[0].row.glyphs;
         let details: Vec<_> = glyphs.iter().map(|g| (g.chr, g.advance_width)).collect();
@@ -4508,13 +3432,7 @@ mod tests {
 
     impl BreakAt {
         fn soft(offsets: &[usize]) -> Self {
-            Self {
-                breaks: offsets
-                    .iter()
-                    .map(|&offset| LineBreak::soft(offset))
-                    .collect(),
-                ..Default::default()
-            }
+            Self { breaks: offsets.iter().map(|&offset| LineBreak::soft(offset)).collect(), ..Default::default() }
         }
     }
 
@@ -4541,12 +3459,7 @@ mod tests {
     }
 
     fn simple_job(text: &str) -> LayoutJob {
-        LayoutJob::simple(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            f32::INFINITY,
-        )
+        LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, f32::INFINITY)
     }
 
     /// [`SimpleLineBreaker`] wraps text where epaint always did: these rows are what
@@ -4597,10 +3510,7 @@ mod tests {
             let mut job = simple_job(text);
             job.wrap.break_anywhere = break_anywhere;
             let rows = wrapped_rows(&mut fonts, job, glyphs).join("|");
-            assert_eq!(
-                rows, expected,
-                "{text:?} at {glyphs} glyphs, break_anywhere: {break_anywhere}"
-            );
+            assert_eq!(rows, expected, "{text:?} at {glyphs} glyphs, break_anywhere: {break_anywhere}");
         }
     }
 
@@ -4609,31 +3519,16 @@ mod tests {
         // Allowed: before "def" and before "ghi". Not at the spaces.
         let text = "abc def ghi jkl";
         let mut fonts = tofu_fonts(Arc::new(BreakAt::soft(&[4, 8])));
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job(text), 9),
-            ["abc def ", "ghi jkl"]
-        );
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job(text), 5),
-            ["abc ", "def ", "ghi j", "kl"]
-        );
+        assert_eq!(wrapped_rows(&mut fonts, simple_job(text), 9), ["abc def ", "ghi jkl"]);
+        assert_eq!(wrapped_rows(&mut fonts, simple_job(text), 5), ["abc ", "def ", "ghi j", "kl"]);
 
         // A lower penalty wins over a later break:
-        let mut fonts = tofu_fonts(Arc::new(BreakAt {
-            breaks: vec![LineBreak::soft(4), LineBreak::soft_with_penalty(8, 1)],
-            ..Default::default()
-        }));
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job("abc def ghi"), 9),
-            ["abc ", "def ghi"]
-        );
+        let mut fonts = tofu_fonts(Arc::new(BreakAt { breaks: vec![LineBreak::soft(4), LineBreak::soft_with_penalty(8, 1)], ..Default::default() }));
+        assert_eq!(wrapped_rows(&mut fonts, simple_job("abc def ghi"), 9), ["abc ", "def ghi"]);
 
         // Too long a piece breaks between grapheme clusters:
         let mut fonts = tofu_fonts(Arc::new(BreakAt::soft(&[])));
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job("abcdefgh"), 3),
-            ["abc", "def", "gh"]
-        );
+        assert_eq!(wrapped_rows(&mut fonts, simple_job("abcdefgh"), 3), ["abc", "def", "gh"]);
     }
 
     #[test]
@@ -4655,46 +3550,22 @@ mod tests {
     fn hard_breaks_end_the_row() {
         let text = "abc\u{2028}def ghi";
         let after_separator = "abc\u{2028}".len();
-        let line_breaker = Arc::new(BreakAt {
-            breaks: vec![
-                LineBreak::hard(after_separator),
-                LineBreak::hard(text.len()),
-            ],
-            ..Default::default()
-        });
+        let line_breaker = Arc::new(BreakAt { breaks: vec![LineBreak::hard(after_separator), LineBreak::hard(text.len())], ..Default::default() });
         let mut fonts = tofu_fonts(line_breaker);
         // Even when the paragraph fits on one row:
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job(text), 20),
-            ["abc\u{2028}", "def ghi"]
-        );
+        assert_eq!(wrapped_rows(&mut fonts, simple_job(text), 20), ["abc\u{2028}", "def ghi"]);
 
         // Only after a line separator:
-        let mut fonts = tofu_fonts(Arc::new(BreakAt {
-            breaks: vec![LineBreak::hard(2)],
-            ..Default::default()
-        }));
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job("abcd\u{2028}"), 20),
-            ["abcd\u{2028}"]
-        );
-        assert_eq!(
-            wrapped_rows(&mut fonts, simple_job("abcd\u{2028}"), 3),
-            ["ab", "cd\u{2028}"]
-        );
+        let mut fonts = tofu_fonts(Arc::new(BreakAt { breaks: vec![LineBreak::hard(2)], ..Default::default() }));
+        assert_eq!(wrapped_rows(&mut fonts, simple_job("abcd\u{2028}"), 20), ["abcd\u{2028}"]);
+        assert_eq!(wrapped_rows(&mut fonts, simple_job("abcd\u{2028}"), 3), ["ab", "cd\u{2028}"]);
 
         // Only with `break_on_newline`; otherwise it is a soft break:
-        let mut fonts = tofu_fonts(Arc::new(BreakAt {
-            breaks: vec![LineBreak::hard(after_separator)],
-            ..Default::default()
-        }));
+        let mut fonts = tofu_fonts(Arc::new(BreakAt { breaks: vec![LineBreak::hard(after_separator)], ..Default::default() }));
         let mut job = simple_job(text);
         job.break_on_newline = false;
         assert_eq!(wrapped_rows(&mut fonts, job.clone(), 20), [text]);
-        assert_eq!(
-            wrapped_rows(&mut fonts, job, 6),
-            ["abc\u{2028}", "def gh", "i"]
-        );
+        assert_eq!(wrapped_rows(&mut fonts, job, 6), ["abc\u{2028}", "def gh", "i"]);
     }
 
     /// With no break opportunity in a word, the row breaks between grapheme clusters:
@@ -4712,10 +3583,7 @@ mod tests {
         ];
         // With the default fonts, the emoji in a sequence the emoji font has no ligature for
         // are glyphs of their own, each with its own width.
-        let line_breakers = [
-            Arc::new(SimpleLineBreaker) as Arc<dyn LineBreaker>,
-            Arc::new(BreakAt::soft(&[])),
-        ];
+        let line_breakers = [Arc::new(SimpleLineBreaker) as Arc<dyn LineBreaker>, Arc::new(BreakAt::soft(&[]))];
         for (definitions, line_breaker) in [FontDefinitions::empty(), FontDefinitions::default()]
             .into_iter()
             .flat_map(|definitions| line_breakers.clone().map(|lb| (definitions.clone(), lb)))
@@ -4732,10 +3600,7 @@ mod tests {
                         let mut row_start = 0;
                         for row in &rows[..rows.len() - 1] {
                             row_start += row.chars().count();
-                            assert!(
-                                cluster_around(text, CharIndex(row_start)).is_none(),
-                                "{text:?} at {glyphs} glyphs: {rows:?}"
-                            );
+                            assert!(cluster_around(text, CharIndex(row_start)).is_none(), "{text:?} at {glyphs} glyphs: {rows:?}");
                         }
                     }
                 }

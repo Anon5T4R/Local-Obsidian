@@ -20,8 +20,7 @@ fn widgets_lay_out_text_in_the_language_of_their_ui() {
         languages.push(galley.job.language.clone());
 
         ui.scope_builder(UiBuilder::new().language("ja"), |ui| {
-            let galley =
-                WidgetText::from("日本語").into_galley(ui, None, 100.0, FontSelection::Default);
+            let galley = WidgetText::from("日本語").into_galley(ui, None, 100.0, FontSelection::Default);
             languages.push(galley.job.language.clone());
         });
 
@@ -32,8 +31,5 @@ fn widgets_lay_out_text_in_the_language_of_their_ui() {
     });
     output.drop_without_applying_deltas();
 
-    assert_eq!(
-        languages,
-        [Some("th"), Some("th"), Some("ja"), Some("ko")].map(|l| l.map(str::to_owned))
-    );
+    assert_eq!(languages, [Some("th"), Some("th"), Some("ja"), Some("ko")].map(|l| l.map(str::to_owned)));
 }

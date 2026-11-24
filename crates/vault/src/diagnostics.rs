@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use localobsidian_md::links;
+use localnotebook_md::links;
 
 use crate::index::Index;
 use crate::tree::NoteFile;

@@ -57,10 +57,7 @@ mod tests {
     #[test]
     fn installed_hooks_run_until_replaced() {
         let hooks = Arc::new(CountRawInput(AtomicUsize::new(0)));
-        let options = crate::NativeOptions {
-            viewport_hooks: Some(Arc::clone(&hooks) as Arc<dyn ViewportHooks>),
-            ..Default::default()
-        };
+        let options = crate::NativeOptions { viewport_hooks: Some(Arc::clone(&hooks) as Arc<dyn ViewportHooks>), ..Default::default() };
         install(options.clone().viewport_hooks);
 
         let ctx = egui::Context::default();

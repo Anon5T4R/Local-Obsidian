@@ -29,10 +29,7 @@ use image::{ExtendedColorType, ImageEncoder as _, ImageFormat, ImageReader, Limi
 use parking_lot::Condvar;
 use winit::platform::wayland::{ClipboardError, PngBytes, PngBytesWriter};
 
-use crate::clipboard_bridge::{
-    CompletionWaker, DecodedPasteImage, EncodedPng, ImagePasteDecoder, JobCancellation, PasteError,
-    PasteErrorKind,
-};
+use crate::clipboard_bridge::{CompletionWaker, DecodedPasteImage, EncodedPng, ImagePasteDecoder, JobCancellation, PasteError, PasteErrorKind};
 
 /// Largest accepted source or decoded image, in pixels.
 pub(crate) const MAX_PIXELS: usize = 8_000_000;
@@ -81,25 +78,14 @@ fn map_clipboard_error(error: &ClipboardError) -> PasteError {
 pub(crate) fn validate_image_size(size: [usize; 2]) -> Result<usize, PasteError> {
     let [width, height] = size;
     if width == 0 || height == 0 {
-        return Err(codec_error(
-            PasteErrorKind::InvalidInput,
-            "an empty image cannot be encoded",
-        ));
+        return Err(codec_error(PasteErrorKind::InvalidInput, "an empty image cannot be encoded"));
     }
     if width > MAX_DIMENSION as usize || height > MAX_DIMENSION as usize {
-        return Err(codec_error(
-            PasteErrorKind::TooLarge,
-            format!("image dimension {width}x{height} exceeds {MAX_DIMENSION}"),
-        ));
+        return Err(codec_error(PasteErrorKind::TooLarge, format!("image dimension {width}x{height} exceeds {MAX_DIMENSION}")));
     }
-    let pixels = width
-        .checked_mul(height)
-        .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image pixel count overflowed"))?;
+    let pixels = width.checked_mul(height).ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image pixel count overflowed"))?;
     if pixels > MAX_PIXELS {
-        return Err(codec_error(
-            PasteErrorKind::TooLarge,
-            format!("image has {pixels} pixels, above {MAX_PIXELS}"),
-        ));
+        return Err(codec_error(PasteErrorKind::TooLarge, format!("image has {pixels} pixels, above {MAX_PIXELS}")));
     }
     Ok(pixels)
 }
@@ -122,30 +108,16 @@ fn validate_color_image_admission(image: &ColorImage) -> Result<ImageAdmission, 
     if image.pixels.len() != pixels {
         return Err(codec_error(
             PasteErrorKind::InvalidInput,
-            format!(
-                "image size {}x{} requires {pixels} pixels, but the buffer has {}",
-                image.size[0],
-                image.size[1],
-                image.pixels.len()
-            ),
+            format!("image size {}x{} requires {pixels} pixels, but the buffer has {}", image.size[0], image.size[1], image.pixels.len()),
         ));
     }
-    let logical_bytes = pixels
-        .checked_mul(COLOR_BYTES)
-        .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image byte count overflowed"))?;
-    let retained_bytes = image
-        .pixels
-        .capacity()
-        .checked_mul(COLOR_BYTES)
-        .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image capacity overflowed"))?;
+    let logical_bytes = pixels.checked_mul(COLOR_BYTES).ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image byte count overflowed"))?;
+    let retained_bytes =
+        image.pixels.capacity().checked_mul(COLOR_BYTES).ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "image capacity overflowed"))?;
     Ok(ImageAdmission {
         pixels,
         converted_bytes: logical_bytes,
-        retained_capacity_bytes: if image.pixels.capacity() > pixels {
-            retained_bytes
-        } else {
-            0
-        },
+        retained_capacity_bytes: if image.pixels.capacity() > pixels { retained_bytes } else { 0 },
     })
 }
 
@@ -156,25 +128,14 @@ pub(crate) fn validate_color_image(image: &ColorImage) -> Result<(), PasteError>
 
 fn validate_decoded_dimensions(width: u32, height: u32) -> Result<usize, PasteError> {
     if width == 0 || height == 0 {
-        return Err(codec_error(
-            PasteErrorKind::Malformed,
-            "PNG has a zero dimension",
-        ));
+        return Err(codec_error(PasteErrorKind::Malformed, "PNG has a zero dimension"));
     }
     if width > MAX_DIMENSION || height > MAX_DIMENSION {
-        return Err(codec_error(
-            PasteErrorKind::TooLarge,
-            format!("PNG dimension {width}x{height} exceeds {MAX_DIMENSION}"),
-        ));
+        return Err(codec_error(PasteErrorKind::TooLarge, format!("PNG dimension {width}x{height} exceeds {MAX_DIMENSION}")));
     }
-    let pixels = (width as usize)
-        .checked_mul(height as usize)
-        .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "PNG pixel count overflowed"))?;
+    let pixels = (width as usize).checked_mul(height as usize).ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "PNG pixel count overflowed"))?;
     if pixels > MAX_PIXELS {
-        return Err(codec_error(
-            PasteErrorKind::TooLarge,
-            format!("PNG has {pixels} pixels, above {MAX_PIXELS}"),
-        ));
+        return Err(codec_error(PasteErrorKind::TooLarge, format!("PNG has {pixels} pixels, above {MAX_PIXELS}")));
     }
     Ok(pixels)
 }
@@ -187,28 +148,17 @@ struct CodecBudget {
 
 impl CodecBudget {
     fn new(limit: usize) -> Self {
-        Self {
-            used: Mutex::new(0),
-            limit,
-        }
+        Self { used: Mutex::new(0), limit }
     }
 
     fn try_acquire(self: &Arc<Self>, bytes: usize) -> Result<CodecPermit, PasteError> {
         let mut used = self.used.lock();
-        let next = used
-            .checked_add(bytes)
-            .ok_or_else(|| codec_error(PasteErrorKind::Busy, "codec budget overflowed"))?;
+        let next = used.checked_add(bytes).ok_or_else(|| codec_error(PasteErrorKind::Busy, "codec budget overflowed"))?;
         if next > self.limit {
-            return Err(codec_error(
-                PasteErrorKind::Busy,
-                "the PNG codec admission budget is full",
-            ));
+            return Err(codec_error(PasteErrorKind::Busy, "the PNG codec admission budget is full"));
         }
         *used = next;
-        Ok(CodecPermit {
-            budget: Arc::clone(self),
-            bytes,
-        })
+        Ok(CodecPermit { budget: Arc::clone(self), bytes })
     }
 
     #[cfg(test)]
@@ -232,9 +182,7 @@ impl Drop for CodecPermit {
 
 impl core::fmt::Debug for CodecPermit {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("CodecPermit")
-            .field("bytes", &self.bytes)
-            .finish_non_exhaustive()
+        f.debug_struct("CodecPermit").field("bytes", &self.bytes).finish_non_exhaustive()
     }
 }
 
@@ -275,9 +223,7 @@ enum SlotState<T> {
 
 impl<T> JobSlot<T> {
     fn new(job: T) -> Self {
-        Self {
-            state: Mutex::new(SlotState::Queued(job)),
-        }
+        Self { state: Mutex::new(SlotState::Queued(job)) }
     }
 
     /// Take a still-queued payload. A cancelled slot yields nothing, so the worker skips it.
@@ -330,14 +276,7 @@ struct JobMailbox<T> {
 
 impl<T> JobMailbox<T> {
     fn new(capacity: usize) -> Self {
-        Self {
-            inner: Mutex::new(MailboxInner {
-                queue: VecDeque::new(),
-                closed: false,
-            }),
-            wake: Condvar::new(),
-            capacity,
-        }
+        Self { inner: Mutex::new(MailboxInner { queue: VecDeque::new(), closed: false }), wake: Condvar::new(), capacity }
     }
 
     fn try_push(self: &Arc<Self>, job: T) -> Result<JobHandle<T>, T> {
@@ -349,10 +288,7 @@ impl<T> JobMailbox<T> {
         inner.queue.push_back(Arc::clone(&slot));
         drop(inner);
         self.wake.notify_one();
-        Ok(JobHandle {
-            mailbox: Arc::clone(self),
-            slot,
-        })
+        Ok(JobHandle { mailbox: Arc::clone(self), slot })
     }
 
     /// Remove `slot` from the queue if it has not been dequeued, then cancel it. The returned
@@ -360,11 +296,7 @@ impl<T> JobMailbox<T> {
     fn cancel(&self, slot: &Arc<JobSlot<T>>) -> Option<T> {
         {
             let mut inner = self.inner.lock();
-            if let Some(position) = inner
-                .queue
-                .iter()
-                .position(|queued| Arc::ptr_eq(queued, slot))
-            {
+            if let Some(position) = inner.queue.iter().position(|queued| Arc::ptr_eq(queued, slot)) {
                 inner.queue.remove(position);
             }
         }
@@ -445,12 +377,7 @@ fn engine() -> Result<&'static CodecEngine, PasteError> {
     ENGINE
         .get_or_init(CodecEngine::start)
         .as_ref()
-        .map_err(|message| {
-            codec_error(
-                PasteErrorKind::Disconnected,
-                format!("the PNG codec workers are unavailable: {message}"),
-            )
-        })
+        .map_err(|message| codec_error(PasteErrorKind::Disconnected, format!("the PNG codec workers are unavailable: {message}")))
 }
 
 impl CodecEngine {
@@ -463,35 +390,23 @@ impl CodecEngine {
         let decode_mailbox = Arc::new(JobMailbox::new(1));
 
         let encode_thread_mailbox = Arc::clone(&encode_mailbox);
-        if let Err(error) = std::thread::Builder::new()
-            .name("egui-winit-png-encode".to_owned())
-            .spawn(move || encode_worker(&encode_thread_mailbox))
+        if let Err(error) = std::thread::Builder::new().name("egui-winit-png-encode".to_owned()).spawn(move || encode_worker(&encode_thread_mailbox))
         {
             encode_mailbox.close();
             return Err(error.to_string());
         }
         let decode_thread_mailbox = Arc::clone(&decode_mailbox);
-        if let Err(error) = std::thread::Builder::new()
-            .name("egui-winit-png-decode".to_owned())
-            .spawn(move || decode_worker(&decode_thread_mailbox))
+        if let Err(error) = std::thread::Builder::new().name("egui-winit-png-decode".to_owned()).spawn(move || decode_worker(&decode_thread_mailbox))
         {
             encode_mailbox.close();
             decode_mailbox.close();
             return Err(error.to_string());
         }
 
-        Ok(Self {
-            encode_mailbox,
-            decode_mailbox,
-            budget,
-        })
+        Ok(Self { encode_mailbox, decode_mailbox, budget })
     }
 
-    fn submit_encode(
-        &self,
-        image: ColorImage,
-        completion: EncodeCompletion,
-    ) -> Result<Arc<dyn JobCancellation>, PasteError> {
+    fn submit_encode(&self, image: ColorImage, completion: EncodeCompletion) -> Result<Arc<dyn JobCancellation>, PasteError> {
         // Validate the public size fields and actual pixel buffer together before admission.
         // The permit covers the conversion buffer, the encoded output and any retained capacity
         // beyond the logical pixel count. The encoder's bounded writer acquires winit's PNG
@@ -503,21 +418,13 @@ impl CodecEngine {
             .and_then(|bytes| bytes.checked_add(MAX_ENCODED_BYTES))
             .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "encode budget overflowed"))?;
         let permit = self.budget.try_acquire(transient)?;
-        let job = EncodeJob {
-            image,
-            pixels: admission.pixels,
-            permit,
-            completion,
-        };
+        let job = EncodeJob { image, pixels: admission.pixels, permit, completion };
         match self.encode_mailbox.try_push(job) {
             Ok(handle) => Ok(Arc::new(handle) as Arc<dyn JobCancellation>),
             Err(job) => {
                 // Dropping outside the mailbox lock releases the permit promptly.
                 drop(job);
-                Err(codec_error(
-                    PasteErrorKind::Busy,
-                    "the PNG codec queue is full",
-                ))
+                Err(codec_error(PasteErrorKind::Busy, "the PNG codec queue is full"))
             }
         }
     }
@@ -530,9 +437,7 @@ impl CodecEngine {
     ) -> Result<Arc<dyn JobCancellation>, PasteError> {
         // Reserve the encoder/reader transient allowance, both pixel buffers and the encoded
         // input before the worker allocates anything.
-        let pixels = MAX_PIXELS
-            .checked_mul(8)
-            .ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "decode budget overflowed"))?;
+        let pixels = MAX_PIXELS.checked_mul(8).ok_or_else(|| codec_error(PasteErrorKind::TooLarge, "decode budget overflowed"))?;
         let transient = pixels
             .checked_add(DECODE_LIMIT_BYTES as usize)
             .and_then(|bytes| bytes.checked_add(png.len()))
@@ -544,18 +449,11 @@ impl CodecEngine {
                 return Err(error);
             }
         };
-        let job = DecodeJob {
-            png,
-            permit,
-            deadline,
-            completion,
-        };
+        let job = DecodeJob { png, permit, deadline, completion };
         match self.decode_mailbox.try_push(job) {
             Ok(handle) => Ok(Arc::new(handle) as Arc<dyn JobCancellation>),
             Err(job) => {
-                let DecodeJob {
-                    completion, permit, ..
-                } = job;
+                let DecodeJob { completion, permit, .. } = job;
                 drop(permit);
                 let error = codec_error(PasteErrorKind::Busy, "the PNG codec queue is full");
                 completion(Err(error.clone()));
@@ -592,16 +490,11 @@ struct SharedPngWriter {
 
 impl SharedPngWriter {
     fn new(writer: PngBytesWriter) -> Self {
-        Self {
-            writer: Arc::new(Mutex::new(Some(writer))),
-        }
+        Self { writer: Arc::new(Mutex::new(Some(writer))) }
     }
 
     fn finish(&self) -> Result<PngBytes, PasteError> {
-        let writer =
-            self.writer.lock().take().ok_or_else(|| {
-                codec_error(PasteErrorKind::Internal, "PNG writer was already taken")
-            })?;
+        let writer = self.writer.lock().take().ok_or_else(|| codec_error(PasteErrorKind::Internal, "PNG writer was already taken"))?;
         writer.finish().map_err(|error| map_clipboard_error(&error))
     }
 }
@@ -609,9 +502,7 @@ impl SharedPngWriter {
 impl Write for SharedPngWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let mut writer = self.writer.lock();
-        let writer = writer
-            .as_mut()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PNG writer is closed"))?;
+        let writer = writer.as_mut().ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PNG writer is closed"))?;
         writer.write(buffer)
     }
 
@@ -625,39 +516,25 @@ impl Write for SharedPngWriter {
 }
 
 fn run_encode(job: EncodeJob) {
-    let EncodeJob {
-        image,
-        pixels,
-        permit: _permit,
-        completion,
-    } = job;
+    let EncodeJob { image, pixels, permit: _permit, completion } = job;
     let [width, height] = image.size;
     // Recheck the invariant that made admission and the conversion reserve exact. This is a
     // cheap defensive check, not a second admission path.
     let converted_bytes = match pixels.checked_mul(COLOR_BYTES) {
         Some(bytes) if image.pixels.len() == pixels => bytes,
         _ => {
-            completion(Err(codec_error(
-                PasteErrorKind::Internal,
-                "the queued image no longer matches its admitted pixel count",
-            )));
+            completion(Err(codec_error(PasteErrorKind::Internal, "the queued image no longer matches its admitted pixel count")));
             return;
         }
     };
 
     let mut rgba = Vec::new();
     if rgba.try_reserve_exact(converted_bytes).is_err() {
-        completion(Err(codec_error(
-            PasteErrorKind::Busy,
-            "the PNG conversion buffer could not be allocated",
-        )));
+        completion(Err(codec_error(PasteErrorKind::Busy, "the PNG conversion buffer could not be allocated")));
         return;
     }
     if rgba.capacity() < converted_bytes {
-        completion(Err(codec_error(
-            PasteErrorKind::Internal,
-            "the PNG conversion buffer was not reserved exactly",
-        )));
+        completion(Err(codec_error(PasteErrorKind::Internal, "the PNG conversion buffer was not reserved exactly")));
         return;
     }
     for pixel in &image.pixels {
@@ -665,18 +542,12 @@ fn run_encode(job: EncodeJob) {
         rgba.extend_from_slice(&pixel.to_srgba_unmultiplied());
     }
     if rgba.len() != converted_bytes {
-        completion(Err(codec_error(
-            PasteErrorKind::Internal,
-            "the PNG conversion buffer length changed during conversion",
-        )));
+        completion(Err(codec_error(PasteErrorKind::Internal, "the PNG conversion buffer length changed during conversion")));
         return;
     }
 
     let (Ok(width_u32), Ok(height_u32)) = (u32::try_from(width), u32::try_from(height)) else {
-        completion(Err(codec_error(
-            PasteErrorKind::TooLarge,
-            "image dimensions do not fit in the PNG format",
-        )));
+        completion(Err(codec_error(PasteErrorKind::TooLarge, "image dimensions do not fit in the PNG format")));
         return;
     };
 
@@ -688,45 +559,26 @@ fn run_encode(job: EncodeJob) {
         }
     };
 
-    let encoded = image::codecs::png::PngEncoder::new(writer.clone()).write_image(
-        &rgba,
-        width_u32,
-        height_u32,
-        ExtendedColorType::Rgba8,
-    );
+    let encoded = image::codecs::png::PngEncoder::new(writer.clone()).write_image(&rgba, width_u32, height_u32, ExtendedColorType::Rgba8);
     let result = match encoded {
         Ok(()) => writer.finish(),
-        Err(error) => Err(codec_error(
-            PasteErrorKind::Encode,
-            format!("PNG encoding failed: {error}"),
-        )),
+        Err(error) => Err(codec_error(PasteErrorKind::Encode, format!("PNG encoding failed: {error}"))),
     };
     drop(rgba);
     completion(result);
 }
 
 fn run_decode(job: DecodeJob) {
-    let DecodeJob {
-        png,
-        permit,
-        deadline,
-        completion,
-    } = job;
+    let DecodeJob { png, permit, deadline, completion } = job;
 
     if Instant::now() >= deadline {
-        completion(Err(codec_error(
-            PasteErrorKind::TimedOut,
-            "the composed paste delivery deadline expired before decode",
-        )));
+        completion(Err(codec_error(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired before decode")));
         return;
     }
 
     let bytes = png.as_bytes();
     if bytes.len() < PNG_SIGNATURE.len() || bytes[..PNG_SIGNATURE.len()] != PNG_SIGNATURE {
-        completion(Err(codec_error(
-            PasteErrorKind::Malformed,
-            "the clipboard image is not a PNG payload",
-        )));
+        completion(Err(codec_error(PasteErrorKind::Malformed, "the clipboard image is not a PNG payload")));
         return;
     }
 
@@ -749,64 +601,35 @@ fn png_limits() -> Limits {
 /// product before allocating the final [`ColorImage`].
 pub(crate) fn decode_png(bytes: &[u8]) -> Result<ColorImage, PasteError> {
     if bytes.len() < PNG_SIGNATURE.len() || bytes[..PNG_SIGNATURE.len()] != PNG_SIGNATURE {
-        return Err(codec_error(
-            PasteErrorKind::Malformed,
-            "the clipboard image is not a PNG payload",
-        ));
+        return Err(codec_error(PasteErrorKind::Malformed, "the clipboard image is not a PNG payload"));
     }
 
     let mut header = ImageReader::with_format(Cursor::new(bytes), ImageFormat::Png);
     header.limits(png_limits());
-    let (width, height) = header.into_dimensions().map_err(|error| {
-        codec_error(
-            PasteErrorKind::Malformed,
-            format!("PNG header could not be decoded: {error}"),
-        )
-    })?;
+    let (width, height) =
+        header.into_dimensions().map_err(|error| codec_error(PasteErrorKind::Malformed, format!("PNG header could not be decoded: {error}")))?;
     let pixels = validate_decoded_dimensions(width, height)?;
 
     let mut reader = ImageReader::with_format(Cursor::new(bytes), ImageFormat::Png);
     reader.limits(png_limits());
-    let dynamic = reader.decode().map_err(|error| {
-        codec_error(
-            PasteErrorKind::Malformed,
-            format!("PNG payload could not be decoded: {error}"),
-        )
-    })?;
+    let dynamic = reader.decode().map_err(|error| codec_error(PasteErrorKind::Malformed, format!("PNG payload could not be decoded: {error}")))?;
     let rgba = dynamic.into_rgba8();
     if rgba.width() as usize != width as usize || rgba.height() as usize != height as usize {
-        return Err(codec_error(
-            PasteErrorKind::Malformed,
-            "decoded PNG dimensions changed between header and payload",
-        ));
+        return Err(codec_error(PasteErrorKind::Malformed, "decoded PNG dimensions changed between header and payload"));
     }
     if rgba.as_raw().len() != pixels.saturating_mul(4) {
-        return Err(codec_error(
-            PasteErrorKind::Malformed,
-            "decoded PNG buffer length does not match its dimensions",
-        ));
+        return Err(codec_error(PasteErrorKind::Malformed, "decoded PNG buffer length does not match its dimensions"));
     }
     color_image_from_rgba([width as usize, height as usize], rgba.as_raw(), pixels)
 }
 
 /// Convert straight-alpha RGBA bytes to premultiplied [`egui::Color32`] pixels with a fallible
 /// final allocation.
-fn color_image_from_rgba(
-    size: [usize; 2],
-    rgba: &[u8],
-    pixels: usize,
-) -> Result<ColorImage, PasteError> {
+fn color_image_from_rgba(size: [usize; 2], rgba: &[u8], pixels: usize) -> Result<ColorImage, PasteError> {
     let mut colors = Vec::new();
-    colors.try_reserve_exact(pixels).map_err(|_error| {
-        codec_error(
-            PasteErrorKind::Busy,
-            "the decoded ColorImage could not be allocated",
-        )
-    })?;
+    colors.try_reserve_exact(pixels).map_err(|_error| codec_error(PasteErrorKind::Busy, "the decoded ColorImage could not be allocated"))?;
     for pixel in rgba.chunks_exact(4) {
-        colors.push(egui::Color32::from_rgba_unmultiplied(
-            pixel[0], pixel[1], pixel[2], pixel[3],
-        ));
+        colors.push(egui::Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]));
     }
     Ok(ColorImage::new(size, colors))
 }
@@ -831,35 +654,22 @@ struct CopyState {
 
 impl Clone for ImageCopyRequest {
     fn clone(&self) -> Self {
-        Self {
-            shared: Arc::clone(&self.shared),
-        }
+        Self { shared: Arc::clone(&self.shared) }
     }
 }
 
 impl ImageCopyRequest {
     /// Move `image` into the bounded encode worker. No clone or pixel copy happens on the
     /// calling (event-loop) thread.
-    pub(crate) fn start(
-        image: ColorImage,
-        terminal_waker: CompletionWaker,
-    ) -> Result<Self, PasteError> {
+    pub(crate) fn start(image: ColorImage, terminal_waker: CompletionWaker) -> Result<Self, PasteError> {
         let request = Self {
             shared: Arc::new(CopyShared {
-                state: Mutex::new(CopyState {
-                    result: None,
-                    terminal_woken: false,
-                    cancelled: false,
-                    job: None,
-                }),
+                state: Mutex::new(CopyState { result: None, terminal_woken: false, cancelled: false, job: None }),
                 terminal_waker,
             }),
         };
         let completion_request = request.clone();
-        let job = engine()?.submit_encode(
-            image,
-            Box::new(move |result| completion_request.complete(result)),
-        )?;
+        let job = engine()?.submit_encode(image, Box::new(move |result| completion_request.complete(result)))?;
         {
             let mut state = request.shared.state.lock();
             if !state.cancelled && state.result.is_none() {
@@ -924,10 +734,7 @@ impl ImagePasteDecoder for CodecPasteDecoder {
         completion: Box<dyn FnOnce(Result<DecodedPasteImage, PasteError>) + Send + 'static>,
     ) -> Option<Arc<dyn JobCancellation>> {
         if Instant::now() >= deadline {
-            completion(Err(codec_error(
-                PasteErrorKind::TimedOut,
-                "the composed paste delivery deadline expired before decode admission",
-            )));
+            completion(Err(codec_error(PasteErrorKind::TimedOut, "the composed paste delivery deadline expired before decode admission")));
             return None;
         }
         // `submit_decode` invokes the completion itself on admission failure.
@@ -973,9 +780,7 @@ mod tests {
 
     fn encoded_png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
         let mut bytes = Vec::new();
-        image::codecs::png::PngEncoder::new(&mut bytes)
-            .write_image(rgba, width, height, ExtendedColorType::Rgba8)
-            .expect("test PNG encodes");
+        image::codecs::png::PngEncoder::new(&mut bytes).write_image(rgba, width, height, ExtendedColorType::Rgba8).expect("test PNG encodes");
         bytes
     }
 
@@ -1020,9 +825,7 @@ mod tests {
         first.cancel();
         assert_eq!(budget.used(), 0, "queued cancellation released its permit");
         let followup_permit = budget.try_acquire(8192).expect("follow-up permit fits");
-        let _followup = mailbox
-            .try_push(followup_permit)
-            .expect("cancelled queue slot accepts follow-up work");
+        let _followup = mailbox.try_push(followup_permit).expect("cancelled queue slot accepts follow-up work");
     }
 
     #[test]
@@ -1036,11 +839,7 @@ mod tests {
         assert_eq!(budget.used(), 2048);
 
         handle.cancel();
-        assert_eq!(
-            budget.used(),
-            2048,
-            "running work stays budgeted until the worker drops it"
-        );
+        assert_eq!(budget.used(), 2048, "running work stays budgeted until the worker drops it");
         drop(running);
         assert_eq!(budget.used(), 0);
     }
@@ -1070,11 +869,7 @@ mod tests {
         };
         assert_eq!(error.kind(), PasteErrorKind::InvalidInput);
         assert_eq!(budget.used(), 0, "no codec permit was acquired");
-        assert_eq!(
-            engine.encode_mailbox.queue_len(),
-            0,
-            "no job reached the mailbox"
-        );
+        assert_eq!(engine.encode_mailbox.queue_len(), 0, "no job reached the mailbox");
     }
 
     #[test]
@@ -1086,45 +881,23 @@ mod tests {
         let admission = validate_color_image_admission(&image).expect("valid image");
         assert_eq!(admission.pixels, 1);
         assert_eq!(admission.converted_bytes, COLOR_BYTES);
-        assert!(
-            admission.retained_capacity_bytes >= 1024 * COLOR_BYTES,
-            "retained capacity beyond the logical buffer is part of admission"
-        );
+        assert!(admission.retained_capacity_bytes >= 1024 * COLOR_BYTES, "retained capacity beyond the logical buffer is part of admission");
         assert!(validate_color_image(&image).is_ok());
     }
 
     #[test]
     fn dimensions_are_checked_before_encode_or_conversion() {
         assert_eq!(validate_image_size([8192, 976]).unwrap(), 7_995_392);
-        assert_eq!(
-            validate_image_size([8193, 1]).unwrap_err().kind(),
-            PasteErrorKind::TooLarge
-        );
-        assert_eq!(
-            validate_image_size([4000, 4000]).unwrap_err().kind(),
-            PasteErrorKind::TooLarge
-        );
-        assert_eq!(
-            validate_decoded_dimensions(8193, 1).unwrap_err().kind(),
-            PasteErrorKind::TooLarge
-        );
-        assert_eq!(
-            validate_decoded_dimensions(1, 1).unwrap(),
-            1,
-            "checked product is small"
-        );
+        assert_eq!(validate_image_size([8193, 1]).unwrap_err().kind(), PasteErrorKind::TooLarge);
+        assert_eq!(validate_image_size([4000, 4000]).unwrap_err().kind(), PasteErrorKind::TooLarge);
+        assert_eq!(validate_decoded_dimensions(8193, 1).unwrap_err().kind(), PasteErrorKind::TooLarge);
+        assert_eq!(validate_decoded_dimensions(1, 1).unwrap(), 1, "checked product is small");
     }
 
     #[test]
     fn malformed_png_signature_is_rejected_without_decoding() {
-        assert_eq!(
-            decode_png(b"not a png").unwrap_err().kind(),
-            PasteErrorKind::Malformed
-        );
-        assert_eq!(
-            decode_png(&[]).unwrap_err().kind(),
-            PasteErrorKind::Malformed
-        );
+        assert_eq!(decode_png(b"not a png").unwrap_err().kind(), PasteErrorKind::Malformed);
+        assert_eq!(decode_png(&[]).unwrap_err().kind(), PasteErrorKind::Malformed);
     }
 
     #[test]
@@ -1137,19 +910,14 @@ mod tests {
         // A CRC is not needed: the limit is checked while reading the header. Even if the
         // decoder rejects the truncated file first, it must not allocate a pixel buffer.
         let error = decode_png(&bytes).expect_err("oversized header must fail");
-        assert!(matches!(
-            error.kind(),
-            PasteErrorKind::TooLarge | PasteErrorKind::Malformed
-        ));
+        assert!(matches!(error.kind(), PasteErrorKind::TooLarge | PasteErrorKind::Malformed));
     }
 
     #[test]
     fn bounded_writer_refuses_oversized_output_before_extending() {
         let mut writer = PngBytesWriter::with_limit(4).expect("small writer");
         writer.write_all(&[1, 2, 3, 4]).expect("exact limit fits");
-        let error = writer
-            .write_all(&[5])
-            .expect_err("growth beyond limit fails");
+        let error = writer.write_all(&[5]).expect_err("growth beyond limit fails");
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert_eq!(writer.len(), 4);
     }
@@ -1159,25 +927,14 @@ mod tests {
         let png = encoded_png(2, 1, &[255, 0, 0, 255, 255, 255, 255, 128]);
         let image = decode_png(&png).expect("valid PNG decodes");
         assert_eq!(image.size, [2, 1]);
-        assert_eq!(
-            image.pixels[0],
-            Color32::from_rgba_unmultiplied(255, 0, 0, 255)
-        );
-        assert_eq!(
-            image.pixels[1],
-            Color32::from_rgba_unmultiplied(255, 255, 255, 128)
-        );
+        assert_eq!(image.pixels[0], Color32::from_rgba_unmultiplied(255, 0, 0, 255));
+        assert_eq!(image.pixels[1], Color32::from_rgba_unmultiplied(255, 255, 255, 128));
     }
 
     #[test]
     fn encode_roundtrip_preserves_opaque_and_alpha_pixels() {
-        let image = ColorImage::new(
-            [2, 1],
-            vec![
-                Color32::from_rgba_unmultiplied(12, 34, 56, 255),
-                Color32::from_rgba_unmultiplied(200, 100, 50, 128),
-            ],
-        );
+        let image =
+            ColorImage::new([2, 1], vec![Color32::from_rgba_unmultiplied(12, 34, 56, 255), Color32::from_rgba_unmultiplied(200, 100, 50, 128)]);
         let mut rgba = Vec::new();
         for pixel in &image.pixels {
             rgba.extend_from_slice(&pixel.to_srgba_unmultiplied());
@@ -1193,30 +950,20 @@ mod tests {
         let job = DecodeJob {
             png: Arc::new(BytesPng(vec![0; 8])),
             permit,
-            deadline: Instant::now()
-                .checked_sub(Duration::from_millis(1))
-                .expect("instant is representable"),
+            deadline: Instant::now().checked_sub(Duration::from_millis(1)).expect("instant is representable"),
             completion: Box::new(move |result| {
                 sender.send(result).expect("test receiver is alive");
             }),
         };
         run_decode(job);
         let result = receiver.recv().expect("completion runs");
-        assert_eq!(
-            result.expect_err("late decode must fail").kind(),
-            PasteErrorKind::TimedOut
-        );
+        assert_eq!(result.expect_err("late decode must fail").kind(), PasteErrorKind::TimedOut);
     }
 
     fn copy_request(wakes: Arc<AtomicUsize>) -> ImageCopyRequest {
         ImageCopyRequest {
             shared: Arc::new(CopyShared {
-                state: Mutex::new(CopyState {
-                    result: None,
-                    terminal_woken: false,
-                    cancelled: false,
-                    job: None,
-                }),
+                state: Mutex::new(CopyState { result: None, terminal_woken: false, cancelled: false, job: None }),
                 terminal_waker: Arc::new(move || {
                     wakes.fetch_add(1, Ordering::AcqRel);
                 }),
@@ -1247,8 +994,7 @@ mod tests {
         let wakes = Arc::new(AtomicUsize::new(0));
         let request = copy_request(Arc::clone(&wakes));
         let cancels = Arc::new(AtomicUsize::new(0));
-        request.shared.state.lock().job =
-            Some(Arc::new(RecordingCancellation(Arc::clone(&cancels))));
+        request.shared.state.lock().job = Some(Arc::new(RecordingCancellation(Arc::clone(&cancels))));
         request.cancel();
         assert_eq!(cancels.load(Ordering::Acquire), 1);
         assert_eq!(wakes.load(Ordering::Acquire), 0, "cancel never wakes");

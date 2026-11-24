@@ -108,7 +108,7 @@ mod tests {
 
     impl Scratch {
         fn new(tag: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("localobsidian-test-{tag}-{}", std::process::id()));
+            let path = std::env::temp_dir().join(format!("localnotebook-test-{tag}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&path);
             std::fs::create_dir_all(&path).expect("scratch dir");
             Self(path)

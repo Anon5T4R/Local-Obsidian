@@ -2842,7 +2842,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian"
+name = "localnotebook"
 version = "1.10.0"
 dependencies = [
  "chrono",
@@ -2860,13 +2860,13 @@ dependencies = [
  "egui_kittest",
  "epaint_default_fonts",
  "image",
- "localobsidian-ai",
- "localobsidian-convert",
- "localobsidian-editor",
- "localobsidian-md",
- "localobsidian-pdf",
- "localobsidian-review",
- "localobsidian-vault",
+ "localnotebook-ai",
+ "localnotebook-convert",
+ "localnotebook-editor",
+ "localnotebook-md",
+ "localnotebook-pdf",
+ "localnotebook-review",
+ "localnotebook-vault",
  "log",
  "notify",
  "pollster 1.0.1",
@@ -2876,7 +2876,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian-ai"
+name = "localnotebook-ai"
 version = "1.10.0"
 dependencies = [
  "local-ai",
@@ -2885,7 +2885,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian-convert"
+name = "localnotebook-convert"
 version = "1.10.0"
 dependencies = [
  "quick-xml 0.41.0",
@@ -2893,11 +2893,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian-editor"
+name = "localnotebook-editor"
 version = "1.10.0"
 
 [[package]]
-name = "localobsidian-md"
+name = "localnotebook-md"
 version = "1.10.0"
 dependencies = [
  "pulldown-cmark",
@@ -2905,17 +2905,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian-pdf"
+name = "localnotebook-pdf"
 version = "1.10.0"
 dependencies = [
  "craft-pdf",
  "epaint_default_fonts",
- "localobsidian-md",
+ "localnotebook-md",
  "skrifa 0.44.0",
 ]
 
 [[package]]
-name = "localobsidian-review"
+name = "localnotebook-review"
 version = "1.10.0"
 dependencies = [
  "chrono",
@@ -2924,10 +2924,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "localobsidian-vault"
+name = "localnotebook-vault"
 version = "1.10.0"
 dependencies = [
- "localobsidian-md",
+ "localnotebook-md",
  "log",
  "regex",
 ]

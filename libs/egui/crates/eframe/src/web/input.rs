@@ -8,17 +8,10 @@ use crate::web_keys::{KeyDown, KeyResolver};
 
 use super::{AppRunner, canvas_content_rect};
 
-pub fn pos_from_mouse_event(
-    canvas: &web_sys::HtmlCanvasElement,
-    event: &web_sys::MouseEvent,
-    ctx: &egui::Context,
-) -> egui::Pos2 {
+pub fn pos_from_mouse_event(canvas: &web_sys::HtmlCanvasElement, event: &web_sys::MouseEvent, ctx: &egui::Context) -> egui::Pos2 {
     let rect = canvas_content_rect(canvas);
     let zoom_factor = ctx.zoom_factor();
-    egui::Pos2 {
-        x: (event.client_x() as f32 - rect.left()) / zoom_factor,
-        y: (event.client_y() as f32 - rect.top()) / zoom_factor,
-    }
+    egui::Pos2 { x: (event.client_x() as f32 - rect.left()) / zoom_factor, y: (event.client_y() as f32 - rect.top()) / zoom_factor }
 }
 
 pub fn button_from_mouse_event(event: &web_sys::MouseEvent) -> Option<egui::PointerButton> {
@@ -35,10 +28,7 @@ pub fn button_from_mouse_event(event: &web_sys::MouseEvent) -> Option<egui::Poin
 /// A single touch is translated to a pointer movement. When a second touch is added, the pointer
 /// should not jump to a different position. Therefore, we do not calculate the average position
 /// of all touches, but we keep using the same touch as long as it is available.
-pub fn primary_touch_pos(
-    runner: &mut AppRunner,
-    event: &web_sys::TouchEvent,
-) -> Option<(egui::Pos2, web_sys::Touch)> {
+pub fn primary_touch_pos(runner: &mut AppRunner, event: &web_sys::TouchEvent) -> Option<(egui::Pos2, web_sys::Touch)> {
     // On touchend we don't get anything in `touches`, but we still get `changed_touches`, so include those:
     let all_touches: Vec<_> = core::iter::chain(
         (0..event.touches().length()).filter_map(|i| event.touches().get(i)),
@@ -48,18 +38,13 @@ pub fn primary_touch_pos(
 
     if let Some(primary_touch) = runner.input.primary_touch {
         // Is the primary touch is gone?
-        if !all_touches
-            .iter()
-            .any(|touch| primary_touch == egui::TouchId::from(touch.identifier()))
-        {
+        if !all_touches.iter().any(|touch| primary_touch == egui::TouchId::from(touch.identifier())) {
             runner.input.primary_touch = None;
         }
     }
 
     if runner.input.primary_touch.is_none() {
-        runner.input.primary_touch = all_touches
-            .first()
-            .map(|touch| egui::TouchId::from(touch.identifier()));
+        runner.input.primary_touch = all_touches.first().map(|touch| egui::TouchId::from(touch.identifier()));
     }
 
     let primary_touch = runner.input.primary_touch;
@@ -68,10 +53,7 @@ pub fn primary_touch_pos(
         for touch in all_touches {
             if primary_touch == egui::TouchId::from(touch.identifier()) {
                 let canvas_rect = canvas_content_rect(runner.canvas());
-                return Some((
-                    pos_from_touch(canvas_rect, &touch, runner.egui_ctx()),
-                    touch,
-                ));
+                return Some((pos_from_touch(canvas_rect, &touch, runner.egui_ctx()), touch));
             }
         }
     }
@@ -79,16 +61,9 @@ pub fn primary_touch_pos(
     None
 }
 
-fn pos_from_touch(
-    canvas_rect: egui::Rect,
-    touch: &web_sys::Touch,
-    egui_ctx: &egui::Context,
-) -> egui::Pos2 {
+fn pos_from_touch(canvas_rect: egui::Rect, touch: &web_sys::Touch, egui_ctx: &egui::Context) -> egui::Pos2 {
     let zoom_factor = egui_ctx.zoom_factor();
-    egui::Pos2 {
-        x: (touch.client_x() as f32 - canvas_rect.left()) / zoom_factor,
-        y: (touch.client_y() as f32 - canvas_rect.top()) / zoom_factor,
-    }
+    egui::Pos2 { x: (touch.client_x() as f32 - canvas_rect.left()) / zoom_factor, y: (touch.client_y() as f32 - canvas_rect.top()) / zoom_factor }
 }
 
 pub fn push_touches(runner: &mut AppRunner, phase: egui::TouchPhase, event: &web_sys::TouchEvent) {
@@ -123,18 +98,9 @@ pub(crate) struct KeyboardKeys {
 
 impl KeyboardKeys {
     pub fn key_down(&self, event: &web_sys::KeyboardEvent) -> KeyDown {
-        let plain = !(event.shift_key()
-            || event.ctrl_key()
-            || event.alt_key()
-            || event.meta_key()
-            || event.get_modifier_state("AltGraph"));
-        let down = self
-            .resolver
-            .borrow_mut()
-            .key_down(&event.key(), &event.code(), plain);
-        self.presses
-            .borrow_mut()
-            .press(&event.key(), &event.code(), down.key);
+        let plain = !(event.shift_key() || event.ctrl_key() || event.alt_key() || event.meta_key() || event.get_modifier_state("AltGraph"));
+        let down = self.resolver.borrow_mut().key_down(&event.key(), &event.code(), plain);
+        self.presses.borrow_mut().press(&event.key(), &event.code(), down.key);
         if down.query_layout_map {
             self.read_layout_map();
         }
@@ -143,18 +109,11 @@ impl KeyboardKeys {
 
     /// The logical key and the physical key of a `keyup`.
     pub fn key_up(&self, event: &web_sys::KeyboardEvent) -> (Option<egui::Key>, Option<egui::Key>) {
-        self.presses
-            .borrow_mut()
-            .release(&event.key(), &event.code());
-        self.resolver
-            .borrow_mut()
-            .key_up(&event.key(), &event.code())
+        self.presses.borrow_mut().release(&event.key(), &event.code());
+        self.resolver.borrow_mut().key_up(&event.key(), &event.code())
     }
 
-    pub fn press_id(
-        &self,
-        event: &web_sys::KeyboardEvent,
-    ) -> Option<crate::web_ime_reset::PressId> {
+    pub fn press_id(&self, event: &web_sys::KeyboardEvent) -> Option<crate::web_ime_reset::PressId> {
         self.presses.borrow().current(&event.key(), &event.code())
     }
 
@@ -163,16 +122,10 @@ impl KeyboardKeys {
         event: &web_sys::KeyboardEvent,
         receipt: crate::web_ime_reset::PressId,
     ) -> (Option<egui::Key>, Option<egui::Key>) {
-        if !self
-            .presses
-            .borrow_mut()
-            .release_matching(&event.key(), &event.code(), receipt)
-        {
+        if !self.presses.borrow_mut().release_matching(&event.key(), &event.code(), receipt) {
             return (None, None);
         }
-        self.resolver
-            .borrow_mut()
-            .key_up(&event.key(), &event.code())
+        self.resolver.borrow_mut().key_up(&event.key(), &event.code())
     }
 
     pub fn release_receipts_for(&self, key: egui::Key) {
@@ -200,9 +153,7 @@ impl KeyboardKeys {
             match promise.await {
                 Ok(map) => {
                     let letters = layout_map_letters(&map);
-                    keys.resolver
-                        .borrow_mut()
-                        .set_layout_map(letters.iter().map(String::as_str));
+                    keys.resolver.borrow_mut().set_layout_map(letters.iter().map(String::as_str));
                 }
                 Err(err) => {
                     // E.g. a `SecurityError` in a cross-origin iframe; typed letters decide instead.
@@ -220,19 +171,13 @@ fn layout_map_promise() -> Option<js_sys::Promise> {
     if keyboard.is_undefined() || keyboard.is_null() {
         return None;
     }
-    let get_layout_map = Reflect::get(&keyboard, &JsValue::from_str("getLayoutMap"))
-        .ok()?
-        .dyn_into::<js_sys::Function>()
-        .ok()?;
+    let get_layout_map = Reflect::get(&keyboard, &JsValue::from_str("getLayoutMap")).ok()?.dyn_into::<js_sys::Function>().ok()?;
     get_layout_map.call0(&keyboard).ok()?.dyn_into().ok()
 }
 
 /// What `KeyA` … `KeyZ` type according to a `KeyboardLayoutMap`.
 fn layout_map_letters(map: &JsValue) -> Vec<String> {
-    let Some(get) = Reflect::get(map, &JsValue::from_str("get"))
-        .ok()
-        .and_then(|get| get.dyn_into::<js_sys::Function>().ok())
-    else {
+    let Some(get) = Reflect::get(map, &JsValue::from_str("get")).ok().and_then(|get| get.dyn_into::<js_sys::Function>().ok()) else {
         return vec![];
     };
     (b'A'..=b'Z')

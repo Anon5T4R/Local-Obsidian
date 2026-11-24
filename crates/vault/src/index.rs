@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use localobsidian_md::{frontmatter, links, tags};
+use localnotebook_md::{frontmatter, links, tags};
 
 use crate::tree::NoteFile;
 

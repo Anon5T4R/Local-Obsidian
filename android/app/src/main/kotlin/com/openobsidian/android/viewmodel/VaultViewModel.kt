@@ -277,7 +277,7 @@ class VaultViewModel(
             val msg = appContext.getString(R.string.toast_save_failed, file.displayName)
             _state.update { it.copy(saveError = msg) }
             toast(msg)
-            android.util.Log.w("OpenObsidian", "save failed for ${file.name}", e)
+            android.util.Log.w("LocalNotebook", "save failed for ${file.name}", e)
         }.isSuccess
     }
 
@@ -782,7 +782,7 @@ class VaultViewModel(
                 // Falha de gravação nunca é silenciosa aqui — foi a classe de
                 // bug que a 1.4.0 fechou, e exportar não é exceção
                 toast(appContext.getString(R.string.toast_export_html_failed))
-                android.util.Log.w("OpenObsidian", "export html failed", it)
+                android.util.Log.w("LocalNotebook", "export html failed", it)
             }
         }
     }
@@ -801,7 +801,7 @@ class VaultViewModel(
                 )
             }.onFailure {
                 toast(appContext.getString(R.string.backup_failed))
-                android.util.Log.w("OpenObsidian", "backup failed", it)
+                android.util.Log.w("LocalNotebook", "backup failed", it)
             }
         }
     }
@@ -1028,7 +1028,7 @@ class VaultViewModel(
                 is AnkiImport.Result.Failed -> {
                     _state.update { it.copy(ankiReading = false) }
                     toast(appContext.getString(R.string.anki_failed))
-                    android.util.Log.w("OpenObsidian", "apkg read failed: ${r.reason}")
+                    android.util.Log.w("LocalNotebook", "apkg read failed: ${r.reason}")
                 }
             }
         }

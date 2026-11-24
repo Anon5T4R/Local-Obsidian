@@ -7,12 +7,7 @@ use std::{io::Write as _, time::Instant};
 
 use egui::{Context, Id, RawInput, Rect, TextEdit, pos2, vec2};
 
-fn frame(
-    ctx: &Context,
-    labels: &[String],
-    text: &mut String,
-    frame_nr: u64,
-) -> Result<(u128, u64, usize, usize), String> {
+fn frame(ctx: &Context, labels: &[String], text: &mut String, frame_nr: u64) -> Result<(u128, u64, usize, usize), String> {
     let start = Instant::now();
     let mut output = ctx.run_ui(
         RawInput {
@@ -22,16 +17,14 @@ fn frame(
         },
         |ui| {
             ui.add(TextEdit::singleline(text).id(Id::unique("focused-field")));
-            egui::Grid::new("idle-widgets")
-                .num_columns(20)
-                .show(ui, |ui| {
-                    for (i, label) in labels.iter().enumerate() {
-                        let _ = black_box(ui.button(black_box(label)));
-                        if i % 20 == 19 {
-                            ui.end_row();
-                        }
+            egui::Grid::new("idle-widgets").num_columns(20).show(ui, |ui| {
+                for (i, label) in labels.iter().enumerate() {
+                    let _ = black_box(ui.button(black_box(label)));
+                    if i % 20 == 19 {
+                        ui.end_row();
                     }
-                });
+                }
+            });
         },
     );
     let primitives = ctx.tessellate(core::mem::take(&mut output.shapes), output.pixels_per_point);
@@ -45,12 +38,7 @@ fn frame(
     };
     feed(&(primitives.len() as u64).to_le_bytes());
     for primitive in &primitives {
-        for v in [
-            primitive.clip_rect.min.x,
-            primitive.clip_rect.min.y,
-            primitive.clip_rect.max.x,
-            primitive.clip_rect.max.y,
-        ] {
+        for v in [primitive.clip_rect.min.x, primitive.clip_rect.min.y, primitive.clip_rect.max.x, primitive.clip_rect.max.y] {
             feed(&v.to_bits().to_le_bytes());
         }
         match &primitive.primitive {
@@ -82,12 +70,7 @@ fn frame(
     if !ctx.memory(|m| m.has_focus(Id::unique("focused-field"))) {
         return Err("fixture lost focus".into());
     }
-    Ok((
-        elapsed,
-        hash,
-        primitives.len(),
-        output.platform_output.num_completed_passes,
-    ))
+    Ok((elapsed, hash, primitives.len(), output.platform_output.num_completed_passes))
 }
 
 fn main() -> Result<(), String> {

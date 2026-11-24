@@ -36,10 +36,7 @@ impl Drop for AppRunner {
 impl AppRunner {
     /// # Errors
     /// Failure to initialize WebGL renderer, or failure to create app.
-    #[cfg_attr(
-        not(feature = "wgpu_no_default_features"),
-        expect(clippy::unused_async)
-    )]
+    #[cfg_attr(not(feature = "wgpu_no_default_features"), expect(clippy::unused_async))]
     pub async fn new(
         canvas: web_sys::HtmlCanvasElement,
         web_options: crate::WebOptions,
@@ -61,11 +58,7 @@ impl AppRunner {
             #[cfg(feature = "glow")]
             epi::Renderer::Glow => {
                 log::debug!("Using the glow renderer");
-                let painter = super::web_painter_glow::WebPainterGlow::new(
-                    egui_ctx.clone(),
-                    canvas,
-                    &web_options,
-                )?;
+                let painter = super::web_painter_glow::WebPainterGlow::new(egui_ctx.clone(), canvas, &web_options)?;
                 gl = Some(Arc::clone(painter.gl()));
                 Box::new(painter) as Box<dyn WebPainter>
             }
@@ -73,29 +66,19 @@ impl AppRunner {
             #[cfg(feature = "wgpu_no_default_features")]
             epi::Renderer::Wgpu => {
                 log::debug!("Using the wgpu renderer");
-                let painter = super::web_painter_wgpu::WebPainterWgpu::new(
-                    egui_ctx.clone(),
-                    canvas,
-                    &web_options,
-                )
-                .await?;
+                let painter = super::web_painter_wgpu::WebPainterWgpu::new(egui_ctx.clone(), canvas, &web_options).await?;
                 wgpu_render_state = painter.render_state();
                 Box::new(painter) as Box<dyn WebPainter>
             }
         };
 
         let info = epi::IntegrationInfo {
-            web_info: epi::WebInfo {
-                user_agent: super::user_agent().unwrap_or_default(),
-                location: super::web_location(),
-            },
+            web_info: epi::WebInfo { user_agent: super::user_agent().unwrap_or_default(), location: super::web_location() },
             cpu_usage: None,
         };
         let storage = LocalStorage::default();
 
-        egui_ctx.set_os(egui::os::OperatingSystem::from_user_agent(
-            &super::user_agent().unwrap_or_default(),
-        ));
+        egui_ctx.set_os(egui::os::OperatingSystem::from_user_agent(&super::user_agent().unwrap_or_default()));
         super::storage::load_memory(&egui_ctx);
 
         egui_ctx.options_mut(|o| {
@@ -174,13 +157,7 @@ impl AppRunner {
         };
 
         runner.input.raw.max_texture_side = Some(runner.painter.max_texture_side());
-        runner
-            .input
-            .raw
-            .viewports
-            .entry(egui::ViewportId::ROOT)
-            .or_default()
-            .native_pixels_per_point = Some(super::native_pixels_per_point());
+        runner.input.raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(super::native_pixels_per_point());
         runner.input.raw.system_theme = super::system_theme();
 
         Ok(runner)
@@ -287,33 +264,19 @@ impl AppRunner {
 
         self.app.raw_input_hook(&self.egui_ctx, &mut raw_input);
 
-        let is_visible = raw_input
-            .viewports
-            .get(&egui::ViewportId::ROOT)
-            .and_then(|v| v.visible())
-            .unwrap_or(true);
+        let is_visible = raw_input.viewports.get(&egui::ViewportId::ROOT).and_then(|v| v.visible()).unwrap_or(true);
 
         if is_visible {
             let full_output = self.egui_ctx.run_ui(raw_input, |ui| {
                 self.app.logic(ui.ctx(), &mut self.frame);
                 self.app.ui(ui, &mut self.frame);
             });
-            let egui::FullOutput {
-                platform_output,
-                textures_delta,
-                shapes,
-                pixels_per_point,
-                viewport_output,
-            } = full_output;
+            let egui::FullOutput { platform_output, textures_delta, shapes, pixels_per_point, viewport_output } = full_output;
 
             if viewport_output.len() > 1 {
                 log::warn!("Multiple viewports not yet supported on the web");
             }
-            self.handle_viewport_commands(
-                viewport_output
-                    .into_values()
-                    .flat_map(|viewport_output| viewport_output.commands),
-            );
+            self.handle_viewport_commands(viewport_output.into_values().flat_map(|viewport_output| viewport_output.commands));
 
             self.handle_platform_output(platform_output);
             self.textures_delta.append(textures_delta);
@@ -323,10 +286,7 @@ impl AppRunner {
             // That way all ui state is left untouched, and is still there
             // when the tab is shown again.
 
-            let egui::LogicOutput {
-                platform_output,
-                viewport_commands,
-            } = self.egui_ctx.run_logic(&raw_input, |ctx| {
+            let egui::LogicOutput { platform_output, viewport_commands } = self.egui_ctx.run_logic(&raw_input, |ctx| {
                 self.app.logic(ctx, &mut self.frame);
             });
 
@@ -342,17 +302,14 @@ impl AppRunner {
         for command in commands {
             match command {
                 ViewportCommand::Screenshot(callback) => {
-                    self.screenshot_commands_with_frame_delay
-                        .push((callback, 1));
+                    self.screenshot_commands_with_frame_delay.push((callback, 1));
                 }
                 ViewportCommand::SetTheme(_) => {
                     // Web has no window decorations to theme, egui visuals follow the configured theme.
                 }
                 _ => {
                     // TODO(emilk): handle some of the commands
-                    log::warn!(
-                        "Unhandled egui viewport command: {command:?} - not implemented in web backend"
-                    );
+                    log::warn!("Unhandled egui viewport command: {command:?} - not implemented in web backend");
                 }
             }
         }
@@ -364,16 +321,15 @@ impl AppRunner {
 
         if let Some(clipped_primitives) = clipped_primitives {
             let mut screenshot_commands = vec![];
-            self.screenshot_commands_with_frame_delay
-                .retain_mut(|(callback, frame_delay)| {
-                    if *frame_delay == 0 {
-                        screenshot_commands.push(callback.clone());
-                        false
-                    } else {
-                        *frame_delay -= 1;
-                        true
-                    }
-                });
+            self.screenshot_commands_with_frame_delay.retain_mut(|(callback, frame_delay)| {
+                if *frame_delay == 0 {
+                    screenshot_commands.push(callback.clone());
+                    false
+                } else {
+                    *frame_delay -= 1;
+                    true
+                }
+            });
             if !self.screenshot_commands_with_frame_delay.is_empty() {
                 self.egui_ctx().request_repaint();
             }
@@ -397,17 +353,14 @@ impl AppRunner {
     fn handle_platform_output(&mut self, platform_output: egui::PlatformOutput) {
         #[cfg(feature = "web_screen_reader")]
         if self.egui_ctx.options(|o| o.screen_reader) {
-            super::screen_reader::speak(
-                &platform_output.events_description(),
-                self.egui_ctx.language().as_deref(),
-            );
+            super::screen_reader::speak(&platform_output.events_description(), self.egui_ctx.language().as_deref());
         }
 
         let egui::PlatformOutput {
             commands,
             cursor_icon,
-            cursor_image: _, // TODO(alextournai): support custom bitmap cursors on the web (via CSS `url(...)`)
-            events: _,       // already handled
+            cursor_image: _,              // TODO(alextournai): support custom bitmap cursors on the web (via CSS `url(...)`)
+            events: _,                    // already handled
             mutable_text_under_cursor: _, // TODO(#4569): https://github.com/emilk/egui/issues/4569
             ime,
             accesskit_update: _,        // not currently implemented
@@ -443,19 +396,11 @@ impl AppRunner {
             self.text_agent.capture_reset_focus(ime.as_ref().unwrap());
             let forwarded_keys = self.text_agent.take_forwarded_keys();
             let descriptor = ime.as_ref().unwrap(); // admission requires an actual descriptor
-            let replacement = self.text_agent.replace_for_reset(
-                descriptor.clone(),
-                &canvas,
-                zoom_factor,
-                language.as_deref(),
-            );
+            let replacement = self.text_agent.replace_for_reset(descriptor.clone(), &canvas, zoom_factor, language.as_deref());
             // Only this retired source's forwarded presses need an ordered release. Old-node
             // keyup callbacks are now inactive; do not blanket-reset canvas keys/modifiers.
             for forwarded in forwarded_keys {
-                let (key, physical_key) = self
-                    .input
-                    .keys
-                    .key_up_if_current(&forwarded.event, forwarded.press);
+                let (key, physical_key) = self.input.keys.key_up_if_current(&forwarded.event, forwarded.press);
                 if let Some(key) = key {
                     self.input.raw.events.push(egui::Event::Key {
                         key,
@@ -467,14 +412,7 @@ impl AppRunner {
                 }
             }
             match replacement {
-                Ok(())
-                    if self.text_agent.complete_reset(
-                        request_id,
-                        descriptor,
-                        &mut self.input.raw.events,
-                        &self.needs_repaint,
-                    ) =>
-                {
+                Ok(()) if self.text_agent.complete_reset(request_id, descriptor, &mut self.input.raw.events, &self.needs_repaint) => {
                     // Genuine next raw batch: accepted old prefix is already queued (including
                     // hidden replay), then fence, then only fresh-source callbacks. No reentrant
                     // AppRunner borrow and no fabricated composition/lifecycle event.
@@ -486,10 +424,7 @@ impl AppRunner {
                 }
                 Err(err) => {
                     self.text_agent.fail_reset();
-                    log::error!(
-                        "text-agent local reset failed; no completion: {}",
-                        super::string_from_js_value(&err)
-                    );
+                    log::error!("text-agent local reset failed; no completion: {}", super::string_from_js_value(&err));
                 }
             }
         } else {
@@ -510,10 +445,7 @@ impl AppRunner {
         }
 
         if let Err(err) = self.text_agent.update(ime, &canvas, zoom_factor) {
-            log::error!(
-                "failed to update text agent position: {}",
-                super::string_from_js_value(&err)
-            );
+            log::error!("failed to update text agent position: {}", super::string_from_js_value(&err));
         }
     }
 }
@@ -556,12 +488,7 @@ mod ime_reset_browser_tests {
         fn egui_probe_open_shadow(host: &web_sys::Element) -> web_sys::ShadowRoot;
         fn egui_probe_focus_body();
         fn egui_probe_key(kind: &str, key: &str, code: &str) -> web_sys::KeyboardEvent;
-        fn egui_probe_shortcut(
-            kind: &str,
-            key: &str,
-            code: &str,
-            meta: bool,
-        ) -> web_sys::KeyboardEvent;
+        fn egui_probe_shortcut(kind: &str, key: &str, code: &str, meta: bool) -> web_sys::KeyboardEvent;
     }
 
     #[derive(Default)]
@@ -614,9 +541,7 @@ mod ime_reset_browser_tests {
             model.logic_calls += 1;
             if model.request {
                 model.request = false;
-                model
-                    .ids
-                    .push(ctx.request_ime_reset(egui::ViewportId::ROOT).unwrap());
+                model.ids.push(ctx.request_ime_reset(egui::ViewportId::ROOT).unwrap());
             }
             ctx.output_mut(|out| out.ime = model.ime.clone());
         }
@@ -636,22 +561,13 @@ mod ime_reset_browser_tests {
     }
     impl Fixture {
         fn new() -> Self {
-            let body = web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .body()
-                .unwrap();
+            let body = web_sys::window().unwrap().document().unwrap().body().unwrap();
             Self::new_in_parent(body.unchecked_ref())
         }
         fn new_in_parent(parent: &web_sys::Node) -> Self {
             egui_probe_hidden(0);
             let document = web_sys::window().unwrap().document().unwrap();
-            let canvas = document
-                .create_element("canvas")
-                .unwrap()
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .unwrap();
+            let canvas = document.create_element("canvas").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
             canvas.set_width(320);
             canvas.set_height(180);
             canvas.set_tab_index(0);
@@ -678,10 +594,7 @@ mod ime_reset_browser_tests {
                 web_options: crate::WebOptions::default(),
                 frame: epi::Frame {
                     info: epi::IntegrationInfo {
-                        web_info: epi::WebInfo {
-                            user_agent: String::new(),
-                            location: super::super::web_location(),
-                        },
+                        web_info: epi::WebInfo { user_agent: String::new(), location: super::super::web_location() },
                         cpu_usage: None,
                     },
                     storage: None,
@@ -708,39 +621,21 @@ mod ime_reset_browser_tests {
             runner.install_test_app_runner(app_runner).unwrap();
             runner.try_lock().unwrap().logic();
             assert!(runner.try_lock().unwrap().text_agent.has_focus());
-            Self {
-                runner,
-                canvas,
-                model,
-                paint_lifecycle,
-            }
+            Self { runner, canvas, model, paint_lifecycle }
         }
         fn input(&self) -> web_sys::HtmlInputElement {
             self.runner.try_lock().unwrap().text_agent.test_input()
         }
         fn visibility(hidden: bool) {
             egui_probe_hidden(i32::from(hidden));
-            web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .dispatch_event(&web_sys::Event::new("visibilitychange").unwrap())
-                .unwrap();
+            web_sys::window().unwrap().document().unwrap().dispatch_event(&web_sys::Event::new("visibilitychange").unwrap()).unwrap();
         }
         fn reset(&self) {
             self.model.borrow_mut().request = true;
             self.runner.try_lock().unwrap().logic();
         }
         fn completions(&self) -> usize {
-            self.runner
-                .try_lock()
-                .unwrap()
-                .input
-                .raw
-                .events
-                .iter()
-                .filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-                .count()
+            self.runner.try_lock().unwrap().input.raw.events.iter().filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. })).count()
         }
     }
     impl Drop for Fixture {
@@ -761,39 +656,22 @@ mod ime_reset_browser_tests {
     // Invoke the public lifecycle before Fixture::drop can consume any pending output.
     fn destroy_with_pending_output(fixture: Fixture) {
         let input = fixture.input();
-        let callback = fixture
-            .runner
-            .try_lock()
-            .unwrap()
-            .text_agent
-            .test_keyup_callback();
+        let callback = fixture.runner.try_lock().unwrap().text_agent.test_keyup_callback();
         let listeners = fixture.runner.text_agent_context().listeners;
         {
             let lock = fixture.runner.try_lock().unwrap();
-            assert!(
-                !lock.textures_delta.is_empty(),
-                "a real logic pass queued font upload"
-            );
+            assert!(!lock.textures_delta.is_empty(), "a real logic pass queued font upload");
             assert!(lock.has_outstanding_paint_data());
             assert_eq!(fixture.paint_lifecycle.paints.get(), 0);
             assert_eq!(listeners.borrow().test_listener_counts().0, 5);
         }
         fixture.runner.destroy();
         assert!(fixture.runner.try_lock().is_none());
-        assert_eq!(
-            fixture.paint_lifecycle.paints.get(),
-            0,
-            "shutdown must not force paint"
-        );
+        assert_eq!(fixture.paint_lifecycle.paints.get(), 0, "shutdown must not force paint");
         assert_eq!(fixture.paint_lifecycle.destroys.get(), 1);
         assert!(input.parent_node().is_none());
         assert_eq!(listeners.borrow().test_listener_counts(), (0, 0));
-        callback
-            .call1(
-                &JsValue::NULL,
-                egui_probe_key("keyup", "a", "KeyA").as_ref(),
-            )
-            .unwrap();
+        callback.call1(&JsValue::NULL, egui_probe_key("keyup", "a", "KeyA").as_ref()).unwrap();
         fixture.runner.destroy();
         assert_eq!(fixture.paint_lifecycle.destroys.get(), 1);
         drop(fixture);
@@ -852,23 +730,10 @@ mod ime_reset_browser_tests {
             assert_ne!(old, replacement);
             assert!(old.parent_node().is_none());
             assert_eq!(replacement.get_root_node(), root.clone().unchecked_into());
-            assert!(
-                fixture
-                    .runner
-                    .try_lock()
-                    .unwrap()
-                    .text_agent
-                    .test_has_restore_intent()
-            );
-            assert!(
-                !super::super::has_focus(&replacement),
-                "hidden replacement must not focus early"
-            );
+            assert!(fixture.runner.try_lock().unwrap().text_agent.test_has_restore_intent());
+            assert!(!super::super::has_focus(&replacement), "hidden replacement must not focus early");
             Fixture::visibility(false);
-            assert_eq!(
-                root.active_element().as_ref(),
-                Some(replacement.unchecked_ref())
-            );
+            assert_eq!(root.active_element().as_ref(), Some(replacement.unchecked_ref()));
             assert!(fixture.runner.try_lock().unwrap().has_focus());
             assert_eq!(fixture.completions(), 1);
             drop(fixture);
@@ -881,11 +746,7 @@ mod ime_reset_browser_tests {
         Fixture::visibility(true);
         fixture.reset();
         let document = web_sys::window().unwrap().document().unwrap();
-        let outside = document
-            .create_element("input")
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let outside = document.create_element("input").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
         let parent: web_sys::Node = if document_target {
             document.body().unwrap().unchecked_into()
         } else if ancestor {
@@ -899,27 +760,15 @@ mod ime_reset_browser_tests {
             let lock = fixture.runner.try_lock().unwrap();
             assert!(lock.text_agent.test_has_restore_intent());
             outside.focus().unwrap();
-            assert_eq!(
-                super::super::focused_element(&outside.get_root_node()).as_ref(),
-                Some(outside.unchecked_ref())
-            );
-            assert!(
-                !lock.text_agent.test_has_restore_intent(),
-                "external focus itself must cancel restoration"
-            );
+            assert_eq!(super::super::focused_element(&outside.get_root_node()).as_ref(), Some(outside.unchecked_ref()));
+            assert!(!lock.text_agent.test_has_restore_intent(), "external focus itself must cancel restoration");
             egui_probe_focus_body(); // external choice then neutral BODY must remain cancelled
-            assert_eq!(
-                document.active_element(),
-                document.body().map(|body| body.unchecked_into())
-            );
+            assert_eq!(document.active_element(), document.body().map(|body| body.unchecked_into()));
             assert!(!lock.text_agent.test_has_restore_intent());
         }
         Fixture::visibility(false);
         assert!(!fixture.runner.try_lock().unwrap().has_focus());
-        assert_eq!(
-            document.active_element(),
-            document.body().map(|body| body.unchecked_into())
-        );
+        assert_eq!(document.active_element(), document.body().map(|body| body.unchecked_into()));
         assert_eq!(fixture.completions(), 1);
         outside.remove();
         drop(fixture);
@@ -945,45 +794,20 @@ mod ime_reset_browser_tests {
         let fixture = Fixture::new();
         let old = fixture.input();
         Fixture::visibility(true);
-        assert!(
-            super::super::has_focus(&old),
-            "hidden fixture retains actual input DOM focus"
-        );
+        assert!(super::super::has_focus(&old), "hidden fixture retains actual input DOM focus");
         fixture.reset();
         let replacement = fixture.input();
         assert_ne!(old, replacement);
         assert!(old.parent_node().is_none());
         assert!(!super::super::has_focus(&replacement));
-        assert!(
-            fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .text_agent
-                .test_has_restore_intent()
-        );
+        assert!(fixture.runner.try_lock().unwrap().text_agent.test_has_restore_intent());
         assert_eq!(fixture.completions(), 1);
-        assert_eq!(
-            fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .needs_repaint
-                .when_to_repaint(),
-            f64::NEG_INFINITY
-        );
+        assert_eq!(fixture.runner.try_lock().unwrap().needs_repaint.when_to_repaint(), f64::NEG_INFINITY);
         fixture.runner.try_lock().unwrap().logic(); // actual second hidden run_logic/replay
         assert_eq!(fixture.completions(), 1);
-        assert_eq!(
-            fixture.model.borrow().ui_calls,
-            1,
-            "hidden logic must not execute UI"
-        );
+        assert_eq!(fixture.model.borrow().ui_calls, 1, "hidden logic must not execute UI");
         Fixture::visibility(false); // production visibility handler calls update_focus
-        assert!(
-            super::super::has_focus(&replacement),
-            "no click or additional text input required"
-        );
+        assert!(super::super::has_focus(&replacement), "no click or additional text input required");
         assert!(fixture.runner.try_lock().unwrap().input.raw.focused);
         fixture.runner.try_lock().unwrap().logic();
         let model = fixture.model.borrow();
@@ -991,7 +815,10 @@ mod ime_reset_browser_tests {
         assert_eq!(model.ui_calls, 2);
         assert_eq!(model.ids.len(), 1);
         let batch = model.batches.last().unwrap();
-        assert_eq!(batch.iter().filter(|event| matches!(event, egui::Event::ImeResetCompleted { request_id } if *request_id == model.ids[0])).count(), 1);
+        assert_eq!(
+            batch.iter().filter(|event| matches!(event, egui::Event::ImeResetCompleted { request_id } if *request_id == model.ids[0])).count(),
+            1
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -1000,11 +827,7 @@ mod ime_reset_browser_tests {
         Fixture::visibility(true);
         fixture.reset();
         let document = web_sys::window().unwrap().document().unwrap();
-        let external = document
-            .create_element("input")
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let external = document.create_element("input").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
         document.body().unwrap().append_child(&external).unwrap();
         {
             let lock = fixture.runner.try_lock().unwrap();
@@ -1013,19 +836,11 @@ mod ime_reset_browser_tests {
             external.blur().unwrap();
             assert!(!lock.text_agent.test_has_restore_intent());
         }
-        assert!(
-            document
-                .active_element()
-                .is_some_and(|element| element.tag_name() == "BODY")
-        );
+        assert!(document.active_element().is_some_and(|element| element.tag_name() == "BODY"));
         Fixture::visibility(false);
         assert!(!fixture.runner.try_lock().unwrap().has_focus());
         assert!(!super::super::has_focus(&fixture.input()));
-        assert_eq!(
-            fixture.completions(),
-            1,
-            "local completion does not authorize focus theft"
-        );
+        assert_eq!(fixture.completions(), 1, "local completion does not authorize focus theft");
         external.remove();
     }
 
@@ -1038,31 +853,14 @@ mod ime_reset_browser_tests {
             if lose_context {
                 fixture.model.borrow_mut().ime = None;
                 fixture.runner.try_lock().unwrap().logic();
-                assert!(
-                    !fixture
-                        .runner
-                        .try_lock()
-                        .unwrap()
-                        .text_agent
-                        .test_has_restore_intent()
-                );
+                assert!(!fixture.runner.try_lock().unwrap().text_agent.test_has_restore_intent());
             } else {
                 fixture.reset();
                 assert_eq!(fixture.completions(), 2);
-                assert!(
-                    fixture
-                        .runner
-                        .try_lock()
-                        .unwrap()
-                        .text_agent
-                        .test_has_restore_intent()
-                );
+                assert!(fixture.runner.try_lock().unwrap().text_agent.test_has_restore_intent());
             }
             Fixture::visibility(false);
-            assert_eq!(
-                fixture.runner.try_lock().unwrap().has_focus(),
-                !lose_context
-            );
+            assert_eq!(fixture.runner.try_lock().unwrap().has_focus(), !lose_context);
         }
     }
 
@@ -1071,83 +869,29 @@ mod ime_reset_browser_tests {
         for focus_clear in [false, true] {
             let fixture = Fixture::new();
             let old_input = fixture.input();
-            old_input
-                .dispatch_event(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
-            let old_receipt = fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
+            old_input.dispatch_event(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
+            let old_receipt = fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
             super::super::focus_without_scroll(&fixture.canvas).unwrap();
             if focus_clear {
                 fixture.runner.try_lock().unwrap().input.set_focus(false);
                 fixture.runner.try_lock().unwrap().update_focus();
             } else {
-                fixture
-                    .canvas
-                    .dispatch_event(&egui_probe_key("keyup", "a", "KeyA"))
-                    .unwrap();
+                fixture.canvas.dispatch_event(&egui_probe_key("keyup", "a", "KeyA")).unwrap();
             }
-            fixture
-                .canvas
-                .dispatch_event(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
-            let new_receipt = fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
+            fixture.canvas.dispatch_event(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
+            let new_receipt = fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
             assert_ne!(old_receipt, new_receipt);
             fixture.reset(); // actual raw hook/run_ui/platform-output path
             let lock = fixture.runner.try_lock().unwrap();
-            assert_eq!(
-                lock.input
-                    .keys
-                    .press_id(&egui_probe_key("keydown", "a", "KeyA")),
-                Some(new_receipt)
-            );
+            assert_eq!(lock.input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")), Some(new_receipt));
             assert!(
-                !lock.input.raw.events.iter().any(|event| matches!(
-                    event,
-                    egui::Event::Key {
-                        key: egui::Key::A,
-                        pressed: false,
-                        ..
-                    }
-                )),
+                !lock.input.raw.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. })),
                 "retiring stale agent must not release the newer canvas press"
             );
-            assert_eq!(
-                lock.input
-                    .raw
-                    .events
-                    .iter()
-                    .filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-                    .count(),
-                1
-            );
+            assert_eq!(lock.input.raw.events.iter().filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. })).count(), 1);
             drop(lock);
-            fixture
-                .canvas
-                .dispatch_event(&egui_probe_key("keyup", "a", "KeyA"))
-                .unwrap();
-            assert!(
-                fixture
-                    .runner
-                    .try_lock()
-                    .unwrap()
-                    .input
-                    .keys
-                    .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                    .is_none()
-            );
+            fixture.canvas.dispatch_event(&egui_probe_key("keyup", "a", "KeyA")).unwrap();
+            assert!(fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).is_none());
         }
     }
 
@@ -1155,96 +899,26 @@ mod ime_reset_browser_tests {
     fn actual_current_agent_press_releases_once_before_fence_and_old_keyup_cannot_repeat_it() {
         let fixture = Fixture::new();
         let old = fixture.input();
-        old.dispatch_event(&egui_probe_key("keydown", "a", "KeyA"))
-            .unwrap();
+        old.dispatch_event(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
         fixture.runner.try_lock().unwrap().logic();
         super::super::focus_without_scroll(&fixture.canvas).unwrap();
-        fixture
-            .canvas
-            .dispatch_event(&egui_probe_key("keydown", "b", "KeyB"))
-            .unwrap();
-        let unrelated = fixture
-            .runner
-            .try_lock()
-            .unwrap()
-            .input
-            .keys
-            .press_id(&egui_probe_key("keydown", "b", "KeyB"))
-            .unwrap();
+        fixture.canvas.dispatch_event(&egui_probe_key("keydown", "b", "KeyB")).unwrap();
+        let unrelated = fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "b", "KeyB")).unwrap();
         fixture.reset();
         let before = fixture.runner.try_lock().unwrap().input.raw.events.clone();
-        let release = before
-            .iter()
-            .position(|event| {
-                matches!(
-                    event,
-                    egui::Event::Key {
-                        key: egui::Key::A,
-                        pressed: false,
-                        ..
-                    }
-                )
-            })
-            .unwrap();
-        let fence = before
-            .iter()
-            .position(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-            .unwrap();
+        let release = before.iter().position(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. })).unwrap();
+        let fence = before.iter().position(|event| matches!(event, egui::Event::ImeResetCompleted { .. })).unwrap();
         assert!(release < fence);
-        assert_eq!(
-            fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "b", "KeyB")),
-            Some(unrelated)
-        );
-        assert!(!before.iter().any(|event| matches!(
-            event,
-            egui::Event::Key {
-                key: egui::Key::B,
-                pressed: false,
-                ..
-            }
-        )));
-        assert_eq!(
-            before
-                .iter()
-                .filter(|event| matches!(
-                    event,
-                    egui::Event::Key {
-                        key: egui::Key::A,
-                        pressed: false,
-                        ..
-                    }
-                ))
-                .count(),
-            1
-        );
-        old.dispatch_event(&egui_probe_key("keyup", "a", "KeyA"))
-            .unwrap();
+        assert_eq!(fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "b", "KeyB")), Some(unrelated));
+        assert!(!before.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::B, pressed: false, .. })));
+        assert_eq!(before.iter().filter(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. })).count(), 1);
+        old.dispatch_event(&egui_probe_key("keyup", "a", "KeyA")).unwrap();
         assert_eq!(fixture.runner.try_lock().unwrap().input.raw.events, before);
-        assert!(
-            fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                .is_none()
-        );
+        assert!(fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).is_none());
     }
 
     fn modifier_up(meta: bool) -> web_sys::KeyboardEvent {
-        egui_probe_shortcut(
-            "keyup",
-            if meta { "Meta" } else { "Control" },
-            if meta { "MetaLeft" } else { "ControlLeft" },
-            meta,
-        )
+        egui_probe_shortcut("keyup", if meta { "Meta" } else { "Control" }, if meta { "MetaLeft" } else { "ControlLeft" }, meta)
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -1252,99 +926,38 @@ mod ime_reset_browser_tests {
         for meta in [false, true] {
             let fixture = Fixture::new();
             let old = fixture.input();
-            let old_up_callback = fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .text_agent
-                .test_keyup_callback();
-            assert!(
-                !fixture
-                    .runner
-                    .try_lock()
-                    .unwrap()
-                    .egui_ctx()
-                    .input(|input| input.keys_down.contains(&egui::Key::A))
-            );
-            old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta))
-                .unwrap();
-            assert!(fixture.runner.try_lock().unwrap().input.raw.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: true, modifiers, .. } if modifiers.command)));
-            old.dispatch_event(&modifier_up(meta)).unwrap();
-            // Still no logic boundary: the modifier workaround cannot find queued A in ctx.
-            assert!(
-                !fixture
-                    .runner
-                    .try_lock()
-                    .unwrap()
-                    .egui_ctx()
-                    .input(|input| input.keys_down.contains(&egui::Key::A))
-            );
-            fixture.reset();
-            let queued = fixture.runner.try_lock().unwrap().input.raw.events.clone();
-            let release = queued.iter().position(|event| {
-                matches!(
-                    event,
-                    egui::Event::Key {
-                        key: egui::Key::A,
-                        pressed: false,
-                        ..
-                    }
-                )
-            });
-            assert!(
-                release.is_some(),
-                "queued Ctrl/Meta+A was not previously consumed; retirement must release it before fencing its old keyup"
-            );
-            let fence = queued
-                .iter()
-                .position(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-                .unwrap();
-            assert!(release.unwrap() < fence);
-            assert_eq!(
-                queued
-                    .iter()
-                    .filter(|event| matches!(
-                        event,
-                        egui::Event::Key {
-                            key: egui::Key::A,
-                            pressed: false,
-                            ..
-                        }
-                    ))
-                    .count(),
-                1
-            );
-            old_up_callback
-                .call1(
-                    &JsValue::NULL,
-                    egui_probe_key("keyup", "a", "KeyA").as_ref(),
-                )
-                .unwrap();
-            assert_eq!(
-                fixture.runner.try_lock().unwrap().input.raw.events,
-                queued,
-                "captured retired callback remains a no-op"
-            );
-            fixture.runner.try_lock().unwrap().logic();
-            assert!(
-                !fixture
-                    .runner
-                    .try_lock()
-                    .unwrap()
-                    .egui_ctx()
-                    .input(|input| input.keys_down.contains(&egui::Key::A)),
-                "the next actual AppRunner batch must not leave A stuck"
-            );
+            let old_up_callback = fixture.runner.try_lock().unwrap().text_agent.test_keyup_callback();
+            assert!(!fixture.runner.try_lock().unwrap().egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A)));
+            old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta)).unwrap();
             assert!(
                 fixture
                     .runner
                     .try_lock()
                     .unwrap()
                     .input
-                    .keys
-                    .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                    .is_none()
+                    .raw
+                    .events
+                    .iter()
+                    .any(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: true, modifiers, .. } if modifiers.command))
             );
+            old.dispatch_event(&modifier_up(meta)).unwrap();
+            // Still no logic boundary: the modifier workaround cannot find queued A in ctx.
+            assert!(!fixture.runner.try_lock().unwrap().egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A)));
+            fixture.reset();
+            let queued = fixture.runner.try_lock().unwrap().input.raw.events.clone();
+            let release = queued.iter().position(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. }));
+            assert!(release.is_some(), "queued Ctrl/Meta+A was not previously consumed; retirement must release it before fencing its old keyup");
+            let fence = queued.iter().position(|event| matches!(event, egui::Event::ImeResetCompleted { .. })).unwrap();
+            assert!(release.unwrap() < fence);
+            assert_eq!(queued.iter().filter(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. })).count(), 1);
+            old_up_callback.call1(&JsValue::NULL, egui_probe_key("keyup", "a", "KeyA").as_ref()).unwrap();
+            assert_eq!(fixture.runner.try_lock().unwrap().input.raw.events, queued, "captured retired callback remains a no-op");
+            fixture.runner.try_lock().unwrap().logic();
+            assert!(
+                !fixture.runner.try_lock().unwrap().egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A)),
+                "the next actual AppRunner batch must not leave A stuck"
+            );
+            assert!(fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).is_none());
         }
     }
 
@@ -1354,22 +967,13 @@ mod ime_reset_browser_tests {
             for aliases in [false, true] {
                 let fixture = Fixture::new();
                 let old = fixture.input();
-                old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta))
-                    .unwrap();
+                old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta)).unwrap();
                 if aliases {
                     // A second physical alias for the same logical key (e.g. a changed layout).
-                    old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyQ", meta))
-                        .unwrap();
+                    old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyQ", meta)).unwrap();
                 }
                 fixture.runner.try_lock().unwrap().logic();
-                assert!(
-                    fixture
-                        .runner
-                        .try_lock()
-                        .unwrap()
-                        .egui_ctx()
-                        .input(|input| input.keys_down.contains(&egui::Key::A))
-                );
+                assert!(fixture.runner.try_lock().unwrap().egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A)));
                 old.dispatch_event(&modifier_up(meta)).unwrap();
                 assert_eq!(
                     fixture
@@ -1380,56 +984,20 @@ mod ime_reset_browser_tests {
                         .raw
                         .events
                         .iter()
-                        .filter(|event| matches!(
-                            event,
-                            egui::Event::Key {
-                                key: egui::Key::A,
-                                pressed: false,
-                                ..
-                            }
-                        ))
+                        .filter(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. }))
                         .count(),
                     1
                 );
                 fixture.reset();
                 let lock = fixture.runner.try_lock().unwrap();
                 assert!(
-                    !lock.input.raw.events.iter().any(|event| matches!(
-                        event,
-                        egui::Event::Key {
-                            key: egui::Key::A,
-                            pressed: false,
-                            ..
-                        }
-                    )),
+                    !lock.input.raw.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::A, pressed: false, .. })),
                     "already ordered synthetic release must not be repeated by retirement"
                 );
-                assert!(
-                    lock.input
-                        .keys
-                        .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                        .is_none()
-                );
-                assert!(
-                    lock.input
-                        .keys
-                        .press_id(&egui_probe_key("keydown", "a", "KeyQ"))
-                        .is_none()
-                );
-                assert!(
-                    !lock
-                        .egui_ctx()
-                        .input(|input| input.keys_down.contains(&egui::Key::A))
-                );
-                assert_eq!(
-                    lock.input
-                        .raw
-                        .events
-                        .iter()
-                        .filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-                        .count(),
-                    1
-                );
+                assert!(lock.input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).is_none());
+                assert!(lock.input.keys.press_id(&egui_probe_key("keydown", "a", "KeyQ")).is_none());
+                assert!(!lock.egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A)));
+                assert_eq!(lock.input.raw.events.iter().filter(|event| matches!(event, egui::Event::ImeResetCompleted { .. })).count(), 1);
             }
         }
     }
@@ -1439,61 +1007,21 @@ mod ime_reset_browser_tests {
         for meta in [false, true] {
             let fixture = Fixture::new();
             let old = fixture.input();
-            old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta))
-                .unwrap();
+            old.dispatch_event(&egui_probe_shortcut("keydown", "a", "KeyA", meta)).unwrap();
             old.dispatch_event(&modifier_up(meta)).unwrap();
             super::super::focus_without_scroll(&fixture.canvas).unwrap();
-            fixture
-                .canvas
-                .dispatch_event(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
-            fixture
-                .canvas
-                .dispatch_event(&egui_probe_key("keydown", "b", "KeyB"))
-                .unwrap();
-            let a = fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "a", "KeyA"))
-                .unwrap();
-            let b = fixture
-                .runner
-                .try_lock()
-                .unwrap()
-                .input
-                .keys
-                .press_id(&egui_probe_key("keydown", "b", "KeyB"))
-                .unwrap();
+            fixture.canvas.dispatch_event(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
+            fixture.canvas.dispatch_event(&egui_probe_key("keydown", "b", "KeyB")).unwrap();
+            let a = fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")).unwrap();
+            let b = fixture.runner.try_lock().unwrap().input.keys.press_id(&egui_probe_key("keydown", "b", "KeyB")).unwrap();
             fixture.reset();
             let lock = fixture.runner.try_lock().unwrap();
-            assert_eq!(
-                lock.input
-                    .keys
-                    .press_id(&egui_probe_key("keydown", "a", "KeyA")),
-                Some(a)
-            );
-            assert_eq!(
-                lock.input
-                    .keys
-                    .press_id(&egui_probe_key("keydown", "b", "KeyB")),
-                Some(b)
-            );
-            assert!(!lock.input.raw.events.iter().any(|event| matches!(
-                event,
-                egui::Event::Key {
-                    key: egui::Key::A | egui::Key::B,
-                    pressed: false,
-                    ..
-                }
-            )));
+            assert_eq!(lock.input.keys.press_id(&egui_probe_key("keydown", "a", "KeyA")), Some(a));
+            assert_eq!(lock.input.keys.press_id(&egui_probe_key("keydown", "b", "KeyB")), Some(b));
             assert!(
-                lock.egui_ctx()
-                    .input(|input| input.keys_down.contains(&egui::Key::A)
-                        && input.keys_down.contains(&egui::Key::B))
+                !lock.input.raw.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::A | egui::Key::B, pressed: false, .. }))
             );
+            assert!(lock.egui_ctx().input(|input| input.keys_down.contains(&egui::Key::A) && input.keys_down.contains(&egui::Key::B)));
         }
     }
 }

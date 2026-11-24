@@ -1,5 +1,5 @@
 [package]
-name = "localobsidian-md"
+name = "localnotebook-md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

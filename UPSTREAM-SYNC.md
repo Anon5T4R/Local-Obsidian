@@ -1,4 +1,4 @@
-# UPSTREAM-SYNC - Local Obsidian
+# UPSTREAM-SYNC - Local Notebook
 
 O que neste repo vem de fora, em que revisão, e o que fazer quando o upstream mudar.
 
@@ -6,7 +6,7 @@ O que neste repo vem de fora, em que revisão, e o que fazer quando o upstream m
 
 A árvore nasceu de **`Anon5T4R/local-app-template`** (`main` em `55a63ae`) via
 `scripts/nascer-app.ps1 -Id localobsidian -Name "Local Obsidian" -Repo Local-Obsidian`, que renomeou
-crate/pacote/binário/ids/env vars/pastas e gerou GUIDs novos do MSI. O ícone nasceu no próprio repo
+crate/pacote/binário/ids/env vars/pastas e gerou GUIDs novos do MSI (o app se chamava então Local Obsidian e `localobsidian`; o produto virou Local Notebook, `localnotebook`, na 1.10.0). O ícone nasceu no próprio repo
 (ver `assets/app-icon/README.md`).
 
 O **comportamento** portado vem do **OpenObsidian** (`C:\Dev\OpenObsidian\desktop`, Electron + React
@@ -28,24 +28,24 @@ conscientes ficam registrados aqui, seção a seção, conforme o port avança.
 | Watcher de arquivos | chokidar (`awaitWriteFinish`, eventos por tipo) | `notify` 8, recursivo, com debounce de 300 ms; `.saving`/dotfiles/`.openobsidian` descartados; **a nota aberta vence** (buffer sujo não é sobrescrito, avisa na status bar) | o do upstream não filtra as escritas do próprio app nem o `srs.json`; aqui o "próprio write" é reconhecido por path + instante, não por tempo de settle |
 | Math | KaTeX | TeX em monoespaçado (pendente) | ver nota abaixo |
 | Binários (`.pdf`/`.docx`/`.odt`/`.epub`/`.txt`) na árvore | aparecem | aparecem apagados entre as notas e as pastas e abrem no app do sistema; não são notas — busca, wikilinks e backlinks não os veem | um documento do cofre não pode sumir da árvore só por não ser editável |
-| SRS/flashcards | `srs.ts` + `cards.ts` + main/IPC (`srs.json`) | crate `localobsidian-review` (SM-2 + extração + arquivo) + painel Review | mesmo algoritmo e **mesmo arquivo**; o app só lê/escreve `.openobsidian/srs.json` |
+| SRS/flashcards | `srs.ts` + `cards.ts` + main/IPC (`srs.json`) | crate `localnotebook-review` (SM-2 + extração + arquivo) + painel Review | mesmo algoritmo e **mesmo arquivo**; o app só lê/escreve `.openobsidian/srs.json` |
 | Estado do SRS em memória | cache por vault no processo main | `VaultState.srs`, re-sincronizado no reload e depois de cada save | o Electron precisa do cache porque o renderer é outro processo; aqui é um `BTreeMap` no mesmo dono do buffer |
 | Import `.apkg` | `main/apkg.ts` (zip + SQLite) | **adiado** (F5, com o João) | ler `.apkg` pede SQLite (dep com C) ou um parser de banco próprio; fora da regra pure-Rust |
 | Grafos | `GraphView.tsx` (força dirigida, d3, vault inteiro) | **removido por decisão do João**: o grafo global virou um **mapa de conexões** expansível — a nota no centro, as conexões diretas em anel, o `+` de cada nota abrindo um nível por vez, clique abre a nota | estética não pagava o preço: o do Electron é pesado, uma bola de 500 nós não se lê e o nosso também não. O mapa é determinístico, leve e navegável, que é a utilidade real |
 | Calendário | `CalendarPopover` + `utils/calendar.ts` | popover próprio: grade de 6 semanas, dia com nota marcado, cria a diária a partir de `_templates/daily.md` | mesma conta de mês (clamp de dia) e de nota diária `YYYY-MM-DD` |
 | Templates | `TemplateModal` + 6 embutidos + `exampleTemplate` | 4 embutidos (Blank/Daily/Meeting/Project) + notas do usuário em `_templates/`; variáveis `{{title}}`, `{{date[:fmt]}}`, `{{time}}`, `{{datetime}}` | o `exampleTemplate` é demo de bloco de query; os outros dois embutidos não tinham uso no port |
 | Nota diária | nome `YYYY-MM-DD` na raiz + template `daily` | igual | — |
-| ODT/DOCX | `odtToHtml` + mammoth → HTML → turndown (`.md` ao lado do arquivo) | crate `localobsidian-convert`: ZIP + XML → **Markdown direto**; a nota vai para a pasta da nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
+| ODT/DOCX | `odtToHtml` + mammoth → HTML → turndown (`.md` ao lado do arquivo) | crate `localnotebook-convert`: ZIP + XML → **Markdown direto**; a nota vai para a pasta da nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
 | Export ODT/DOCX | **não existe** no upstream (só export HTML/PDF) | também não | não se inventa direção que o spec não tem |
 | Conversão de documento | botão na barra, com o arquivo já na árvore | item de menu + seletor nativo, porque a árvore agora lista os binários e um botão ali só serviria à nota aberta | sem pipeline HTML no port, e a conversão em dois passos perdia tabela e aninhamento de lista |
 | Checkbox na leitura | clicável (CodeMirror resolve a posição) | clicável: a leitura conta qual caixa é (`n`-ésima) e `toggle_task` acha a mesma linha no fonte | `prepare` reescreve o texto, então deslocamento de byte não sobrevive; a contagem sim |
 | Import Anki `.apkg` | `sql.js` (SQLite em WASM) + `fzstd` para a mídia | **não** — só a exportação de texto | ver a nota abaixo |
 | Import Anki texto | `srs:anki-pick` → `srs:anki-write`, 100 cartões por nota | igual (mesmo `chunk_cards`, mesma colisão de nome com sufixo numérico); notas soltas, não uma pasta por baralho | o upstream cria uma pasta por baralho quando a exportação passa de 100; aqui as notas ficam na raiz com sufixo |
 | Ajuda | `HelpModal` com 5 abas | janela única: teclas, sintaxe da nota, onde cada coisa mora, link do README | 5 abas para uma janela que se abre raramente é peso, não ajuda |
-| Export HTML | `remark` → HTML com CSS fixo claro, nota ativa | `localobsidian_md::html`: o mesmo modelo de blocos da leitura, CSS embutido com paleta clara/escura por `prefers-color-scheme`, callouts coloridos por tipo, tabela com cabeçalho e alinhamento | exportar o que se vê; o CSS do upstream não conhece callout e obriga o leitor a usar tema claro |
+| Export HTML | `remark` → HTML com CSS fixo claro, nota ativa | `localnotebook_md::html`: o mesmo modelo de blocos da leitura, CSS embutido com paleta clara/escura por `prefers-color-scheme`, callouts coloridos por tipo, tabela com cabeçalho e alinhamento | exportar o que se vê; o CSS do upstream não conhece callout e obriga o leitor a usar tema claro |
 | Wikilink no HTML | fica texto literal (`[[Nota]]`) | vira `Nota.html` (+ `#seção` do título) | exportar as notas para a mesma pasta faz o link funcionar; literal não leva a lugar nenhum |
 | Imagens no HTML | aponta para o caminho do vault | copiadas para `_attachments/` ao lado da página | o arquivo sai do cofre; sem a cópia a página abre com imagens quebradas |
-| Export PDF | `printToPDF` do Electron | `localobsidian-pdf`: os blocos da leitura em A4 (56 pt de margem), paginação própria, glifos com fonte embutida e mapa Unicode (texto selecionável), callout/tabela/código desenhados | não é divergência de produto: o Electron imprime HTML, aqui não há HTML — e a fase entrega texto de verdade, não imagem da página |
+| Export PDF | `printToPDF` do Electron | `localnotebook-pdf`: os blocos da leitura em A4 (56 pt de margem), paginação própria, glifos com fonte embutida e mapa Unicode (texto selecionável), callout/tabela/código desenhados | não é divergência de produto: o Electron imprime HTML, aqui não há HTML — e a fase entrega texto de verdade, não imagem da página |
 | Barra lateral | explorer + "TAGS 150" fechada + "BACKLINKS 1" no rodapé | uma barra, três blocos com altura própria: árvore (rola), tags (fechada por padrão, rolagem própria) e backlinks (rolagem própria) | impedir que 148 tags ou 137 backlinks cubram a árvore: o conteúdo de cada bloco é limitado ao espaço dele |
 | Tabelas na leitura | tabela HTML do remark | renderer próprio: colunas medidas pelo conteúdo e distribuídas na largura, faixa de cabeçalho, linhas alternadas, grade e quebra por palavra | `egui::Grid` mede a célula como quase nada dentro de um `with_layout` e cai no mínimo de coluna: a tabela virava torre de palavras partidas |
 | Modo de leitura | abas Editor/Dividir/Visualizar | seletor segmentado com as três opções sempre visíveis; o divisor do Split é arrastável e persistido | um botão que cicla esconde o estado: parecia que a leitura não renderizava |
@@ -129,5 +129,5 @@ Regra do repo: nada é lido de `C:\Dev\storytold` em build, teste ou release. As
 ## Catálogo da suíte
 
 `craft_update::suite` (na crate espelhada) é a fonte única dos `App` de cada app. A entrada
-`LOCALOBSIDIAN` foi adicionada em `Anon5T4R/local-libs` (`crates/update/src/suite.rs`) e replicada
+`LOCALNOTEBOOK` foi adicionada em `Anon5T4R/local-libs` (`crates/update/src/suite.rs`) e replicada
 para os apps com `scripts/sync.ps1 -Mode push`.

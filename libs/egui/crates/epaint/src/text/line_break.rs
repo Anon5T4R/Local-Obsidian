@@ -17,10 +17,7 @@ impl LineBreak {
     /// The row must end here.
     #[inline]
     pub fn hard(offset: usize) -> Self {
-        Self {
-            offset,
-            kind: LineBreakKind::Hard,
-        }
+        Self { offset, kind: LineBreakKind::Hard }
     }
 
     /// The row may end here.
@@ -32,10 +29,7 @@ impl LineBreak {
     /// The row may end here, if no soft break with a lower `penalty` fits on the row.
     #[inline]
     pub fn soft_with_penalty(offset: usize, penalty: u8) -> Self {
-        Self {
-            offset,
-            kind: LineBreakKind::Soft { penalty },
-        }
+        Self { offset, kind: LineBreakKind::Soft { penalty } }
     }
 }
 
@@ -130,9 +124,7 @@ impl LineBreaker for SimpleLineBreaker {
             let Some(&(next_offset, next)) = chars.peek() else {
                 break; // The end of the text is no break opportunity.
             };
-            let penalty = if (chr.is_whitespace() && chr != NON_BREAKING_SPACE)
-                || (is_cjk(chr) && is_cjk_break_allowed(next))
-            {
+            let penalty = if (chr.is_whitespace() && chr != NON_BREAKING_SPACE) || (is_cjk(chr) && is_cjk_break_allowed(next)) {
                 0
             } else if chr == '-' {
                 1
@@ -152,8 +144,5 @@ impl LineBreaker for SimpleLineBreaker {
 ///
 /// `\r` is one only when it isn't followed by `\n`; that is up to the [`LineBreaker`].
 pub(crate) fn is_mandatory_break(chr: char) -> bool {
-    matches!(
-        chr,
-        '\n' | '\r' | '\u{0B}' | '\u{0C}' | '\u{85}' | '\u{2028}' | '\u{2029}'
-    )
+    matches!(chr, '\n' | '\r' | '\u{0B}' | '\u{0C}' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }

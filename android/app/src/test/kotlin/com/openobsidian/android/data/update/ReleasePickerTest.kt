@@ -22,7 +22,7 @@ class ReleasePickerTest {
 
     private val ok = release("v1.10.0", listOf(
         asset("SHA256SUMS"),
-        asset("localobsidian-1.10.0-windows-x86_64.msi"),
+        asset("localnotebook-1.10.0-windows-x86_64.msi"),
         asset("LocalNotebook-Android-v1.10.0.apk", digest = "sha256:$hex"),
     ))
 

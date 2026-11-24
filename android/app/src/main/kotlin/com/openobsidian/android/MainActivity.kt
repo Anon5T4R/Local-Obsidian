@@ -33,13 +33,13 @@ import com.openobsidian.android.ui.noticeText
 import com.openobsidian.android.ui.screens.SettingsScreen
 import com.openobsidian.android.ui.screens.VaultScreen
 import com.openobsidian.android.ui.screens.WelcomeScreen
-import com.openobsidian.android.ui.theme.OpenObsidianTheme
+import com.openobsidian.android.ui.theme.LocalNotebookTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    private val repo         by lazy { (application as OpenObsidianApp).vaultRepo }
-    private val settingsRepo by lazy { (application as OpenObsidianApp).settingsRepo }
+    private val repo         by lazy { (application as LocalNotebookApp).vaultRepo }
+    private val settingsRepo by lazy { (application as LocalNotebookApp).settingsRepo }
     private val updates: UpdateViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
             }
 
             CompositionLocalProvider(LocalAppSettings provides settings) {
-                OpenObsidianTheme(darkTheme = isDark) {
+                LocalNotebookTheme(darkTheme = isDark) {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         Box(Modifier.fillMaxSize()) {
                             Column(Modifier.fillMaxSize()) {

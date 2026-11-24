@@ -33,12 +33,7 @@ pub(super) struct HeldKeys {
 }
 
 impl HeldKeys {
-    pub fn press(
-        &mut self,
-        physical: PhysicalKey,
-        logical: Option<egui::Key>,
-        emit_key: bool,
-    ) -> Option<egui::Key> {
+    pub fn press(&mut self, physical: PhysicalKey, logical: Option<egui::Key>, emit_key: bool) -> Option<egui::Key> {
         use std::collections::hash_map::Entry;
 
         let identity = Identity::new(physical, logical)?;
@@ -127,39 +122,15 @@ mod tests {
     }
 
     fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-        Event::Key {
-            key,
-            physical_key: None,
-            pressed,
-            repeat: false,
-            modifiers,
-        }
+        Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }
     }
 
-    fn state_key_event(
-        key: Key,
-        physical_key: Option<Key>,
-        pressed: bool,
-        modifiers: Modifiers,
-    ) -> Event {
-        Event::Key {
-            key,
-            physical_key,
-            pressed,
-            repeat: false,
-            modifiers,
-        }
+    fn state_key_event(key: Key, physical_key: Option<Key>, pressed: bool, modifiers: Modifiers) -> Event {
+        Event::Key { key, physical_key, pressed, repeat: false, modifiers }
     }
 
     fn feed(ctx: &egui::Context, events: Vec<Event>) {
-        ctx.run_ui(
-            RawInput {
-                events,
-                ..Default::default()
-            },
-            |_| {},
-        )
-        .drop_without_applying_deltas();
+        ctx.run_ui(RawInput { events, ..Default::default() }, |_| {}).drop_without_applying_deltas();
     }
 
     #[test]
@@ -172,11 +143,7 @@ mod tests {
         assert!(ctx.input(|i| i.key_down(Key::K)));
         // Dvorak-QWERTY-Command now translates the same physical key to T.
         assert_eq!(held.press(code, Some(Key::T), true), Some(Key::K));
-        let events = held
-            .release(code)
-            .into_iter()
-            .map(|key| key_event(key, false, Modifiers::NONE))
-            .collect();
+        let events = held.release(code).into_iter().map(|key| key_event(key, false, Modifiers::NONE)).collect();
         feed(&ctx, events);
         assert!(!ctx.input(|i| i.key_down(Key::K)));
         assert!(!ctx.input(|i| i.key_down(Key::T)));
@@ -205,11 +172,7 @@ mod tests {
         assert!(held.release(physical(KeyCode::Enter)).is_empty());
         feed(&ctx, vec![]);
         assert!(ctx.input(|i| i.key_down(Key::Enter)));
-        let events = held
-            .release(physical(KeyCode::NumpadEnter))
-            .into_iter()
-            .map(|key| key_event(key, false, Modifiers::NONE))
-            .collect();
+        let events = held.release(physical(KeyCode::NumpadEnter)).into_iter().map(|key| key_event(key, false, Modifiers::NONE)).collect();
         feed(&ctx, events);
         assert!(!ctx.input(|i| i.key_down(Key::Enter)));
     }
@@ -219,15 +182,9 @@ mod tests {
         let mut held = HeldKeys::default();
         held.press(physical(KeyCode::KeyA), Some(Key::C), true);
         // Ctrl+C records a marker (no Key-down was emitted).
-        assert_eq!(
-            held.press(physical(KeyCode::KeyC), Some(Key::C), false),
-            None
-        );
+        assert_eq!(held.press(physical(KeyCode::KeyC), Some(Key::C), false), None);
         // Repeating the shortcut while modifiers are held stays a marker.
-        assert_eq!(
-            held.press(physical(KeyCode::KeyC), Some(Key::C), false),
-            None
-        );
+        assert_eq!(held.press(physical(KeyCode::KeyC), Some(Key::C), false), None);
         assert!(held.release(physical(KeyCode::KeyC)).is_empty());
         assert_eq!(held.release(physical(KeyCode::KeyA)), vec![Key::C]);
     }
@@ -291,15 +248,7 @@ mod tests {
         let code = physical(KeyCode::KeyK);
         let _ = state.held_keys.press(code, Some(Key::K), true);
         state.release_keyboard_input(code);
-        assert_eq!(
-            state.egui_input().events,
-            vec![state_key_event(
-                Key::K,
-                Some(Key::K),
-                false,
-                Modifiers::COMMAND
-            )]
-        );
+        assert_eq!(state.egui_input().events, vec![state_key_event(Key::K, Some(Key::K), false, Modifiers::COMMAND)]);
     }
 
     #[test]
@@ -308,10 +257,7 @@ mod tests {
         let native = PhysicalKey::Unidentified(NativeKeyCode::Xkb(1234));
         let _ = state.held_keys.press(native, Some(Key::A), true);
         state.release_keyboard_input(native);
-        assert_eq!(
-            state.egui_input().events,
-            vec![state_key_event(Key::A, None, false, Modifiers::NONE)]
-        );
+        assert_eq!(state.egui_input().events, vec![state_key_event(Key::A, None, false, Modifiers::NONE)]);
     }
 
     #[test]
@@ -356,36 +302,19 @@ mod tests {
 
         // Ctrl is released and the held key repeats with normal text.
         state.modifiers = Modifiers::NONE;
-        assert_eq!(
-            state.press_keyboard_input(code, Some(Key::C), Some(Key::C)),
-            Some(Key::C)
-        );
-        assert_eq!(
-            state.egui_input().events,
-            vec![state_key_event(Key::C, Some(Key::C), true, Modifiers::NONE)]
-        );
+        assert_eq!(state.press_keyboard_input(code, Some(Key::C), Some(Key::C)), Some(Key::C));
+        assert_eq!(state.egui_input().events, vec![state_key_event(Key::C, Some(Key::C), true, Modifiers::NONE)]);
         feed_state(&ctx, &mut state);
         assert!(ctx.input(|i| i.key_down(Key::C)));
 
         // The release pairs with the upgraded ordinary press.
         state.release_keyboard_input(code);
-        assert_eq!(
-            state.egui_input().events,
-            vec![state_key_event(
-                Key::C,
-                Some(Key::C),
-                false,
-                Modifiers::NONE
-            )]
-        );
+        assert_eq!(state.egui_input().events, vec![state_key_event(Key::C, Some(Key::C), false, Modifiers::NONE)]);
         feed_state(&ctx, &mut state);
         assert!(!ctx.input(|i| i.key_down(Key::C)));
 
         // A fresh press after release starts a new pair.
-        assert_eq!(
-            state.press_keyboard_input(code, Some(Key::C), Some(Key::C)),
-            Some(Key::C)
-        );
+        assert_eq!(state.press_keyboard_input(code, Some(Key::C), Some(Key::C)), Some(Key::C));
     }
 
     #[test]
@@ -394,30 +323,19 @@ mod tests {
         let mut state = test_state(ctx.clone());
         let code = physical(KeyCode::KeyZ);
 
-        assert_eq!(
-            state.press_keyboard_input(code, Some(Key::Z), Some(Key::Z)),
-            Some(Key::Z)
-        );
+        assert_eq!(state.press_keyboard_input(code, Some(Key::Z), Some(Key::Z)), Some(Key::Z));
         feed_state(&ctx, &mut state);
         assert!(ctx.input(|i| i.key_down(Key::Z)));
         assert_eq!(ctx.input(|i| i.num_presses(Key::Z)), 1);
 
         // A layout change on repeat keeps the originally emitted identity.
-        assert_eq!(
-            state.press_keyboard_input(code, Some(Key::Y), Some(Key::Y)),
-            Some(Key::Z)
-        );
+        assert_eq!(state.press_keyboard_input(code, Some(Key::Y), Some(Key::Y)), Some(Key::Z));
         let repeats: Vec<bool> = state
             .egui_input()
             .events
             .iter()
             .filter_map(|event| match event {
-                Event::Key {
-                    key,
-                    pressed: true,
-                    repeat,
-                    ..
-                } if *key == Key::Z => Some(*repeat),
+                Event::Key { key, pressed: true, repeat, .. } if *key == Key::Z => Some(*repeat),
                 _ => None,
             })
             .collect();
@@ -425,19 +343,7 @@ mod tests {
         feed_state(&ctx, &mut state);
         assert!(ctx.input(|i| i.key_down(Key::Z)));
         assert_eq!(ctx.input(|i| i.num_presses(Key::Z)), 1);
-        assert!(ctx.input(|i| {
-            i.events.iter().any(|event| {
-                matches!(
-                    event,
-                    Event::Key {
-                        key: Key::Z,
-                        pressed: true,
-                        repeat: true,
-                        ..
-                    }
-                )
-            })
-        }));
+        assert!(ctx.input(|i| { i.events.iter().any(|event| { matches!(event, Event::Key { key: Key::Z, pressed: true, repeat: true, .. }) }) }));
 
         state.release_keyboard_input(code);
         feed_state(&ctx, &mut state);

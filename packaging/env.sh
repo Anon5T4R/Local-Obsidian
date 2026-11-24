@@ -3,9 +3,9 @@
 #
 # Exports:
 #   ROOT                  workspace root
-#   VERSION               [workspace.package] version from Cargo.toml (override: LOCALOBSIDIAN_VERSION)
+#   VERSION               [workspace.package] version from Cargo.toml (override: LOCALNOTEBOOK_VERSION; the old LOCALOBSIDIAN_VERSION still works)
 #   DIST                  output directory for release artifacts (default: $ROOT/dist/release)
-#   LOCALOBSIDIAN_BUILD_DATE   UTC build date, YYYY-MM-DD
+#   LOCALNOTEBOOK_BUILD_DATE   UTC build date, YYYY-MM-DD
 #   CARGO_TARGET_DIR      cargo's target dir (default: $ROOT/target)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,7 +21,7 @@ workspace_version() {
   return $?
 }
 
-VERSION="${LOCALOBSIDIAN_VERSION:-$(workspace_version)}"
+VERSION="${LOCALNOTEBOOK_VERSION:-${LOCALOBSIDIAN_VERSION:-$(workspace_version)}}"
 if [[ -z "$VERSION" ]]; then
   echo "error: could not read [workspace.package] version from $ROOT/Cargo.toml" >&2
   exit 1
@@ -32,7 +32,7 @@ DIST="${DIST:-$ROOT/dist/release}"
 mkdir -p "$DIST"
 export DIST
 
-export LOCALOBSIDIAN_BUILD_DATE="${LOCALOBSIDIAN_BUILD_DATE:-$(date -u +%Y-%m-%d)}"
+export LOCALNOTEBOOK_BUILD_DATE="${LOCALNOTEBOOK_BUILD_DATE:-${LOCALOBSIDIAN_BUILD_DATE:-$(date -u +%Y-%m-%d)}}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 # Emit a GitHub Actions warning (plain stderr outside Actions).

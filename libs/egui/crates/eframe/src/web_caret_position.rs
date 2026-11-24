@@ -32,11 +32,7 @@ impl CaretGeometry {
     ///
     /// Only the caret rectangle and the canvas/zoom inputs are read. IME purpose, owner,
     /// context generation, selection and surrounding text deliberately do not participate.
-    pub fn from_ime(
-        ime: &egui::output::IMEOutput,
-        canvas: CanvasMetrics,
-        zoom_factor: f32,
-    ) -> Self {
+    pub fn from_ime(ime: &egui::output::IMEOutput, canvas: CanvasMetrics, zoom_factor: f32) -> Self {
         Self {
             cursor_center_x: ime.cursor_rect.center().x,
             cursor_center_y: ime.cursor_rect.center().y,
@@ -188,13 +184,7 @@ mod tests {
     }
 
     fn canvas() -> CanvasMetrics {
-        CanvasMetrics {
-            width: 800,
-            height: 600,
-            offset_left: 10,
-            offset_top: 20,
-            native_pixels_per_point: 2.0,
-        }
+        CanvasMetrics { width: 800, height: 600, offset_left: 10, offset_top: 20, native_pixels_per_point: 2.0 }
     }
 
     fn key_for(ime: &egui::output::IMEOutput) -> CaretPositionKey {
@@ -218,10 +208,6 @@ mod tests {
         let mut tracker = CaretPositionTracker::default();
         assert_eq!(tracker.update(Some(key())), Some(key()));
         assert_eq!(tracker.update(None), None);
-        assert_eq!(
-            tracker.update(Some(key())),
-            Some(key()),
-            "focus restoration must restore the caret position"
-        );
+        assert_eq!(tracker.update(Some(key())), Some(key()), "focus restoration must restore the caret position");
     }
 }

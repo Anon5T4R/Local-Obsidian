@@ -1,7 +1,7 @@
 //! Wikilink syntax: `[[Note]]`, `[[Note|alias]]`, `[[Note#Section]]`, `[[Folder/Note]]`.
 //!
 //! Everything here is syntax only. Resolving a target to a file needs the vault (which knows the
-//! notes), so it lives in `localobsidian-vault`; this module gives it the pieces: the target split
+//! notes), so it lives in `localnotebook-vault`; this module gives it the pieces: the target split
 //! apart, the normalised form two notes are compared by, and the text a link shows.
 
 /// A wikilink target split into its parts.

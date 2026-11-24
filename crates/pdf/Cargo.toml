@@ -1,5 +1,5 @@
 [package]
-name = "localobsidian-pdf"
+name = "localnotebook-pdf"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 # The reading view's block model: what a note *is* (headings, spans, tables, callouts).
-localobsidian-md = { workspace = true }
+localnotebook-md = { workspace = true }
 # The suite's PDF writer (Krilla): glyph runs with embedded, subsetted fonts and a Unicode map.
 craft-pdf = { workspace = true, features = ["write"] }
 # Glyph ids and advances for the embedded faces (already in the tree: epaint shapes with it).

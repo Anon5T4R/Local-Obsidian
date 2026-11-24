@@ -26,18 +26,9 @@
 //! `--verify-png FILE` decodes an externally copied PNG and prints its exact straight-alpha RGBA,
 //! alpha channel, and whether it matches the probe's 2x2 seed. It exits non-zero on mismatch.
 
-#![allow(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    reason = "stdout/stderr carry this probe's test protocol and diagnostics"
-)]
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "stdout/stderr carry this probe's test protocol and diagnostics")]
 
-#[cfg(all(
-    target_os = "linux",
-    feature = "wayland",
-    feature = "clipboard",
-    feature = "clipboard-image"
-))]
+#[cfg(all(target_os = "linux", feature = "wayland", feature = "clipboard", feature = "clipboard-image"))]
 mod probe {
     use core::{fmt::Write as _, num::NonZeroU32, time::Duration};
     use std::{path::Path, sync::Arc, time::Instant};
@@ -126,19 +117,13 @@ mod probe {
     }
 
     fn fnv1a(bytes: &[u8]) -> u64 {
-        bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
-            (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
-        })
+        bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3))
     }
 
     fn seed_matches(image: &ColorImage) -> bool {
         image.size == [2, 2]
             && image.pixels.len() == SEED_RGBA.len()
-            && image
-                .pixels
-                .iter()
-                .zip(SEED_RGBA)
-                .all(|(pixel, expected)| pixel.to_srgba_unmultiplied() == expected)
+            && image.pixels.iter().zip(SEED_RGBA).all(|(pixel, expected)| pixel.to_srgba_unmultiplied() == expected)
     }
 
     fn log_image(label: &str, frame: u64, index: usize, image: &ColorImage) {
@@ -167,32 +152,20 @@ mod probe {
 
     impl Renderer {
         fn new(window: &Arc<Window>) -> Result<Self, String> {
-            let context = softbuffer::Context::new(Arc::clone(window))
-                .map_err(|error| format!("softbuffer context: {error}"))?;
-            let surface = softbuffer::Surface::new(&context, Arc::clone(window))
-                .map_err(|error| format!("softbuffer surface: {error}"))?;
-            Ok(Self {
-                surface,
-                _context: context,
-            })
+            let context = softbuffer::Context::new(Arc::clone(window)).map_err(|error| format!("softbuffer context: {error}"))?;
+            let surface = softbuffer::Surface::new(&context, Arc::clone(window)).map_err(|error| format!("softbuffer surface: {error}"))?;
+            Ok(Self { surface, _context: context })
         }
 
         fn present(&mut self, frame: u64) -> Result<(u32, u32), String> {
             let size = self.surface.window().inner_size();
-            let (Some(width), Some(height)) =
-                (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-            else {
+            let (Some(width), Some(height)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) else {
                 // A first RedrawRequested before the initial configure is harmless: a later
                 // Resized/redraw presents once the surface has a real size.
                 return Ok((0, 0));
             };
-            self.surface
-                .resize(width, height)
-                .map_err(|error| format!("softbuffer resize: {error}"))?;
-            let mut buffer = self
-                .surface
-                .buffer_mut()
-                .map_err(|error| format!("softbuffer buffer: {error}"))?;
+            self.surface.resize(width, height).map_err(|error| format!("softbuffer resize: {error}"))?;
+            let mut buffer = self.surface.buffer_mut().map_err(|error| format!("softbuffer buffer: {error}"))?;
             let buffer_width = buffer.width().get();
             let buffer_height = buffer.height().get();
 
@@ -200,8 +173,7 @@ mod probe {
                 let x = index as u32 % buffer_width;
                 let y = index as u32 / buffer_width;
                 let checker = ((x / 32) + (y / 32)) & 1 == 0;
-                let (mut red, mut green, mut blue): (u8, u8, u8) =
-                    if checker { (24, 28, 36) } else { (16, 18, 24) };
+                let (mut red, mut green, mut blue): (u8, u8, u8) = if checker { (24, 28, 36) } else { (16, 18, 24) };
 
                 // A visible status strip proves an actual present, not just CPU buffer writes.
                 if y < 8 {
@@ -219,9 +191,7 @@ mod probe {
                 *pixel = (u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue);
             }
 
-            buffer
-                .present()
-                .map_err(|error| format!("softbuffer present: {error}"))?;
+            buffer.present().map_err(|error| format!("softbuffer present: {error}"))?;
             Ok((buffer_width, buffer_height))
         }
     }
@@ -293,9 +263,7 @@ mod probe {
                     egui::Event::Cut => {
                         println!("RAW_CUT frame={} index={}", self.frame, index);
                     }
-                    egui::Event::Key {
-                        key, pressed: true, ..
-                    } => {
+                    egui::Event::Key { key, pressed: true, .. } => {
                         println!("RAW_KEY frame={} index={} key={key:?}", self.frame, index);
                     }
                     _ => {}
@@ -399,16 +367,8 @@ mod probe {
             output.drop_without_applying_deltas();
             {
                 let state = self.state.as_mut().expect("state checked above");
-                state.handle_platform_output_with_event_loop(
-                    window.as_ref(),
-                    event_loop,
-                    platform_output,
-                );
-                println!(
-                    "FRAME {} END failures={}",
-                    frame,
-                    state.clipboard_failure_count()
-                );
+                state.handle_platform_output_with_event_loop(window.as_ref(), event_loop, platform_output);
+                println!("FRAME {} END failures={}", frame, state.clipboard_failure_count());
                 println!(
                     "FRAME {} EGUI_STATE take_egui_input=1 handle_platform_output_with_event_loop=1 window_events={}",
                     frame, self.window_events
@@ -438,10 +398,7 @@ mod probe {
             if !self.mapped && self.presented_once {
                 self.mapped = true;
                 let size = window.inner_size();
-                println!(
-                    "WINDOW_MAPPED frame={} title={:?} size={}x{}",
-                    frame, WINDOW_TITLE, size.width, size.height
-                );
+                println!("WINDOW_MAPPED frame={} title={:?} size={}x{}", frame, WINDOW_TITLE, size.width, size.height);
             }
         }
     }
@@ -463,10 +420,7 @@ mod probe {
                 OutputCommand::CopyImage(image) => {
                     regular = "image";
                     log_image("PLATFORM_IMAGE", frame, index, image);
-                    println!(
-                        "FRAME {frame} PLATFORM_COMMAND index={index} kind=CopyImage dims={}x{}",
-                        image.size[0], image.size[1]
-                    );
+                    println!("FRAME {frame} PLATFORM_COMMAND index={index} kind=CopyImage dims={}x{}", image.size[0], image.size[1]);
                 }
                 OutputCommand::TextSelectionSettled(text) => {
                     primary = true;
@@ -477,17 +431,11 @@ mod probe {
                     );
                 }
                 OutputCommand::OpenUrl(open_url) => {
-                    println!(
-                        "FRAME {frame} PLATFORM_COMMAND index={index} kind=OpenUrl url={:?}",
-                        open_url.url
-                    );
+                    println!("FRAME {frame} PLATFORM_COMMAND index={index} kind=OpenUrl url={:?}", open_url.url);
                 }
             }
         }
-        println!(
-            "FRAME {frame} BATCH regular={regular} primary={}",
-            if primary { "text" } else { "none" }
-        );
+        println!("FRAME {frame} BATCH regular={regular} primary={}", if primary { "text" } else { "none" });
     }
 
     impl ApplicationHandler<UserEvent> for App {
@@ -496,18 +444,15 @@ mod probe {
                 return;
             }
 
-            let window = match event_loop.create_window(
-                Window::default_attributes()
-                    .with_title(WINDOW_TITLE)
-                    .with_inner_size(PhysicalSize::new(720, 480)),
-            ) {
-                Ok(window) => Arc::new(window),
-                Err(error) => {
-                    eprintln!("failed to create probe window: {error}");
-                    event_loop.exit();
-                    return;
-                }
-            };
+            let window =
+                match event_loop.create_window(Window::default_attributes().with_title(WINDOW_TITLE).with_inner_size(PhysicalSize::new(720, 480))) {
+                    Ok(window) => Arc::new(window),
+                    Err(error) => {
+                        eprintln!("failed to create probe window: {error}");
+                        event_loop.exit();
+                        return;
+                    }
+                };
 
             let renderer = match Renderer::new(&window) {
                 Ok(renderer) => renderer,
@@ -518,20 +463,10 @@ mod probe {
                 }
             };
 
-            let state = egui_winit::State::new(
-                self.egui_ctx.clone(),
-                ViewportId::ROOT,
-                window.as_ref(),
-                Some(window.scale_factor() as f32),
-                None,
-                None,
-            );
+            let state =
+                egui_winit::State::new(self.egui_ctx.clone(), ViewportId::ROOT, window.as_ref(), Some(window.scale_factor() as f32), None, None);
 
-            println!(
-                "STATE_READY egui_winit_state=true wayland={} viewport={:?}",
-                event_loop.is_wayland(),
-                ViewportId::ROOT
-            );
+            println!("STATE_READY egui_winit_state=true wayland={} viewport={:?}", event_loop.is_wayland(), ViewportId::ROOT);
             println!("USES_EGUI_WINIT_STATE=true");
             self.state = Some(state);
             self.renderer = Some(renderer);
@@ -546,12 +481,7 @@ mod probe {
             }
         }
 
-        fn window_event(
-            &mut self,
-            event_loop: &ActiveEventLoop,
-            _window_id: WindowId,
-            event: WindowEvent,
-        ) {
+        fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
             let Some(window) = self.window.clone() else {
                 return;
             };
@@ -596,10 +526,7 @@ mod probe {
 
         fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
             if self.started.elapsed() > PROBE_BUDGET {
-                println!(
-                    "PROBE_TIMEOUT elapsed_s={}",
-                    self.started.elapsed().as_secs()
-                );
+                println!("PROBE_TIMEOUT elapsed_s={}", self.started.elapsed().as_secs());
                 event_loop.exit();
                 return;
             }
@@ -607,34 +534,22 @@ mod probe {
         }
 
         fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-            println!(
-                "EXIT frame={} mapped={} presented_once={}",
-                self.frame, self.mapped, self.presented_once
-            );
+            println!("EXIT frame={} mapped={} presented_once={}", self.frame, self.mapped, self.presented_once);
         }
     }
 
     pub fn run() {
         let egui_ctx = egui::Context::default();
-        let event_loop = EventLoop::<UserEvent>::with_user_event()
-            .with_wayland()
-            .build()
-            .expect("build Wayland event loop");
+        let event_loop = EventLoop::<UserEvent>::with_user_event().with_wayland().build().expect("build Wayland event loop");
         // `EventLoopProxy` is Send but not necessarily Sync; egui requires a Send + Sync callback.
         let proxy = Arc::new(Mutex::new(event_loop.create_proxy()));
         egui_ctx.set_request_repaint_callback(move |info| {
-            println!(
-                "REPAINT_CALLBACK viewport={:?} thread={:?}",
-                info.viewport_id,
-                std::thread::current().name()
-            );
+            println!("REPAINT_CALLBACK viewport={:?} thread={:?}", info.viewport_id, std::thread::current().name());
             let _ = proxy.lock().send_event(UserEvent::Wake);
         });
 
         let mut app = App::new(egui_ctx);
-        event_loop
-            .run_app(&mut app)
-            .expect("run native clipboard image probe");
+        event_loop.run_app(&mut app).expect("run native clipboard image probe");
     }
 
     pub fn verify_window(path: &Path) -> Result<(), String> {
@@ -651,22 +566,15 @@ mod probe {
                 }
             }
         }
-        println!(
-            "WINDOW_VERIFY dims={}x{} swatch_pixels={counts:?}",
-            image.width(),
-            image.height()
-        );
+        println!("WINDOW_VERIFY dims={}x{} swatch_pixels={counts:?}", image.width(), image.height());
         if counts.iter().any(|count| *count < 64) {
-            return Err(
-                "the compositor screenshot does not contain all three painted swatches".to_owned(),
-            );
+            return Err("the compositor screenshot does not contain all three painted swatches".to_owned());
         }
         Ok(())
     }
 
     pub fn verify_png(path: &Path) -> Result<(), String> {
-        let bytes =
-            std::fs::read(path).map_err(|error| format!("read {}: {error}", path.display()))?;
+        let bytes = std::fs::read(path).map_err(|error| format!("read {}: {error}", path.display()))?;
         let image = image::ImageReader::open(path)
             .map_err(|error| format!("open {}: {error}", path.display()))?
             .with_guessed_format()
@@ -678,11 +586,7 @@ mod probe {
         let expected = seed_rgba_bytes();
         let dimensions_match = rgba.width() == 2 && rgba.height() == 2;
         let seed_ok = dimensions_match && raw.as_slice() == expected.as_slice();
-        let alpha_hex = if raw.len() >= 16 {
-            hex(&[raw[3], raw[7], raw[11], raw[15]])
-        } else {
-            "short".to_owned()
-        };
+        let alpha_hex = if raw.len() >= 16 { hex(&[raw[3], raw[7], raw[11], raw[15]]) } else { "short".to_owned() };
 
         println!(
             "PNG_VERIFY path={} bytes={} dims={}x{} rgba_hex={} rgba_fnv={:016x} alpha_hex={} seed_rgba_match={}",
@@ -697,23 +601,13 @@ mod probe {
         );
 
         if !seed_ok {
-            return Err(format!(
-                "decoded PNG does not match the 2x2 seed (dims {}x{}, rgba {})",
-                rgba.width(),
-                rgba.height(),
-                hex(raw),
-            ));
+            return Err(format!("decoded PNG does not match the 2x2 seed (dims {}x{}, rgba {})", rgba.width(), rgba.height(), hex(raw),));
         }
         Ok(())
     }
 }
 
-#[cfg(all(
-    target_os = "linux",
-    feature = "wayland",
-    feature = "clipboard",
-    feature = "clipboard-image"
-))]
+#[cfg(all(target_os = "linux", feature = "wayland", feature = "clipboard", feature = "clipboard-image"))]
 fn main() {
     let mut arguments = std::env::args_os().skip(1);
     match arguments.next() {
@@ -749,12 +643,7 @@ fn main() {
     }
 }
 
-#[cfg(not(all(
-    target_os = "linux",
-    feature = "wayland",
-    feature = "clipboard",
-    feature = "clipboard-image"
-)))]
+#[cfg(not(all(target_os = "linux", feature = "wayland", feature = "clipboard", feature = "clipboard-image")))]
 fn main() {
     eprintln!(
         "clipboard_image_probe requires Linux Wayland with egui-winit features \

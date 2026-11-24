@@ -175,7 +175,7 @@ lock-in. Tudo continua sendo arquivos de texto na sua pasta.
 ```
 app/src/main/kotlin/com/openobsidian/android/
 ├── MainActivity.kt            # Entry point, tema, navegação de topo
-├── OpenObsidianApp.kt         # Application; instancia os repositórios
+├── LocalNotebookApp.kt         # Application; instancia os repositórios
 ├── data/
 │   ├── AppSettings.kt         # Modelo de settings + CompositionLocal
 │   ├── SettingsRepository.kt  # Settings persistidos via DataStore

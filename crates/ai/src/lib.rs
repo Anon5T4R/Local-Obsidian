@@ -13,9 +13,66 @@ use std::sync::mpsc::{Receiver, channel};
 
 pub use local_ai::{Connection, Msg, PROVIDERS, Provider, provider};
 
-/// This app's identity in the shared crate: the data folder (`<data dir>/LocalObsidian`), the
+/// This app's identity in the shared crate: the data folder (`<data dir>/LocalNotebook`), the
 /// keychain service and what OpenRouter sees as referer.
-pub const APP: local_ai::App = local_ai::App { id: "LocalObsidian", url: "https://github.com/Anon5T4R/Local-Obsidian" };
+pub const APP: local_ai::App = local_ai::App { id: "LocalNotebook", url: "https://github.com/Anon5T4R/Local-Obsidian" };
+
+/// The identity under the product's old name (Local Obsidian): the data folder and the keychain
+/// service the connections and their keys were saved under before the rename.
+pub const LEGACY_APP: local_ai::App = local_ai::App { id: "LocalObsidian", url: APP.url };
+
+/// The folder the connections file lives in (`<data dir>/LocalNotebook`), when the system has a
+/// data dir. The app moves the old folder here on the first start after the rename.
+pub fn data_dir() -> Option<std::path::PathBuf> {
+    Connection::store_path(&APP).and_then(|file| file.parent().map(std::path::Path::to_path_buf))
+}
+
+/// The folder the connections file lived in under the old name.
+pub fn legacy_data_dir() -> Option<std::path::PathBuf> {
+    Connection::store_path(&LEGACY_APP).and_then(|file| file.parent().map(std::path::Path::to_path_buf))
+}
+
+/// Copies the API keys saved under the old keychain service to the current one, for every saved
+/// connection that has none yet. A key already under the current service is never replaced, the
+/// old entries stay where they are, and a keychain that can't be read is skipped (logged, never
+/// fatal). Returns how many keys were copied.
+pub fn migrate_legacy_keys() -> usize {
+    let all = match connections() {
+        Ok(all) => all,
+        Err(e) => {
+            log::warn!("legacy AI keys: the connections can't be read: {e}");
+            return 0;
+        }
+    };
+    migrate_keys(&all, |c| c.has_key(&APP), |c| c.key(&LEGACY_APP).unwrap_or_default(), |c, key| c.set_key(&APP, key))
+}
+
+/// [`migrate_legacy_keys`] with the keychain behind three closures (so it can be tested).
+fn migrate_keys(
+    all: &[Connection],
+    has_current: impl Fn(&Connection) -> bool,
+    legacy_key: impl Fn(&Connection) -> String,
+    set_current: impl Fn(&Connection, &str) -> Result<(), String>,
+) -> usize {
+    let mut copied = 0;
+    for connection in all {
+        if has_current(connection) {
+            continue;
+        }
+        let key = legacy_key(connection);
+        if key.is_empty() {
+            continue;
+        }
+        match set_current(connection, &key) {
+            Ok(()) => {
+                log::info!("copied the API key of connection `{}` to the Local Notebook keychain entry", connection.id);
+                copied += 1;
+            }
+            Err(e) => log::warn!("couldn't copy the API key of connection `{}`: {e}", connection.id),
+        }
+    }
+    copied
+}
 
 /// The connections the user saved. A missing file is no connections, not an error.
 pub fn connections() -> Result<Vec<Connection>, String> {
@@ -263,8 +320,51 @@ mod tests {
 
     #[test]
     fn the_identity_is_this_app() {
-        assert_eq!(APP.id, "LocalObsidian");
+        assert_eq!(APP.id, "LocalNotebook");
         assert!(APP.url.contains("Local-Obsidian"));
+    }
+
+    fn connection(id: &str) -> Connection {
+        Connection { id: id.into(), provider: "custom".into(), label: id.into(), base_url: String::new(), model: String::new() }
+    }
+
+    #[test]
+    fn the_old_identity_only_differs_in_the_name() {
+        assert_eq!(LEGACY_APP.id, "LocalObsidian");
+        assert_eq!(LEGACY_APP.url, APP.url);
+        assert_ne!(data_dir(), legacy_data_dir());
+    }
+
+    #[test]
+    fn legacy_keys_are_copied_once_and_never_overwrite() {
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+
+        let all = [connection("a"), connection("b"), connection("c"), connection("d")];
+        let current: RefCell<HashMap<String, String>> = RefCell::new(HashMap::from([("b".to_string(), "new-b".to_string())]));
+        let legacy: HashMap<&str, &str> = HashMap::from([("a", "old-a"), ("b", "old-b"), ("d", "")]);
+        let run = || {
+            migrate_keys(
+                &all,
+                |c| current.borrow().get(&c.id).is_some_and(|k| !k.is_empty()),
+                |c| legacy.get(c.id.as_str()).map(|k| (*k).to_string()).unwrap_or_default(),
+                |c, key| {
+                    current.borrow_mut().insert(c.id.clone(), key.to_string());
+                    Ok(())
+                },
+            )
+        };
+        assert_eq!(run(), 1, "only `a` has an old key and no new one");
+        assert_eq!(current.borrow().get("a").map(String::as_str), Some("old-a"));
+        assert_eq!(current.borrow().get("b").map(String::as_str), Some("new-b"), "an existing key is kept");
+        assert!(!current.borrow().contains_key("c") && !current.borrow().contains_key("d"));
+        assert_eq!(run(), 0, "the second start has nothing to copy");
+    }
+
+    #[test]
+    fn a_keychain_that_refuses_is_not_fatal() {
+        let all = [connection("a")];
+        assert_eq!(migrate_keys(&all, |_| false, |_| "k".into(), |_, _| Err("locked".into())), 0);
     }
 
     #[test]

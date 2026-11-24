@@ -38,32 +38,12 @@ struct RowCaret {
 impl Cluster {
     /// The cursor on the left edge of this cluster, sticking to it.
     fn left_caret(self) -> RowCaret {
-        if self.rtl {
-            RowCaret {
-                column: self.end,
-                downstream: false,
-            }
-        } else {
-            RowCaret {
-                column: self.start,
-                downstream: true,
-            }
-        }
+        if self.rtl { RowCaret { column: self.end, downstream: false } } else { RowCaret { column: self.start, downstream: true } }
     }
 
     /// The cursor on the right edge of this cluster, sticking to it.
     fn right_caret(self) -> RowCaret {
-        if self.rtl {
-            RowCaret {
-                column: self.start,
-                downstream: true,
-            }
-        } else {
-            RowCaret {
-                column: self.end,
-                downstream: false,
-            }
-        }
+        if self.rtl { RowCaret { column: self.start, downstream: true } } else { RowCaret { column: self.end, downstream: false } }
     }
 }
 
@@ -71,25 +51,10 @@ impl Cluster {
 /// stop `k` is left of cluster `k`, and stop `clusters.len()` is the right end of the row.
 fn stop_of(clusters: &[Cluster], caret: RowCaret) -> usize {
     let column = caret.column;
-    let after = clusters
-        .iter()
-        .position(|c| c.start == column)
-        .map(|i| (i, true));
-    let before = clusters
-        .iter()
-        .position(|c| c.end == column)
-        .map(|i| (i, false));
-    let inside = || {
-        clusters
-            .iter()
-            .position(|c| c.start < column && column < c.end)
-            .map(|i| (i, true))
-    };
-    let attached = if caret.downstream {
-        after.or(before)
-    } else {
-        before.or(after)
-    };
+    let after = clusters.iter().position(|c| c.start == column).map(|i| (i, true));
+    let before = clusters.iter().position(|c| c.end == column).map(|i| (i, false));
+    let inside = || clusters.iter().position(|c| c.start < column && column < c.end).map(|i| (i, true));
+    let attached = if caret.downstream { after.or(before) } else { before.or(after) };
     let Some((i, at_start)) = attached.or_else(inside) else {
         return 0;
     };
@@ -100,20 +65,10 @@ fn stop_of(clusters: &[Cluster], caret: RowCaret) -> usize {
 /// The cursor at stop `stop`, sticking to the cluster on its left if `stick_left` and there is one,
 /// otherwise to the one on its right.
 fn caret_at_stop(clusters: &[Cluster], stop: usize, stick_left: bool) -> RowCaret {
-    let from_left = stop
-        .checked_sub(1)
-        .and_then(|i| clusters.get(i))
-        .map(|c| c.right_caret());
+    let from_left = stop.checked_sub(1).and_then(|i| clusters.get(i)).map(|c| c.right_caret());
     let from_right = clusters.get(stop).map(|c| c.left_caret());
-    let caret = if stick_left {
-        from_left.or(from_right)
-    } else {
-        from_right.or(from_left)
-    };
-    caret.unwrap_or(RowCaret {
-        column: 0,
-        downstream: true,
-    })
+    let caret = if stick_left { from_left.or(from_right) } else { from_right.or(from_left) };
+    caret.unwrap_or(RowCaret { column: 0, downstream: true })
 }
 
 impl Row {
@@ -137,11 +92,7 @@ impl Row {
             if !seen[i] {
                 seen[i] = true;
                 let range = &ranges[i];
-                clusters.push(Cluster {
-                    start: range.start,
-                    end: range.end,
-                    rtl: self.glyphs[range.start].is_rtl(),
-                });
+                clusters.push(Cluster { start: range.start, end: range.end, rtl: self.glyphs[range.start].is_rtl() });
             }
         }
         clusters
@@ -154,17 +105,9 @@ impl Row {
     /// and the cursor goes on the edge of the one it sticks to.
     pub fn x_offset_with_affinity(&self, column: CharIndex, downstream: bool) -> f32 {
         let c = column.0;
-        if !downstream
-            && 0 < c
-            && c < self.glyphs.len()
-            && self.glyphs[c - 1].bidi_level != self.glyphs[c].bidi_level
-        {
+        if !downstream && 0 < c && c < self.glyphs.len() && self.glyphs[c - 1].bidi_level != self.glyphs[c].bidi_level {
             let before = &self.glyphs[grapheme::previous_boundary(&self.text(), column).0];
-            return if before.is_rtl() {
-                before.pos.x
-            } else {
-                before.max_x()
-            };
+            return if before.is_rtl() { before.pos.x } else { before.max_x() };
         }
         self.x_offset(column)
     }
@@ -181,11 +124,7 @@ impl Row {
             return (column, true);
         }
         // Stick to whichever neighbor of `column` is nearer to `desired_x`.
-        let distance = |glyph: &super::Glyph| {
-            (glyph.pos.x - desired_x)
-                .max(desired_x - glyph.max_x())
-                .max(0.0)
-        };
+        let distance = |glyph: &super::Glyph| (glyph.pos.x - desired_x).max(desired_x - glyph.max_x()).max(0.0);
         let before = &self.glyphs[grapheme::previous_boundary(&self.text(), column).0];
         (column, distance(&self.glyphs[c]) <= distance(before))
     }
@@ -218,11 +157,7 @@ impl Words {
             segment.extend(word.chars().map(|_| id));
             is_word.push(word.chars().all(|c| c.is_alphanumeric() || c == '_'));
         }
-        Self {
-            chars: text.chars().collect(),
-            segment,
-            is_word,
-        }
+        Self { chars: text.chars().collect(), segment, is_word }
     }
 
     /// Does word motion stop before the char at `inside`, coming from `across`
@@ -234,36 +169,25 @@ impl Words {
         let Some(&segment) = self.segment.get(inside) else {
             return true;
         };
-        !self.is_word[segment as usize]
-            && (self.chars[inside] == '.'
-                || across.is_none_or(|across| self.segment.get(across) != Some(&segment)))
+        !self.is_word[segment as usize] && (self.chars[inside] == '.' || across.is_none_or(|across| self.segment.get(across) != Some(&segment)))
     }
 }
 
 /// ## Cursor movement on screen
 impl Galley {
     fn row_start(&self, row: usize) -> usize {
-        self.rows[..row]
-            .iter()
-            .map(|row| row.char_count_including_newline().0)
-            .sum()
+        self.rows[..row].iter().map(|row| row.char_count_including_newline().0).sum()
     }
 
     fn row_caret(&self, cursor: &CCursor) -> (usize, RowCaret) {
         let layout = self.layout_from_cursor(*cursor);
         let row = layout.row.min(self.rows.len() - 1);
-        let caret = RowCaret {
-            column: layout.column.0.min(self.rows[row].glyphs.len()),
-            downstream: cursor.prefer_next_row,
-        };
+        let caret = RowCaret { column: layout.column.0.min(self.rows[row].glyphs.len()), downstream: cursor.prefer_next_row };
         (row, caret)
     }
 
     fn cursor_from_row_caret(&self, row: usize, caret: RowCaret) -> CCursor {
-        CCursor {
-            index: CharIndex(self.row_start(row) + caret.column),
-            prefer_next_row: caret.downstream,
-        }
+        CCursor { index: CharIndex(self.row_start(row) + caret.column), prefer_next_row: caret.downstream }
     }
 
     /// Does `row` wrap onto the next row, rather than end its paragraph?
@@ -282,17 +206,9 @@ impl Galley {
     /// The x coordinate, in galley coordinates, of a cursor at `column` of `row`.
     pub(crate) fn caret_x(&self, row: usize, column: CharIndex, downstream: bool) -> f32 {
         let placed_row = &self.rows[row];
-        if placed_row.glyphs.is_empty()
-            && placed_row.rtl_paragraph
-            && self.job.halign == Align::Min
-            && self.job.halign_min_is_start
-        {
+        if placed_row.glyphs.is_empty() && placed_row.rtl_paragraph && self.job.halign == Align::Min && self.job.halign_min_is_start {
             // An empty right-to-left row starts where the other right-to-left rows do:
-            return self
-                .rows
-                .iter()
-                .map(|row| row.pos.x + row.size.x)
-                .fold(0.0, f32::max);
+            return self.rows.iter().map(|row| row.pos.x + row.size.x).fold(0.0, f32::max);
         }
         placed_row.pos.x + placed_row.x_offset_with_affinity(column, downstream)
     }
@@ -322,36 +238,18 @@ impl Galley {
         let stop = stop_of(&clusters, caret);
         let forward = rightward != self.rows[row].rtl_paragraph;
 
-        let target = if rightward {
-            (stop < clusters.len()).then_some(stop + 1)
-        } else {
-            stop.checked_sub(1)
-        };
+        let target = if rightward { (stop < clusters.len()).then_some(stop + 1) } else { stop.checked_sub(1) };
         if let Some(target) = target {
             let caret = caret_at_stop(&clusters, target, rightward);
-            let end_of_row = if self.rows[row].rtl_paragraph {
-                0
-            } else {
-                clusters.len()
-            };
-            if target == end_of_row
-                && caret.column == self.rows[row].glyphs.len()
-                && self.wraps(row)
-            {
+            let end_of_row = if self.rows[row].rtl_paragraph { 0 } else { clusters.len() };
+            if target == end_of_row && caret.column == self.rows[row].glyphs.len() && self.wraps(row) {
                 // The end of a wrapped row is the start of the next row; show it there.
-                return CCursor {
-                    index: CharIndex(self.row_start(row) + caret.column),
-                    prefer_next_row: true,
-                };
+                return CCursor { index: CharIndex(self.row_start(row) + caret.column), prefer_next_row: true };
             }
             return self.cursor_from_row_caret(row, caret);
         }
 
-        let next_row = if forward {
-            Some(row + 1).filter(|&r| r < self.rows.len())
-        } else {
-            row.checked_sub(1)
-        };
+        let next_row = if forward { Some(row + 1).filter(|&r| r < self.rows.len()) } else { row.checked_sub(1) };
         let Some(next_row) = next_row else {
             return *cursor;
         };
@@ -392,9 +290,7 @@ impl Galley {
             let placed_row = &self.rows[row];
             let forward = rightward != placed_row.rtl_paragraph;
             let edge = if rightward { clusters.len() } else { 0 };
-            let at = |stop: usize| {
-                self.cursor_from_row_caret(row, caret_at_stop(&clusters, stop, rightward))
-            };
+            let at = |stop: usize| self.cursor_from_row_caret(row, caret_at_stop(&clusters, stop, rightward));
 
             let mut k = stop;
             while k != edge {
@@ -402,36 +298,20 @@ impl Galley {
                 if k == edge {
                     break;
                 }
-                let (inside, across) = if rightward {
-                    (clusters[k], clusters[k - 1])
-                } else {
-                    (clusters[k - 1], clusters[k])
-                };
+                let (inside, across) = if rightward { (clusters[k], clusters[k - 1]) } else { (clusters[k - 1], clusters[k]) };
                 if words.stops_before(row_start + inside.start, Some(row_start + across.start)) {
                     return at(k);
                 }
             }
 
             // The edge of the row: a paragraph break, the end of the text, or a row wrap.
-            let soft = if forward {
-                self.wraps(row)
-            } else {
-                row > 0 && self.wraps(row - 1)
-            };
+            let soft = if forward { self.wraps(row) } else { row > 0 && self.wraps(row - 1) };
             if stop != edge {
                 if !soft {
                     return at(edge);
                 }
-                let boundary = if forward {
-                    row_start + placed_row.char_count_including_newline().0
-                } else {
-                    row_start
-                };
-                let edge_cluster = if rightward {
-                    clusters.last()
-                } else {
-                    clusters.first()
-                };
+                let boundary = if forward { row_start + placed_row.char_count_including_newline().0 } else { row_start };
+                let edge_cluster = if rightward { clusters.last() } else { clusters.first() };
                 let (inside, across) = if forward {
                     (boundary, edge_cluster.map(|c| row_start + c.start))
                 } else {
@@ -440,20 +320,12 @@ impl Galley {
                 if words.stops_before(inside, across) {
                     let cursor = at(edge);
                     // The end of a wrapped row is the start of the next row; show it there.
-                    let prefer_next_row =
-                        cursor.prefer_next_row || (forward && cursor.index.0 == boundary);
-                    return CCursor {
-                        prefer_next_row,
-                        ..cursor
-                    };
+                    let prefer_next_row = cursor.prefer_next_row || (forward && cursor.index.0 == boundary);
+                    return CCursor { prefer_next_row, ..cursor };
                 }
             }
 
-            let next_row = if forward {
-                Some(row + 1).filter(|&r| r < self.rows.len())
-            } else {
-                row.checked_sub(1)
-            };
+            let next_row = if forward { Some(row + 1).filter(|&r| r < self.rows.len()) } else { row.checked_sub(1) };
             let Some(next_row) = next_row else {
                 return at(edge);
             };
@@ -471,11 +343,7 @@ impl Galley {
                 // A paragraph of the other direction, entered at the far side.
                 return entry;
             }
-            let inside = if rightward {
-                clusters.first()
-            } else {
-                clusters.last()
-            };
+            let inside = if rightward { clusters.first() } else { clusters.last() };
             match inside {
                 Some(inside) if !words.stops_before(self.row_start(row) + inside.start, None) => {}
                 _ => return entry,
@@ -538,12 +406,7 @@ mod tests {
 
     fn layout(text: &str, direction: TextDirection, wrap_width: f32) -> Arc<Galley> {
         let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::default());
-        let mut job = LayoutJob::simple(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            wrap_width,
-        );
+        let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), Color32::WHITE, wrap_width);
         job.direction = direction;
         fonts.with_pixels_per_point(1.0).layout_job(job)
     }
@@ -578,13 +441,7 @@ mod tests {
     fn assert_moves_on_screen(galley: &Galley, cursors: &[CCursor], rightward: bool) {
         for pair in cursors.windows(2) {
             let (a, b) = (x(galley, pair[0]), x(galley, pair[1]));
-            assert!(
-                if rightward { a < b } else { b < a },
-                "{:?}: {:?} at {a} to {:?} at {b}",
-                galley.text(),
-                pair[0],
-                pair[1]
-            );
+            assert!(if rightward { a < b } else { b < a }, "{:?}: {:?} at {a} to {:?} at {b}", galley.text(), pair[0], pair[1]);
         }
     }
 
@@ -593,11 +450,7 @@ mod tests {
         let row = &galley.rows[0];
         let left_end = galley.cursor_left_end_of_row(&galley.begin());
         let right_end = galley.cursor_right_end_of_row(&galley.begin());
-        let left = row
-            .glyphs
-            .iter()
-            .map(|g| g.pos.x)
-            .fold(f32::INFINITY, f32::min);
+        let left = row.glyphs.iter().map(|g| g.pos.x).fold(f32::INFINITY, f32::min);
         assert_eq!(x(galley, left_end), row.pos.x + left);
 
         let cursors = presses(galley, left_end, |c| galley.cursor_right_visually(c));
@@ -614,17 +467,9 @@ mod tests {
     #[test]
     fn arrows_move_on_screen_in_mixed_text() {
         // On screen: "abc גבא def"
-        assert_arrow_sequences(
-            &auto("abc אבג def"),
-            &[0, 1, 2, 3, 4, 6, 5, 4, 8, 9, 10, 11],
-            &[11, 10, 9, 8, 7, 5, 6, 7, 3, 2, 1, 0],
-        );
+        assert_arrow_sequences(&auto("abc אבג def"), &[0, 1, 2, 3, 4, 6, 5, 4, 8, 9, 10, 11], &[11, 10, 9, 8, 7, 5, 6, 7, 3, 2, 1, 0]);
         // A right-to-left paragraph, on screen: "abc גבא"
-        assert_arrow_sequences(
-            &auto("אבג abc"),
-            &[4, 5, 6, 7, 3, 2, 1, 0],
-            &[0, 1, 2, 3, 4, 6, 5, 4],
-        );
+        assert_arrow_sequences(&auto("אבג abc"), &[4, 5, 6, 7, 3, 2, 1, 0], &[0, 1, 2, 3, 4, 6, 5, 4]);
         // Digits are left-to-right within Arabic, on screen: "رانيد 123 نمث"
         assert_arrow_sequences(
             &auto("ثمن 123 دينار"),
@@ -634,12 +479,8 @@ mod tests {
         // Three levels: digits (2) in Hebrew (1) in English (0), on screen: "abc והד 123 גבא def"
         assert_arrow_sequences(
             &auto("abc אבג 123 דהו def"),
-            &[
-                0, 1, 2, 3, 4, 14, 13, 12, 11, 9, 10, 11, 7, 6, 5, 4, 16, 17, 18, 19,
-            ],
-            &[
-                19, 18, 17, 16, 15, 5, 6, 7, 8, 10, 9, 8, 12, 13, 14, 15, 3, 2, 1, 0,
-            ],
+            &[0, 1, 2, 3, 4, 14, 13, 12, 11, 9, 10, 11, 7, 6, 5, 4, 16, 17, 18, 19],
+            &[19, 18, 17, 16, 15, 5, 6, 7, 8, 10, 9, 8, 12, 13, 14, 15, 3, 2, 1, 0],
         );
     }
 
@@ -648,41 +489,23 @@ mod tests {
         for width in [f32::INFINITY, 45.0] {
             let galley = layout("abc אבג def\nאבג abc", TextDirection::Auto, width);
             if width.is_finite() {
-                assert!(
-                    galley.rows.len() > 2,
-                    "exercise soft wraps as well as the newline"
-                );
+                assert!(galley.rows.len() > 2, "exercise soft wraps as well as the newline");
             }
             for index in 0..=galley.text().chars().count() {
                 for prefer_next_row in [false, true] {
-                    let cursor = CCursor {
-                        prefer_next_row,
-                        ..CCursor::new(index)
-                    };
+                    let cursor = CCursor { prefer_next_row, ..CCursor::new(index) };
                     let clamped = galley.clamp_cursor(&cursor);
                     assert_eq!(clamped.index, cursor.index);
                     assert_eq!(clamped.prefer_next_row, cursor.prefer_next_row);
-                    assert_eq!(
-                        galley.pos_from_cursor(clamped),
-                        galley.pos_from_cursor(cursor)
-                    );
+                    assert_eq!(galley.pos_from_cursor(clamped), galley.pos_from_cursor(cursor));
                 }
             }
             for prefer_next_row in [false, true] {
-                let cursor = CCursor {
-                    prefer_next_row,
-                    ..CCursor::new(usize::MAX)
-                };
+                let cursor = CCursor { prefer_next_row, ..CCursor::new(usize::MAX) };
                 let clamped = galley.clamp_cursor(&cursor);
                 assert_eq!(clamped.index, galley.end().index);
-                assert!(
-                    !clamped.prefer_next_row,
-                    "invalid offsets keep canonical end affinity"
-                );
-                assert_eq!(
-                    galley.pos_from_cursor(clamped),
-                    galley.pos_from_cursor(galley.end())
-                );
+                assert!(!clamped.prefer_next_row, "invalid offsets keep canonical end affinity");
+                assert_eq!(galley.pos_from_cursor(clamped), galley.pos_from_cursor(galley.end()));
             }
         }
     }
@@ -694,34 +517,20 @@ mod tests {
             let galley = auto(text);
             for index in 0..=text.chars().count() {
                 for prefer_next_row in [false, true] {
-                    let cursor = CCursor {
-                        prefer_next_row,
-                        ..CCursor::new(index)
-                    };
+                    let cursor = CCursor { prefer_next_row, ..CCursor::new(index) };
                     let clamped = galley.clamp_cursor(&cursor);
-                    assert_eq!(
-                        (clamped.index, clamped.prefer_next_row),
-                        (cursor.index, prefer_next_row)
-                    );
+                    assert_eq!((clamped.index, clamped.prefer_next_row), (cursor.index, prefer_next_row));
                 }
             }
         }
         let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::default());
-        let mut job = LayoutJob::simple(
-            "abc def ghi jkl".to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-            30.0,
-        );
+        let mut job = LayoutJob::simple("abc def ghi jkl".to_owned(), FontId::proportional(14.0), Color32::WHITE, 30.0);
         job.wrap.max_rows = 1;
         let galley = fonts.with_pixels_per_point(1.0).layout_job(job);
         assert!(galley.elided);
         assert!(galley.end().index.0 < galley.text().chars().count());
         for index in [galley.end().index.0 + 1, galley.text().chars().count()] {
-            let cursor = CCursor {
-                prefer_next_row: true,
-                ..CCursor::new(index)
-            };
+            let cursor = CCursor { prefer_next_row: true, ..CCursor::new(index) };
             let clamped = galley.clamp_cursor(&cursor);
             assert_eq!(clamped.index, galley.end().index);
             assert!(!clamped.prefer_next_row);
@@ -731,14 +540,10 @@ mod tests {
     #[test]
     fn visual_arrows_still_advance_after_clamping_between_passes() {
         let galley = auto("abc אבג def");
-        let cursors = presses(&galley, galley.begin(), |cursor| {
-            galley.cursor_right_visually(&galley.clamp_cursor(cursor))
-        });
+        let cursors = presses(&galley, galley.begin(), |cursor| galley.cursor_right_visually(&galley.clamp_cursor(cursor)));
         assert_eq!(indices(&cursors), &[0, 1, 2, 3, 4, 6, 5, 4, 8, 9, 10, 11]);
         assert_moves_on_screen(&galley, &cursors, true);
-        let cursors = presses(&galley, galley.end(), |cursor| {
-            galley.cursor_left_visually(&galley.clamp_cursor(cursor))
-        });
+        let cursors = presses(&galley, galley.end(), |cursor| galley.cursor_left_visually(&galley.clamp_cursor(cursor)));
         assert_eq!(indices(&cursors), &[11, 10, 9, 8, 7, 5, 6, 7, 3, 2, 1, 0]);
         assert_moves_on_screen(&galley, &cursors, false);
     }
@@ -751,10 +556,7 @@ mod tests {
         let [space, alef, gimel, space2] = [3, 4, 6, 7].map(|i| row.glyphs[i]);
 
         let upstream = |i| CCursor::new(i);
-        let downstream = |i| CCursor {
-            prefer_next_row: true,
-            ..CCursor::new(i)
-        };
+        let downstream = |i| CCursor { prefer_next_row: true, ..CCursor::new(i) };
         // After "abc ", or before the alef at the right end of the Hebrew word:
         assert_eq!(x(&galley, upstream(4)), space.max_x());
         assert_eq!(x(&galley, downstream(4)), alef.max_x());
@@ -866,11 +668,7 @@ mod tests {
     fn word_motion_moves_on_screen() {
         let words = |galley: &Galley, from: CCursor, rightward: bool| {
             let step = |c: &CCursor| {
-                if rightward {
-                    galley.cursor_word_right_visually(c)
-                } else {
-                    galley.cursor_word_left_visually(c)
-                }
+                if rightward { galley.cursor_word_right_visually(c) } else { galley.cursor_word_left_visually(c) }
             };
             let cursors = presses(galley, from, step);
             assert_moves_on_screen(galley, &cursors, rightward);
@@ -889,13 +687,9 @@ mod tests {
 
         // Across paragraphs, as in logical order:
         let galley = auto("abc def\nghi");
-        let rightward = presses(&galley, galley.begin(), |c| {
-            galley.cursor_word_right_visually(c)
-        });
+        let rightward = presses(&galley, galley.begin(), |c| galley.cursor_word_right_visually(c));
         assert_eq!(indices(&rightward), [0, 3, 7, 11]);
-        let leftward = presses(&galley, galley.end(), |c| {
-            galley.cursor_word_left_visually(c)
-        });
+        let leftward = presses(&galley, galley.end(), |c| galley.cursor_word_left_visually(c));
         assert_eq!(indices(&leftward), [11, 8, 4, 0]);
 
         // A dot is a stop:

@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/localobsidian", "xtask"]
+members = ["crates/*", "apps/localnotebook", "xtask"]
 exclude = ["libs"]
-default-members = ["crates/*", "apps/localobsidian", "xtask"]
+default-members = ["crates/*", "apps/localnotebook", "xtask"]
 
 [workspace.package]
 version = "1.10.0"
@@ -43,14 +43,14 @@ craft-desktop-theme = { path = "libs/craft-libs/crates/desktop-theme/" }
 # BYOK AI: the suite's shared client (libs/local-ai), the same one local-office and local-pdf vendor.
 local-ai = { path = "libs/local-ai" }
 
-# the app's own layers (crates/localobsidian-*)
-localobsidian-ai = { path = "crates/ai" }
-localobsidian-convert = { path = "crates/convert" }
-localobsidian-editor = { path = "crates/editor" }
-localobsidian-md = { path = "crates/md" }
-localobsidian-pdf = { path = "crates/pdf" }
-localobsidian-review = { path = "crates/review" }
-localobsidian-vault = { path = "crates/vault" }
+# the app's own layers (crates/localnotebook-*)
+localnotebook-ai = { path = "crates/ai" }
+localnotebook-convert = { path = "crates/convert" }
+localnotebook-editor = { path = "crates/editor" }
+localnotebook-md = { path = "crates/md" }
+localnotebook-pdf = { path = "crates/pdf" }
+localnotebook-review = { path = "crates/review" }
+localnotebook-vault = { path = "crates/vault" }
 
 # note format
 # Markdown -> the preview's block model. Parser only (`html`/`getopts` are CLI/HTML output).

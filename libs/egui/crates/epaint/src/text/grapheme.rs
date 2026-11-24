@@ -115,13 +115,8 @@ fn is_emoji_sequence(cluster: &str) -> bool {
     };
     // Outside emoji, a zero width joiner is a mark that asks for a different glyph
     // (e.g. a Devanagari half form) and goes like one.
-    let is_zwj_emoji = || {
-        cluster.contains('\u{200D}')
-            && cluster
-                .chars()
-                .next()
-                .is_some_and(|c| !c.is_ascii() && c.emoji_status() != EmojiStatus::NonEmoji)
-    };
+    let is_zwj_emoji =
+        || cluster.contains('\u{200D}') && cluster.chars().next().is_some_and(|c| !c.is_ascii() && c.emoji_status() != EmojiStatus::NonEmoji);
     cluster.chars().any(is_emoji_part) || is_zwj_emoji()
 }
 
@@ -143,33 +138,15 @@ mod tests {
     /// text left by Delete before the last cluster)`.
     const CASES: &[(&str, &str, &[usize], &str, &str)] = &[
         ("combining acute", "ae\u{301}", &[0, 1, 3], "ae", "a"),
-        (
-            "family ZWJ emoji",
-            "a👨\u{200D}👩\u{200D}👧",
-            &[0, 1, 6],
-            "a",
-            "a",
-        ),
+        ("family ZWJ emoji", "a👨\u{200D}👩\u{200D}👧", &[0, 1, 6], "a", "a"),
         ("flags", "🇸🇪🇫🇷", &[0, 2, 4], "🇸🇪", "🇸🇪"),
         ("keycap", "a1\u{FE0F}\u{20E3}", &[0, 1, 4], "a", "a"),
         ("skin tone", "a👍🏽", &[0, 1, 3], "a", "a"),
         ("Devanagari conjunct", "क्ष", &[0, 3], "क्", ""),
         ("Devanagari vowel sign", "कि", &[0, 2], "क", ""),
         ("Thai with vowel and tone marks", "กี่", &[0, 3], "กี", ""),
-        (
-            "Hangul jamo",
-            "\u{1100}\u{1161}\u{11A8}\u{1100}\u{1161}",
-            &[0, 3, 5],
-            "\u{1100}\u{1161}\u{11A8}\u{1100}",
-            "\u{1100}\u{1161}\u{11A8}",
-        ),
-        (
-            "Arabic with shadda",
-            "\u{628}\u{627}\u{651}",
-            &[0, 1, 3],
-            "\u{628}\u{627}",
-            "\u{628}",
-        ),
+        ("Hangul jamo", "\u{1100}\u{1161}\u{11A8}\u{1100}\u{1161}", &[0, 3, 5], "\u{1100}\u{1161}\u{11A8}\u{1100}", "\u{1100}\u{1161}\u{11A8}"),
+        ("Arabic with shadda", "\u{628}\u{627}\u{651}", &[0, 1, 3], "\u{628}\u{627}", "\u{628}"),
         ("CRLF", "a\r\n", &[0, 1, 3], "a", "a"),
         ("variation selector", "a葛\u{E0100}", &[0, 1, 3], "a", "a"),
         ("text presentation", "a❤\u{FE0E}", &[0, 1, 3], "a", "a"),
@@ -177,11 +154,7 @@ mod tests {
     ];
 
     fn without(text: &str, range: Range<usize>) -> String {
-        text.chars()
-            .enumerate()
-            .filter(|(i, _)| !range.contains(i))
-            .map(|(_, c)| c)
-            .collect()
+        text.chars().enumerate().filter(|(i, _)| !range.contains(i)).map(|(_, c)| c).collect()
     }
 
     #[test]
@@ -210,32 +183,19 @@ mod tests {
             for i in 0..=end {
                 let index = CharIndex(i);
                 let on_boundary = expected_boundaries.contains(&i);
-                assert_eq!(
-                    cluster_around(text, index).is_none(),
-                    on_boundary,
-                    "{name} at {i}"
-                );
+                assert_eq!(cluster_around(text, index).is_none(), on_boundary, "{name} at {i}");
                 assert!(
-                    expected_boundaries.contains(&floor_boundary(text, index).0)
-                        && expected_boundaries.contains(&ceil_boundary(text, index).0),
+                    expected_boundaries.contains(&floor_boundary(text, index).0) && expected_boundaries.contains(&ceil_boundary(text, index).0),
                     "{name} at {i}"
                 );
             }
 
             let start = backspace_start(text, CharIndex(end));
-            assert_eq!(
-                without(text, start.0..end),
-                after_backspace,
-                "{name}: Backspace"
-            );
+            assert_eq!(without(text, start.0..end), after_backspace, "{name}: Backspace");
 
             let last = previous_boundary(text, CharIndex(end));
             let next = next_boundary(text, last);
-            assert_eq!(
-                without(text, last.0..next.0),
-                after_delete,
-                "{name}: Delete"
-            );
+            assert_eq!(without(text, last.0..next.0), after_delete, "{name}: Delete");
         }
     }
 

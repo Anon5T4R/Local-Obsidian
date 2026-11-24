@@ -30,13 +30,7 @@ mod clipboard_bridge;
     feature = "clipboard-image",
     feature = "clipboard",
     feature = "wayland",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")
 ))]
 mod clipboard_image;
 // Wayland surrounding-text bridge. Winit compiles its Wayland backend for free Unix
@@ -151,13 +145,7 @@ pub struct State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     clipboard_repaint_waker: clipboard_bridge::CompletionWaker,
 
@@ -166,13 +154,7 @@ pub struct State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     last_primary_claim: Option<(u64, String)>,
 
@@ -189,13 +171,7 @@ pub struct State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     clipboard_claim_batch: clipboard_bridge::ClaimBatch<winit::platform::wayland::InputOriginToken>,
 
@@ -206,13 +182,7 @@ pub struct State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     clipboard_failures: u64,
 
@@ -222,13 +192,7 @@ pub struct State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     copy_epoch: u64,
 
@@ -237,13 +201,7 @@ pub struct State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     pending_image_copy: Option<ImageCopyPending>,
 
@@ -317,18 +275,9 @@ fn clipboard_input_kind(event: &winit::event::WindowEvent) -> clipboard_bridge::
     use winit::event::WindowEvent;
 
     match event {
-        WindowEvent::KeyboardInput {
-            event,
-            is_synthetic,
-            ..
-        } => clipboard_key_input_kind(event.state, *is_synthetic),
-        WindowEvent::MouseInput {
-            state: ElementState::Pressed,
-            ..
-        } => InputKind::PointerPress,
-        WindowEvent::Touch(touch) if touch.phase == winit::event::TouchPhase::Started => {
-            InputKind::PointerPress
-        }
+        WindowEvent::KeyboardInput { event, is_synthetic, .. } => clipboard_key_input_kind(event.state, *is_synthetic),
+        WindowEvent::MouseInput { state: ElementState::Pressed, .. } => InputKind::PointerPress,
+        WindowEvent::Touch(touch) if touch.phase == winit::event::TouchPhase::Started => InputKind::PointerPress,
         WindowEvent::Ime(winit::event::Ime::Commit(_)) => InputKind::Edit,
         WindowEvent::Focused(false) => InputKind::Focus,
         WindowEvent::Focused(true) => InputKind::FocusGained,
@@ -341,10 +290,7 @@ fn clipboard_input_kind(event: &winit::event::WindowEvent) -> clipboard_bridge::
 
 /// Classify a keyboard event without constructing a `winit::event::KeyEvent` (its
 /// platform-specific field is private to winit, so this is also the testable seam).
-fn clipboard_key_input_kind(
-    state: winit::event::ElementState,
-    is_synthetic: bool,
-) -> clipboard_bridge::InputKind {
+fn clipboard_key_input_kind(state: winit::event::ElementState, is_synthetic: bool) -> clipboard_bridge::InputKind {
     use crate::clipboard_bridge::InputKind;
 
     if is_synthetic || state != winit::event::ElementState::Pressed {
@@ -360,12 +306,7 @@ fn clipboard_key_input_kind(
 /// A click-to-focus `Focused(true)` is deliberately not invalidating: it can be the second half
 /// of the same pointer press that made the batch claimable.
 fn clipboard_input_invalidates_claim_batch(kind: clipboard_bridge::InputKind) -> bool {
-    matches!(
-        kind,
-        clipboard_bridge::InputKind::Focus
-            | clipboard_bridge::InputKind::Close
-            | clipboard_bridge::InputKind::Hide
-    )
+    matches!(kind, clipboard_bridge::InputKind::Focus | clipboard_bridge::InputKind::Close | clipboard_bridge::InputKind::Hide)
 }
 
 /// Whether this event is an input turn that winit may accept as an ownership claim trigger.
@@ -376,11 +317,7 @@ fn clipboard_input_claims_origin(event: &winit::event::WindowEvent) -> bool {
     use winit::event::{ElementState, WindowEvent};
 
     match event {
-        WindowEvent::KeyboardInput {
-            event,
-            is_synthetic,
-            ..
-        } => !*is_synthetic && event.state == ElementState::Pressed,
+        WindowEvent::KeyboardInput { event, is_synthetic, .. } => !*is_synthetic && event.state == ElementState::Pressed,
         WindowEvent::MouseInput { .. } => true,
         _ => false,
     }
@@ -398,13 +335,7 @@ enum OutputClaimOrigins {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     Wayland(clipboard_bridge::BatchClaimOrigins<winit::platform::wayland::InputOriginToken>),
 }
@@ -419,26 +350,14 @@ enum OutputClaimOrigin {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     Ready(winit::platform::wayland::InputOriginToken),
     /// The family must fail explicitly without consulting another origin.
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     Rejected(clipboard_bridge::ClaimOriginError),
 }
@@ -448,14 +367,8 @@ enum OutputClaimOrigin {
 /// This is the explicit exception to the no-cross-batch-deduplication rule. It is deliberately
 /// keyed by the input generation, not by a logical batch id; a new input generation may claim the
 /// same text again.
-fn unchanged_primary_is_suppressed(
-    last_claim: Option<&(u64, String)>,
-    generation: u64,
-    text: &str,
-) -> bool {
-    last_claim.is_some_and(|(last_generation, last_text)| {
-        *last_generation == generation && last_text == text
-    })
+fn unchanged_primary_is_suppressed(last_claim: Option<&(u64, String)>, generation: u64, text: &str) -> bool {
+    last_claim.is_some_and(|(last_generation, last_text)| *last_generation == generation && last_text == text)
 }
 
 /// Clear the per-window IME latches when a window is destroyed.
@@ -463,11 +376,7 @@ fn unchanged_primary_is_suppressed(
 /// This is deliberately independent of the Wayland-only bridge state: a reused [`State`] on
 /// Windows, macOS or X11 must also ask the new window for its cursor area and purpose, and must
 /// not skip the first `set_ime_allowed(true)`.
-fn reset_ime_window_latches(
-    allow_ime: &mut bool,
-    ime_cursor_rect_px: &mut Option<egui::Rect>,
-    old_ime_purpose: &mut egui::IMEPurpose,
-) {
+fn reset_ime_window_latches(allow_ime: &mut bool, ime_cursor_rect_px: &mut Option<egui::Rect>, old_ime_purpose: &mut egui::IMEPurpose) {
     *allow_ime = false;
     *ime_cursor_rect_px = None;
     *old_ime_purpose = egui::IMEPurpose::Normal;
@@ -478,13 +387,7 @@ fn reset_ime_window_latches(
     feature = "clipboard-image",
     feature = "clipboard",
     feature = "wayland",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")
 ))]
 struct ImageCopyPending {
     epoch: u64,
@@ -498,13 +401,7 @@ struct ImageCopyPending {
     feature = "clipboard-image",
     feature = "clipboard",
     feature = "wayland",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")
 ))]
 impl Drop for ImageCopyPending {
     fn drop(&mut self) {
@@ -535,20 +432,12 @@ impl State {
         // is responsible for keeping alive. Winit display handles remain valid for the
         // duration of the event loop, which outlives any `State` instance.
         #[expect(unsafe_code)]
-        let clipboard = unsafe {
-            clipboard::Clipboard::new(display_target.display_handle().ok().map(|h| h.as_raw()))
-        };
+        let clipboard = unsafe { clipboard::Clipboard::new(display_target.display_handle().ok().map(|h| h.as_raw())) };
 
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         let clipboard_repaint_waker = {
             let egui_ctx = egui_ctx.clone();
@@ -574,75 +463,39 @@ impl State {
             #[cfg(all(
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             clipboard_repaint_waker,
             #[cfg(all(
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             last_primary_claim: None,
             #[cfg(all(
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             clipboard_claim_batch: clipboard_bridge::ClaimBatch::default(),
             #[cfg(all(
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             clipboard_failures: 0,
             #[cfg(all(
                 feature = "clipboard-image",
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             copy_epoch: 0,
             #[cfg(all(
                 feature = "clipboard-image",
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             ))]
             pending_image_copy: None,
 
@@ -685,22 +538,11 @@ impl State {
             feature = "clipboard-image",
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
-        slf.clipboard_paste
-            .set_image_decoder(Some(clipboard_image::paste_decoder()));
+        slf.clipboard_paste.set_image_decoder(Some(clipboard_image::paste_decoder()));
 
-        slf.egui_input
-            .viewports
-            .entry(ViewportId::ROOT)
-            .or_default()
-            .native_pixels_per_point = native_pixels_per_point;
+        slf.egui_input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = native_pixels_per_point;
         slf.egui_input.system_theme = theme.map(to_egui_theme);
 
         if let Some(max_texture_side) = max_texture_side {
@@ -718,11 +560,7 @@ impl State {
     ) {
         profiling::function_scope!();
 
-        self.accesskit = Some(accesskit_winit::Adapter::with_event_loop_proxy(
-            event_loop,
-            window,
-            event_loop_proxy,
-        ));
+        self.accesskit = Some(accesskit_winit::Adapter::with_event_loop_proxy(event_loop, window, event_loop_proxy));
     }
 
     /// Call this once a graphics context has been created to update the maximum texture dimensions
@@ -794,13 +632,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if rebound {
             self.clipboard_claim_batch.invalidate();
@@ -809,13 +641,7 @@ impl State {
         #[cfg(not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )))]
         let _ = rebound;
     }
@@ -828,13 +654,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -842,13 +662,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         self.clipboard_claim_batch.note_claimable_input();
     }
@@ -858,13 +672,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -872,13 +680,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         self.clipboard_claim_batch.invalidate();
     }
@@ -893,13 +695,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -907,19 +703,12 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         {
             let transport = self.clipboard.wayland_transport();
             let generation = self.clipboard_paste.generation();
-            self.clipboard_claim_batch
-                .prepare(transport.as_ref(), _window.id(), generation);
+            self.clipboard_claim_batch.prepare(transport.as_ref(), _window.id(), generation);
         }
     }
 
@@ -927,42 +716,22 @@ impl State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
-    fn take_clipboard_claim_origin(
-        &mut self,
-    ) -> clipboard_bridge::CapturedClaimOrigin<winit::platform::wayland::InputOriginToken> {
+    fn take_clipboard_claim_origin(&mut self) -> clipboard_bridge::CapturedClaimOrigin<winit::platform::wayland::InputOriginToken> {
         self.clipboard_claim_batch.take_prepared()
     }
 
     #[cfg(not(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     )))]
     #[cfg_attr(
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -976,13 +745,7 @@ impl State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     fn resolve_output_claim_origins(
         &self,
@@ -1011,25 +774,13 @@ impl State {
     #[cfg(not(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     )))]
     #[cfg_attr(
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -1048,13 +799,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut)
     )]
@@ -1062,13 +807,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let OutputClaimOrigins::Wayland(origins) = origins {
             return match origins.regular.take() {
@@ -1081,13 +820,7 @@ impl State {
         #[cfg(not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )))]
         let _ = origins;
 
@@ -1098,13 +831,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut)
     )]
@@ -1112,13 +839,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let OutputClaimOrigins::Wayland(origins) = origins {
             return match origins.primary.take() {
@@ -1131,13 +852,7 @@ impl State {
         #[cfg(not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )))]
         let _ = origins;
 
@@ -1152,13 +867,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::unused_self)
     )]
@@ -1166,25 +875,13 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         let last_claim = self.last_primary_claim.as_ref();
         #[cfg(not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )))]
         let last_claim: Option<&(u64, String)> = None;
 
@@ -1197,13 +894,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -1211,13 +902,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let Some(transport) = self.clipboard.wayland_transport()
             && let Err(err) = self.clipboard_paste.retry_deferred_primary(&transport)
@@ -1232,13 +917,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)
     )]
@@ -1246,13 +925,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         {
             if error.kind() == std::io::ErrorKind::NotFound {
@@ -1260,22 +933,13 @@ impl State {
                 log::debug!("winit Wayland clipboard {action} failed: {error}");
             } else {
                 self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                log::warn!(
-                    "winit Wayland clipboard {action} failed ({} failures this session): {error}",
-                    self.clipboard_failures
-                );
+                log::warn!("winit Wayland clipboard {action} failed ({} failures this session): {error}", self.clipboard_failures);
             }
         }
         #[cfg(not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )))]
         let _ = (action, error);
     }
@@ -1285,24 +949,11 @@ impl State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
-    fn record_claim_origin_failure(
-        &mut self,
-        action: &str,
-        error: &clipboard_bridge::ClaimOriginError,
-    ) {
+    fn record_claim_origin_failure(&mut self, action: &str, error: &clipboard_bridge::ClaimOriginError) {
         self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-        log::warn!(
-            "winit Wayland clipboard {action} rejected the output origin ({} failures this session): {error}",
-            self.clipboard_failures
-        );
+        log::warn!("winit Wayland clipboard {action} rejected the output origin ({} failures this session): {error}", self.clipboard_failures);
     }
 
     /// Number of Wayland clipboard requests or ownership claims rejected since construction.
@@ -1313,13 +964,7 @@ impl State {
     #[cfg(all(
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     pub fn clipboard_failure_count(&self) -> u64 {
         self.clipboard_failures
@@ -1327,8 +972,7 @@ impl State {
 
     /// Cancel pending clipboard reads because the window was hidden, minimized or destroyed.
     fn cancel_pending_clipboard_pastes(&mut self) {
-        self.clipboard_paste
-            .note_input(clipboard_bridge::InputKind::Hide);
+        self.clipboard_paste.note_input(clipboard_bridge::InputKind::Hide);
         self.invalidate_clipboard_claim_batch();
         self.cancel_pending_image_copy();
     }
@@ -1338,13 +982,7 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     fn cancel_pending_image_copy(&mut self) {
         if let Some(mut pending) = self.pending_image_copy.take() {
@@ -1357,13 +995,7 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     )))]
     #[expect(clippy::needless_pass_by_ref_mut)]
     fn cancel_pending_image_copy(&mut self) {
@@ -1376,22 +1008,13 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     fn invalidate_image_copy_for_regular_output(&mut self, window: &Window) {
         self.copy_epoch = self.copy_epoch.wrapping_add(1);
         self.cancel_pending_image_copy();
         if let Some(transport) = self.clipboard.wayland_transport()
-            && let Err(error) = clipboard_bridge::ClipboardTransport::invalidate_image_reservations(
-                &transport,
-                window.id(),
-            )
+            && let Err(error) = clipboard_bridge::ClipboardTransport::invalidate_image_reservations(&transport, window.id())
         {
             self.record_clipboard_failure("image reservation invalidation", &error.to_io_error());
         }
@@ -1401,13 +1024,7 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     )))]
     #[expect(clippy::needless_pass_by_ref_mut)]
     fn invalidate_image_copy_for_regular_output(&mut self, _window: &Window) {
@@ -1421,22 +1038,13 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     ))]
     fn install_pending_image_copy(&mut self, window: &Window) {
         let Some(pending) = self.pending_image_copy.as_ref() else {
             return;
         };
-        if pending.epoch != self.copy_epoch
-            || pending.target_window != window.id()
-            || std::time::Instant::now() >= pending.deadline
-        {
+        if pending.epoch != self.copy_epoch || pending.target_window != window.id() || std::time::Instant::now() >= pending.deadline {
             self.cancel_pending_image_copy();
             self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
             log::warn!("winit Wayland image copy expired or was superseded before installation");
@@ -1464,17 +1072,11 @@ impl State {
         let Some(reservation) = reservation else {
             self.record_clipboard_failure(
                 "image claim",
-                &std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "the image reservation was already consumed",
-                ),
+                &std::io::Error::new(std::io::ErrorKind::InvalidInput, "the image reservation was already consumed"),
             );
             return;
         };
-        if !window.has_focus()
-            || window.is_visible() == Some(false)
-            || window.is_minimized() == Some(true)
-        {
+        if !window.has_focus() || window.is_visible() == Some(false) || window.is_minimized() == Some(true) {
             drop(png);
             drop(reservation);
             self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
@@ -1497,13 +1099,7 @@ impl State {
         feature = "clipboard-image",
         feature = "clipboard",
         feature = "wayland",
-        any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ),
+        any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
     )))]
     #[expect(clippy::needless_pass_by_ref_mut)]
     fn install_pending_image_copy(&mut self, _window: &Window) {
@@ -1516,21 +1112,11 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let Some(transport) = self.clipboard.wayland_transport() {
             let focused = self.focused_widget_id();
-            match self.clipboard_paste.begin_regular(
-                &transport,
-                focused,
-                std::sync::Arc::clone(&self.clipboard_repaint_waker),
-            ) {
+            match self.clipboard_paste.begin_regular(&transport, focused, std::sync::Arc::clone(&self.clipboard_repaint_waker)) {
                 Ok(()) => {}
                 Err(err) => {
                     // Wayland image fallback is deliberately disabled until winit can carry an
@@ -1546,13 +1132,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             // No winit clipboard means no validated asynchronous transport. Do not substitute a
@@ -1573,9 +1153,7 @@ impl State {
             // mspaint/Snipping Tool, which never puts a text representation
             // alongside it) — fall back to an image paste rather than doing
             // nothing, mirroring `Event::Copy`/`OutputCommand::CopyImage`.
-            self.egui_input
-                .events
-                .push(egui::Event::PasteImage(std::sync::Arc::new(image)));
+            self.egui_input.events.push(egui::Event::PasteImage(std::sync::Arc::new(image)));
         }
     }
 
@@ -1584,24 +1162,14 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let Some(transport) = self.clipboard.wayland_transport() {
             let focused = self.focused_widget_id();
             let target_layer = self.egui_ctx.layer_id_at(pos);
-            if let Err(err) = self.clipboard_paste.begin_primary(
-                &transport,
-                focused,
-                pos,
-                target_layer,
-                std::sync::Arc::clone(&self.clipboard_repaint_waker),
-            ) {
+            if let Err(err) =
+                self.clipboard_paste.begin_primary(&transport, focused, pos, target_layer, std::sync::Arc::clone(&self.clipboard_repaint_waker))
+            {
                 self.record_clipboard_failure("PRIMARY request", &err.to_io_error());
             }
             return;
@@ -1610,13 +1178,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
@@ -1627,9 +1189,7 @@ impl State {
         if let Some(text) = self.clipboard.get_primary_text()
             && !text.is_empty()
         {
-            self.egui_input
-                .events
-                .push(egui::Event::MiddleClickPaste { pos, text });
+            self.egui_input.events.push(egui::Event::MiddleClickPaste { pos, text });
         }
     }
 
@@ -1639,8 +1199,7 @@ impl State {
         let outcomes = {
             // The bridge only mutably borrows its own field; the hit-test reads egui memory.
             let egui_ctx = &self.egui_ctx;
-            self.clipboard_paste
-                .drain_with_layers(window.id(), focused, |pos| egui_ctx.layer_id_at(pos))
+            self.clipboard_paste.drain_with_layers(window.id(), focused, |pos| egui_ctx.layer_id_at(pos))
         };
         for outcome in outcomes {
             match outcome {
@@ -1657,21 +1216,14 @@ impl State {
                     self.record_clipboard_failure("regular paste", &err.to_io_error());
                 }
                 clipboard_bridge::PasteOutcome::RegularImage(decoded) => {
-                    let clipboard_bridge::DecodedPasteImage {
-                        image,
-                        retention: _retention,
-                    } = decoded;
+                    let clipboard_bridge::DecodedPasteImage { image, retention: _retention } = decoded;
                     // The image moves into the event. `_retention` is dropped after handoff, so
                     // the codec budget no longer claims to bound application-retained pastes.
-                    self.egui_input
-                        .events
-                        .push(egui::Event::PasteImage(std::sync::Arc::new(image)));
+                    self.egui_input.events.push(egui::Event::PasteImage(std::sync::Arc::new(image)));
                 }
                 clipboard_bridge::PasteOutcome::Primary { pos, result } => match result {
                     Ok(text) if !text.is_empty() => {
-                        self.egui_input
-                            .events
-                            .push(egui::Event::MiddleClickPaste { pos, text });
+                        self.egui_input.events.push(egui::Event::MiddleClickPaste { pos, text });
                     }
                     // PRESENT empty PRIMARY text is a success, not an absent offer.
                     Ok(_) => {}
@@ -1691,13 +1243,7 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_value)
     )]
@@ -1705,27 +1251,16 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let Some(transport) = self.clipboard.wayland_transport() {
             let generation = self.clipboard_paste.generation();
             match origin {
                 OutputClaimOrigin::Ready(token) => {
                     log::trace!("Wayland copy claim uses the captured batch origin");
-                    if let Err(err) = clipboard_bridge::claim(
-                        &transport,
-                        clipboard_bridge::PasteKind::Regular,
-                        &text,
-                        token,
-                        _window.id(),
-                        generation,
-                    ) {
+                    if let Err(err) =
+                        clipboard_bridge::claim(&transport, clipboard_bridge::PasteKind::Regular, &text, token, _window.id(), generation)
+                    {
                         self.record_clipboard_failure("copy claim", &err.to_io_error());
                     }
                 }
@@ -1734,9 +1269,7 @@ impl State {
                 }
                 OutputClaimOrigin::NotWayland => {
                     self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                    log::warn!(
-                        "winit Wayland clipboard origin is unavailable; copy was not claimed"
-                    );
+                    log::warn!("winit Wayland clipboard origin is unavailable; copy was not claimed");
                 }
             }
             return;
@@ -1745,13 +1278,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
@@ -1773,33 +1300,16 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_value)
     )]
-    fn copy_image_output(
-        &mut self,
-        _window: &Window,
-        image: egui::ColorImage,
-        origin: OutputClaimOrigin,
-    ) {
+    fn copy_image_output(&mut self, _window: &Window, image: egui::ColorImage, origin: OutputClaimOrigin) {
         #[cfg(all(
             feature = "clipboard-image",
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             match origin {
@@ -1808,44 +1318,30 @@ impl State {
                         self.record_clipboard_failure("image copy admission", &error.to_io_error());
                         return;
                     }
-                    let deadline =
-                        std::time::Instant::now() + clipboard_image::COPY_DELIVERY_BUDGET;
+                    let deadline = std::time::Instant::now() + clipboard_image::COPY_DELIVERY_BUDGET;
                     let Some(transport) = self.clipboard.wayland_transport() else {
                         self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                        log::warn!(
-                            "winit Wayland clipboard is unavailable; image copy was not admitted"
-                        );
+                        log::warn!("winit Wayland clipboard is unavailable; image copy was not admitted");
                         return;
                     };
-                    let reservation = match transport.reserve_image_claim(
-                        winit::platform::wayland::SelectionClaim {
-                            target_window: _window.id(),
-                            caller_generation: self.clipboard_paste.generation(),
-                            trigger: token,
-                        },
-                    ) {
+                    let reservation = match transport.reserve_image_claim(winit::platform::wayland::SelectionClaim {
+                        target_window: _window.id(),
+                        caller_generation: self.clipboard_paste.generation(),
+                        trigger: token,
+                    }) {
                         Ok(reservation) => reservation,
                         Err(error) => {
-                            self.record_clipboard_failure(
-                                "image reservation",
-                                &error.to_io_error(),
-                            );
+                            self.record_clipboard_failure("image reservation", &error.to_io_error());
                             return;
                         }
                     };
                     // Defensively supersede any request that survived a prior output path.
                     self.cancel_pending_image_copy();
-                    let request = match clipboard_image::ImageCopyRequest::start(
-                        image,
-                        std::sync::Arc::clone(&self.clipboard_repaint_waker),
-                    ) {
+                    let request = match clipboard_image::ImageCopyRequest::start(image, std::sync::Arc::clone(&self.clipboard_repaint_waker)) {
                         Ok(request) => request,
                         Err(error) => {
                             drop(reservation);
-                            self.record_clipboard_failure(
-                                "image encode request",
-                                &error.to_io_error(),
-                            );
+                            self.record_clipboard_failure("image encode request", &error.to_io_error());
                             return;
                         }
                     };
@@ -1862,9 +1358,7 @@ impl State {
                 }
                 OutputClaimOrigin::NotWayland => {
                     self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                    log::warn!(
-                        "winit Wayland clipboard origin is unavailable; image copy was not admitted"
-                    );
+                    log::warn!("winit Wayland clipboard origin is unavailable; image copy was not admitted");
                 }
             }
             return;
@@ -1874,13 +1368,7 @@ impl State {
             feature = "clipboard",
             feature = "wayland",
             not(feature = "clipboard-image"),
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             match origin {
@@ -1889,9 +1377,7 @@ impl State {
                 }
                 OutputClaimOrigin::Ready(_) | OutputClaimOrigin::NotWayland => {
                     self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                    log::warn!(
-                        "Wayland image copy requires the 'clipboard-image' feature; nothing was written"
-                    );
+                    log::warn!("Wayland image copy requires the 'clipboard-image' feature; nothing was written");
                 }
             }
             drop(image);
@@ -1911,46 +1397,22 @@ impl State {
         not(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         )),
         expect(clippy::needless_pass_by_value)
     )]
-    fn primary_selection_output(
-        &mut self,
-        _window: &Window,
-        text: String,
-        origin: OutputClaimOrigin,
-    ) {
+    fn primary_selection_output(&mut self, _window: &Window, text: String, origin: OutputClaimOrigin) {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if let Some(transport) = self.clipboard.wayland_transport() {
             let generation = self.clipboard_paste.generation();
             match origin {
                 OutputClaimOrigin::Ready(token) => {
                     log::trace!("Wayland PRIMARY claim uses the captured batch origin");
-                    match clipboard_bridge::claim(
-                        &transport,
-                        clipboard_bridge::PasteKind::Primary,
-                        &text,
-                        token,
-                        _window.id(),
-                        generation,
-                    ) {
+                    match clipboard_bridge::claim(&transport, clipboard_bridge::PasteKind::Primary, &text, token, _window.id(), generation) {
                         Ok(()) => {
                             self.last_primary_claim = Some((generation, text));
                         }
@@ -1964,9 +1426,7 @@ impl State {
                 }
                 OutputClaimOrigin::NotWayland => {
                     self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
-                    log::warn!(
-                        "winit Wayland clipboard origin is unavailable; PRIMARY was not claimed"
-                    );
+                    log::warn!("winit Wayland clipboard origin is unavailable; PRIMARY was not claimed");
                 }
             }
             return;
@@ -1975,13 +1435,7 @@ impl State {
         #[cfg(all(
             feature = "clipboard",
             feature = "wayland",
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ),
+            any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
         ))]
         if self.clipboard.is_wayland() {
             self.clipboard_failures = self.clipboard_failures.wrapping_add(1);
@@ -2079,21 +1533,15 @@ impl State {
         // See: https://github.com/rust-windowing/winit/issues/208
         // This solves an issue where egui window positions would be changed when minimizing on Windows.
         let screen_size_in_pixels = screen_size_in_pixels(window);
-        let screen_size_in_points =
-            screen_size_in_pixels / pixels_per_point(&self.egui_ctx, window);
+        let screen_size_in_points = screen_size_in_pixels / pixels_per_point(&self.egui_ctx, window);
 
-        self.egui_input.screen_rect = (screen_size_in_points.x > 0.0
-            && screen_size_in_points.y > 0.0)
-            .then(|| Rect::from_min_size(Pos2::ZERO, screen_size_in_points));
+        self.egui_input.screen_rect =
+            (screen_size_in_points.x > 0.0 && screen_size_in_points.y > 0.0).then(|| Rect::from_min_size(Pos2::ZERO, screen_size_in_points));
 
         // Tell egui which viewport is now active:
         self.egui_input.viewport_id = self.viewport_id;
 
-        self.egui_input
-            .viewports
-            .entry(self.viewport_id)
-            .or_default()
-            .native_pixels_per_point = Some(window.scale_factor() as f32);
+        self.egui_input.viewports.entry(self.viewport_id).or_default().native_pixels_per_point = Some(window.scale_factor() as f32);
 
         self.egui_input.take()
     }
@@ -2101,11 +1549,7 @@ impl State {
     /// Call this when there is a new event.
     ///
     /// The result can be found in [`Self::egui_input`] and be extracted with [`Self::take_egui_input`].
-    pub fn on_window_event(
-        &mut self,
-        window: &Window,
-        event: &winit::event::WindowEvent,
-    ) -> EventResponse {
+    pub fn on_window_event(&mut self, window: &Window, event: &winit::event::WindowEvent) -> EventResponse {
         profiling::function_scope!(short_window_event_description(event));
 
         #[cfg(feature = "accesskit")]
@@ -2139,10 +1583,7 @@ impl State {
 
         #[cfg(target_os = "ios")]
         match &event {
-            WindowEvent::Resized(_)
-            | WindowEvent::ScaleFactorChanged { .. }
-            | WindowEvent::Focused(true)
-            | WindowEvent::Occluded(false) => {
+            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } | WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
                 // Once winit v0.31 has been released this can be reworked to get the safe area from
                 // `Window::safe_area`, and updated from a new event which is being discussed in
                 // https://github.com/rust-windowing/winit/issues/3911.
@@ -2155,125 +1596,71 @@ impl State {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 let native_pixels_per_point = *scale_factor as f32;
 
-                self.egui_input
-                    .viewports
-                    .entry(self.viewport_id)
-                    .or_default()
-                    .native_pixels_per_point = Some(native_pixels_per_point);
+                self.egui_input.viewports.entry(self.viewport_id).or_default().native_pixels_per_point = Some(native_pixels_per_point);
 
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 self.on_mouse_button_input(*state, *button);
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_pointer_input(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_pointer_input() }
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 self.on_mouse_wheel(window, *delta, *phase);
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_pointer_input(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_pointer_input() }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.on_cursor_moved(window, *position);
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_is_using_pointer(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_is_using_pointer() }
             }
             WindowEvent::CursorLeft { .. } => {
                 self.pointer_pos_in_points = None;
                 self.egui_input.events.push(egui::Event::PointerGone);
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
             // WindowEvent::TouchpadPressure {device_id, pressure, stage, ..  } => {} // TODO(emilk)
             WindowEvent::Touch(touch) => {
                 self.on_touch(window, touch);
                 let consumed = match touch.phase {
-                    winit::event::TouchPhase::Started
-                    | winit::event::TouchPhase::Ended
-                    | winit::event::TouchPhase::Cancelled => {
+                    winit::event::TouchPhase::Started | winit::event::TouchPhase::Ended | winit::event::TouchPhase::Cancelled => {
                         self.egui_ctx.egui_wants_pointer_input()
                     }
                     winit::event::TouchPhase::Moved => self.egui_ctx.egui_is_using_pointer(),
                 };
-                EventResponse {
-                    repaint: true,
-                    consumed,
-                }
+                EventResponse { repaint: true, consumed }
             }
 
             WindowEvent::ImeResetCompleted { .. } => {
-                let forwarded = self.ime_reset.on_event(
-                    window.id(),
-                    self.viewport_id,
-                    event,
-                    &mut self.egui_input.events,
-                );
-                EventResponse {
-                    repaint: forwarded,
-                    consumed: false,
-                }
+                let forwarded = self.ime_reset.on_event(window.id(), self.viewport_id, event, &mut self.egui_input.events);
+                EventResponse { repaint: forwarded, consumed: false }
             }
             WindowEvent::Ime(ime) => {
                 if matches!(ime, winit::event::Ime::Commit(_))
                     && let Some((before_bytes, after_bytes)) = ime_delete_surrounding(window)
                 {
-                    self.egui_input.events.push(egui::Event::Ime(
-                        egui::ImeEvent::DeleteSurroundingBytes {
-                            before_bytes,
-                            after_bytes,
-                        },
-                    ));
+                    self.egui_input.events.push(egui::Event::Ime(egui::ImeEvent::DeleteSurroundingBytes { before_bytes, after_bytes }));
                 }
                 self.on_ime(ime);
 
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_keyboard_input(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_keyboard_input() }
             }
-            WindowEvent::KeyboardInput {
-                event,
-                is_synthetic,
-                ..
-            } => {
+            WindowEvent::KeyboardInput { event, is_synthetic, .. } => {
                 if *is_synthetic && event.state == ElementState::Pressed {
                     // Winit generates fake "synthetic" KeyboardInput events when the focus
                     // is changed to the window, or away from it. Synthetic key presses
                     // represent no real key presses and should be ignored.
                     // See https://github.com/rust-windowing/winit/issues/3543
-                    EventResponse {
-                        repaint: true,
-                        consumed: false,
-                    }
+                    EventResponse { repaint: true, consumed: false }
                 } else {
                     let egui_wants_keyboard_input = self.egui_ctx.egui_wants_keyboard_input();
 
-                    if let Some(response) =
-                        self.try_on_ime_processed_keyboard_input(event, egui_wants_keyboard_input)
-                    {
+                    if let Some(response) = self.try_on_ime_processed_keyboard_input(event, egui_wants_keyboard_input) {
                         response
                     } else {
                         self.on_keyboard_input(event);
 
                         // When pressing the Tab key, egui focuses the first focusable element, hence Tab always consumes.
-                        let consumed = egui_wants_keyboard_input
-                            || event.logical_key
-                                == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab);
-                        EventResponse {
-                            repaint: true,
-                            consumed,
-                        }
+                        let consumed = egui_wants_keyboard_input || event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab);
+                        EventResponse { repaint: true, consumed }
                     }
                 }
             }
@@ -2314,56 +1701,31 @@ impl State {
                     ))]
                     self.clear_ime_surrounding_on_focus_loss(window);
                 }
-                self.egui_input
-                    .events
-                    .push(egui::Event::WindowFocused(focused));
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                self.egui_input.events.push(egui::Event::WindowFocused(focused));
+                EventResponse { repaint: true, consumed: false }
             }
             WindowEvent::ThemeChanged(winit_theme) => {
                 self.egui_input.system_theme = Some(to_egui_theme(*winit_theme));
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
             WindowEvent::HoveredFile(path) => {
-                self.egui_input.hovered_files.push(egui::HoveredFile {
-                    path: Some(path.clone()),
-                    ..Default::default()
-                });
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                self.egui_input.hovered_files.push(egui::HoveredFile { path: Some(path.clone()), ..Default::default() });
+                EventResponse { repaint: true, consumed: false }
             }
             WindowEvent::HoveredFileCancelled => {
                 self.egui_input.hovered_files.clear();
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
             #[cfg(not(target_arch = "wasm32"))]
             WindowEvent::DroppedFile(path) => {
                 self.egui_input.hovered_files.clear();
-                self.egui_input
-                    .dropped_files
-                    .push(std::sync::Arc::new(NativeFile::from(path.clone())));
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                self.egui_input.dropped_files.push(std::sync::Arc::new(NativeFile::from(path.clone())));
+                EventResponse { repaint: true, consumed: false }
             }
             // Winit's web backend does not emit file-drop events. Browser file reads
             // require a browser file handle, which this path-only event cannot provide.
             #[cfg(target_arch = "wasm32")]
-            WindowEvent::DroppedFile(_) => EventResponse {
-                repaint: false,
-                consumed: false,
-            },
+            WindowEvent::DroppedFile(_) => EventResponse { repaint: false, consumed: false },
             WindowEvent::ModifiersChanged(state) => {
                 let state = state.state();
 
@@ -2382,14 +1744,9 @@ impl State {
                 self.modifiers.mac_cmd = is_mac && super_;
                 self.modifiers.command = if is_mac { super_ } else { ctrl };
 
-                self.egui_input
-                    .events
-                    .push(egui::Event::ModifiersChanged(self.modifiers));
+                self.egui_input.events.push(egui::Event::ModifiersChanged(self.modifiers));
 
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
 
             WindowEvent::Destroyed => {
@@ -2397,19 +1754,13 @@ impl State {
                 self.held_keys.clear();
                 self.modifiers = egui::Modifiers::default();
                 self.egui_input.focused = false;
-                self.egui_input
-                    .events
-                    .push(egui::Event::WindowFocused(false));
+                self.egui_input.events.push(egui::Event::WindowFocused(false));
                 #[cfg(target_os = "windows")]
                 self.pressed_processed_physical_keys.clear();
                 // These latches describe the destroyed window, not just its Wayland protocol
                 // state. Reset them on every platform so a reused `State` cannot skip the new
                 // window's first cursor-area or purpose call, or believe IME is already enabled.
-                reset_ime_window_latches(
-                    &mut self.allow_ime,
-                    &mut self.ime_cursor_rect_px,
-                    &mut self.old_ime_purpose,
-                );
+                reset_ime_window_latches(&mut self.allow_ime, &mut self.ime_cursor_rect_px, &mut self.old_ime_purpose);
                 #[cfg(all(
                     feature = "wayland",
                     unix,
@@ -2425,10 +1776,7 @@ impl State {
                     self.ime_gate.forget_window();
                     self.ime_surrounding.forget_backend();
                 }
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
-                }
+                EventResponse { repaint: true, consumed: false }
             }
 
             // Things that may require repaint:
@@ -2438,41 +1786,27 @@ impl State {
             | WindowEvent::Resized(_)
             | WindowEvent::Moved(_)
             | WindowEvent::TouchpadPressure { .. }
-            | WindowEvent::CloseRequested => EventResponse {
-                repaint: true,
-                consumed: false,
-            },
+            | WindowEvent::CloseRequested => EventResponse { repaint: true, consumed: false },
 
             // Things we completely ignore:
-            WindowEvent::ActivationTokenDone { .. }
-            | WindowEvent::AxisMotion { .. }
-            | WindowEvent::DoubleTapGesture { .. } => EventResponse {
-                repaint: false,
-                consumed: false,
-            },
+            WindowEvent::ActivationTokenDone { .. } | WindowEvent::AxisMotion { .. } | WindowEvent::DoubleTapGesture { .. } => {
+                EventResponse { repaint: false, consumed: false }
+            }
 
             WindowEvent::PinchGesture { delta, .. } => {
                 // Positive delta values indicate magnification (zooming in).
                 // Negative delta values indicate shrinking (zooming out).
                 let zoom_factor = (*delta as f32).exp();
                 self.egui_input.events.push(egui::Event::Zoom(zoom_factor));
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_pointer_input(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_pointer_input() }
             }
 
             WindowEvent::RotationGesture { delta, .. } => {
                 // Positive delta values indicate counterclockwise rotation
                 // Negative delta values indicate clockwise rotation
                 // This is opposite of egui's sign convention for angles
-                self.egui_input
-                    .events
-                    .push(egui::Event::Rotate(-delta.to_radians()));
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_pointer_input(),
-                }
+                self.egui_input.events.push(egui::Event::Rotate(-delta.to_radians()));
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_pointer_input() }
             }
 
             WindowEvent::PanGesture { delta, phase, .. } => {
@@ -2485,10 +1819,7 @@ impl State {
                     source: egui::MouseWheelSource::Trackpad,
                     modifiers: self.modifiers,
                 });
-                EventResponse {
-                    repaint: true,
-                    consumed: self.egui_ctx.egui_wants_pointer_input(),
-                }
+                EventResponse { repaint: true, consumed: self.egui_ctx.egui_wants_pointer_input() }
             }
         }
     }
@@ -2496,11 +1827,7 @@ impl State {
     #[cfg(not(target_os = "windows"))]
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     #[inline(always)]
-    fn try_on_ime_processed_keyboard_input(
-        &mut self,
-        _event: &winit::event::KeyEvent,
-        _egui_wants_keyboard_input: bool,
-    ) -> Option<EventResponse> {
+    fn try_on_ime_processed_keyboard_input(&mut self, _event: &winit::event::KeyEvent, _egui_wants_keyboard_input: bool) -> Option<EventResponse> {
         // `KeyboardInput` events processed by the IME are not emitted by
         // `winit` on non-Windows platforms, so we don't need to do anything
         // here.
@@ -2510,16 +1837,10 @@ impl State {
 
     #[cfg(target_os = "windows")]
     #[inline(always)]
-    fn try_on_ime_processed_keyboard_input(
-        &mut self,
-        event: &winit::event::KeyEvent,
-        egui_wants_keyboard_input: bool,
-    ) -> Option<EventResponse> {
+    fn try_on_ime_processed_keyboard_input(&mut self, event: &winit::event::KeyEvent, egui_wants_keyboard_input: bool) -> Option<EventResponse> {
         if !self.allow_ime {
             None
-        } else if event.state == ElementState::Pressed
-            && event.logical_key == winit::keyboard::NamedKey::Process
-        {
+        } else if event.state == ElementState::Pressed && event.logical_key == winit::keyboard::NamedKey::Process {
             // On Windows, some `winit` versions have a bug where
             // `KeyboardInput` events processed by the IME are still emitted. [^1]
             //
@@ -2558,18 +1879,10 @@ impl State {
             // press. Retire that exact identity before filtering its release.
             let before = self.egui_input.events.len();
             self.release_keyboard_input(event.physical_key);
-            self.pressed_processed_physical_keys
-                .insert(event.physical_key);
+            self.pressed_processed_physical_keys.insert(event.physical_key);
 
-            Some(EventResponse {
-                repaint: self.egui_input.events.len() != before,
-                consumed: egui_wants_keyboard_input,
-            })
-        } else if event.state == ElementState::Released
-            && self
-                .pressed_processed_physical_keys
-                .remove(&event.physical_key)
-        {
+            Some(EventResponse { repaint: self.egui_input.events.len() != before, consumed: egui_wants_keyboard_input })
+        } else if event.state == ElementState::Released && self.pressed_processed_physical_keys.remove(&event.physical_key) {
             // If an ordinary press was emitted after the filtered Process press
             // (for example a layout repeat), retire its exact identity as well.
             // This is a no-op for the normal filtered press, which retired its
@@ -2587,10 +1900,7 @@ impl State {
             //
             // [^1]: https://github.com/rust-windowing/winit/issues/4508
 
-            Some(EventResponse {
-                repaint: self.egui_input.events.len() != before,
-                consumed: egui_wants_keyboard_input,
-            })
+            Some(EventResponse { repaint: self.egui_input.events.len() != before, consumed: egui_wants_keyboard_input })
         } else {
             None
         }
@@ -2682,12 +1992,10 @@ impl State {
             winit::event::Ime::Preedit(text, active_range_bytes) => {
                 let active_range_chars = match *active_range_bytes {
                     Some((start_bytes, end_bytes)) => {
-                        if let (Some(start_chars), Some(middle_chars)) = (
-                            text.get(..start_bytes).map(|s| s.chars().count()),
-                            text.get(start_bytes..end_bytes).map(|s| s.chars().count()),
-                        ) {
-                            if cfg!(target_os = "windows") && start_chars == 0 && middle_chars == 0
-                            {
+                        if let (Some(start_chars), Some(middle_chars)) =
+                            (text.get(..start_bytes).map(|s| s.chars().count()), text.get(start_bytes..end_bytes).map(|s| s.chars().count()))
+                        {
+                            if cfg!(target_os = "windows") && start_chars == 0 && middle_chars == 0 {
                                 // Workaround for a bug on Windows where `winit`
                                 // incorrectly reports the cursor position at
                                 // the start of the preedit text during
@@ -2708,17 +2016,10 @@ impl State {
                     None => None,
                 };
 
-                self.egui_input
-                    .events
-                    .push(egui::Event::Ime(egui::ImeEvent::Preedit {
-                        text: text.clone(),
-                        active_range_chars,
-                    }));
+                self.egui_input.events.push(egui::Event::Ime(egui::ImeEvent::Preedit { text: text.clone(), active_range_chars }));
             }
             winit::event::Ime::Commit(text) => {
-                self.egui_input
-                    .events
-                    .push(egui::Event::Ime(egui::ImeEvent::Commit(text.clone())));
+                self.egui_input.events.push(egui::Event::Ime(egui::ImeEvent::Commit(text.clone())));
             }
         }
     }
@@ -2802,21 +2103,13 @@ impl State {
         not(target_os = "emscripten"),
         not(target_os = "redox"),
     ))]
-    fn sync_ime_surrounding_text(
-        &mut self,
-        window: &Window,
-        ime: Option<&egui::output::IMEOutput>,
-    ) {
+    fn sync_ime_surrounding_text(&mut self, window: &Window, ime: Option<&egui::output::IMEOutput>) {
         let mut sink = ime_surrounding::WinitImeSurroundingSink::new(window, self.allow_ime);
         let action = self.ime_surrounding.update(&mut sink, ime, self.allow_ime);
 
         if action != ime_surrounding::ImeSurroundingAction::None {
             if let Some(ime) = ime {
-                log::trace!(
-                    "IME surrounding text for owner {:?}, generation {}: {action:?}",
-                    ime.owner,
-                    ime.context_generation,
-                );
+                log::trace!("IME surrounding text for owner {:?}, generation {}: {action:?}", ime.owner, ime.context_generation,);
             } else {
                 log::trace!("IME surrounding text cleared: {action:?}");
             }
@@ -2835,10 +2128,7 @@ impl State {
             return false;
         }
 
-        self.egui_input.events.push(egui::Event::MouseMoved(Vec2 {
-            x: delta.0 as f32,
-            y: delta.1 as f32,
-        }));
+        self.egui_input.events.push(egui::Event::MouseMoved(Vec2 { x: delta.0 as f32, y: delta.1 as f32 }));
         true
     }
 
@@ -2857,27 +2147,16 @@ impl State {
     /// The result can be found in [`Self::egui_input`] and be extracted with [`Self::take_egui_input`].
     #[cfg(feature = "accesskit")]
     pub fn on_accesskit_action_request(&mut self, request: accesskit::ActionRequest) {
-        self.egui_input
-            .events
-            .push(egui::Event::AccessKitActionRequest(request));
+        self.egui_input.events.push(egui::Event::AccessKitActionRequest(request));
     }
 
-    fn on_mouse_button_input(
-        &mut self,
-        state: winit::event::ElementState,
-        button: winit::event::MouseButton,
-    ) {
+    fn on_mouse_button_input(&mut self, state: winit::event::ElementState, button: winit::event::MouseButton) {
         if let Some(pos) = self.pointer_pos_in_points
             && let Some(button) = translate_mouse_button(button)
         {
             let pressed = state == winit::event::ElementState::Pressed;
 
-            self.egui_input.events.push(egui::Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                modifiers: self.modifiers,
-            });
+            self.egui_input.events.push(egui::Event::PointerButton { pos, button, pressed, modifiers: self.modifiers });
 
             // Middle-click pastes the PRIMARY selection on X11 and Wayland. On Wayland this
             // starts a bounded asynchronous read; the paste event arrives when it completes.
@@ -2913,24 +2192,15 @@ impl State {
         }
     }
 
-    fn on_cursor_moved(
-        &mut self,
-        window: &Window,
-        pos_in_pixels: winit::dpi::PhysicalPosition<f64>,
-    ) {
+    fn on_cursor_moved(&mut self, window: &Window, pos_in_pixels: winit::dpi::PhysicalPosition<f64>) {
         let pixels_per_point = pixels_per_point(&self.egui_ctx, window);
 
-        let pos_in_points = egui::pos2(
-            pos_in_pixels.x as f32 / pixels_per_point,
-            pos_in_pixels.y as f32 / pixels_per_point,
-        );
+        let pos_in_points = egui::pos2(pos_in_pixels.x as f32 / pixels_per_point, pos_in_pixels.y as f32 / pixels_per_point);
         self.pointer_pos_in_points = Some(pos_in_points);
 
         if self.simulate_touch_screen {
             if self.any_pointer_button_down {
-                self.egui_input
-                    .events
-                    .push(egui::Event::PointerMoved(pos_in_points));
+                self.egui_input.events.push(egui::Event::PointerMoved(pos_in_points));
 
                 self.egui_input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(0),
@@ -2941,9 +2211,7 @@ impl State {
                 });
             }
         } else {
-            self.egui_input
-                .events
-                .push(egui::Event::PointerMoved(pos_in_points));
+            self.egui_input.events.push(egui::Event::PointerMoved(pos_in_points));
         }
     }
 
@@ -2955,44 +2223,30 @@ impl State {
             device_id: egui::TouchDeviceId(egui::epaint::util::hash(touch.device_id)),
             id: egui::TouchId::from(touch.id),
             phase: to_egui_touch_phase(touch.phase),
-            pos: egui::pos2(
-                touch.location.x as f32 / pixels_per_point,
-                touch.location.y as f32 / pixels_per_point,
-            ),
+            pos: egui::pos2(touch.location.x as f32 / pixels_per_point, touch.location.y as f32 / pixels_per_point),
             force: match touch.force {
                 Some(winit::event::Force::Normalized(force)) => Some(force as f32),
-                Some(winit::event::Force::Calibrated {
-                    force,
-                    max_possible_force,
-                    ..
-                }) => Some((force / max_possible_force) as f32),
+                Some(winit::event::Force::Calibrated { force, max_possible_force, .. }) => Some((force / max_possible_force) as f32),
                 None => None,
             },
         });
         // If we're not yet translating a touch or we're translating this very
         // touch …
-        if self.pointer_touch_id.is_none() || self.pointer_touch_id.unwrap_or_default() == touch.id
-        {
+        if self.pointer_touch_id.is_none() || self.pointer_touch_id.unwrap_or_default() == touch.id {
             // … emit PointerButton resp. PointerMoved events to emulate mouse
             match touch.phase {
                 winit::event::TouchPhase::Started => {
                     self.pointer_touch_id = Some(touch.id);
                     // First move the pointer to the right location
                     self.on_cursor_moved(window, touch.location);
-                    self.on_mouse_button_input(
-                        winit::event::ElementState::Pressed,
-                        winit::event::MouseButton::Left,
-                    );
+                    self.on_mouse_button_input(winit::event::ElementState::Pressed, winit::event::MouseButton::Left);
                 }
                 winit::event::TouchPhase::Moved => {
                     self.on_cursor_moved(window, touch.location);
                 }
                 winit::event::TouchPhase::Ended => {
                     self.pointer_touch_id = None;
-                    self.on_mouse_button_input(
-                        winit::event::ElementState::Released,
-                        winit::event::MouseButton::Left,
-                    );
+                    self.on_mouse_button_input(winit::event::ElementState::Released, winit::event::MouseButton::Left);
                     // The pointer should vanish completely to not get any
                     // hover effects
                     self.pointer_pos_in_points = None;
@@ -3007,26 +2261,15 @@ impl State {
         }
     }
 
-    fn on_mouse_wheel(
-        &mut self,
-        window: &Window,
-        delta: winit::event::MouseScrollDelta,
-        phase: winit::event::TouchPhase,
-    ) {
+    fn on_mouse_wheel(&mut self, window: &Window, delta: winit::event::MouseScrollDelta, phase: winit::event::TouchPhase) {
         let pixels_per_point = pixels_per_point(&self.egui_ctx, window);
 
         {
             let (unit, delta) = match delta {
-                winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                    (egui::MouseWheelUnit::Line, egui::vec2(x, y))
+                winit::event::MouseScrollDelta::LineDelta(x, y) => (egui::MouseWheelUnit::Line, egui::vec2(x, y)),
+                winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition { x, y }) => {
+                    (egui::MouseWheelUnit::Point, egui::vec2(x as f32, y as f32) / pixels_per_point)
                 }
-                winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition {
-                    x,
-                    y,
-                }) => (
-                    egui::MouseWheelUnit::Point,
-                    egui::vec2(x as f32, y as f32) / pixels_per_point,
-                ),
             };
             let phase = to_egui_touch_phase(phase);
             let modifiers = self.modifiers;
@@ -3056,13 +2299,7 @@ impl State {
                 _ => egui::MouseWheelSource::Unknown,
             };
 
-            self.egui_input.events.push(egui::Event::MouseWheel {
-                unit,
-                delta,
-                phase,
-                source,
-                modifiers,
-            });
+            self.egui_input.events.push(egui::Event::MouseWheel { unit, delta, phase, source, modifiers });
         }
     }
 
@@ -3074,13 +2311,7 @@ impl State {
             winit::keyboard::PhysicalKey::Unidentified(_) => None,
         };
         for key in self.held_keys.release(physical) {
-            self.egui_input.events.push(egui::Event::Key {
-                key,
-                physical_key,
-                pressed: false,
-                repeat: false,
-                modifiers: self.modifiers,
-            });
+            self.egui_input.events.push(egui::Event::Key { key, physical_key, pressed: false, repeat: false, modifiers: self.modifiers });
         }
     }
 
@@ -3109,11 +2340,7 @@ impl State {
     /// matching release cannot clear another physical alias.
     ///
     /// Returns `true` if the event was a clipboard shortcut (and was consumed).
-    fn try_clipboard_shortcut(
-        &mut self,
-        physical: winit::keyboard::PhysicalKey,
-        translated: Option<egui::Key>,
-    ) -> bool {
+    fn try_clipboard_shortcut(&mut self, physical: winit::keyboard::PhysicalKey, translated: Option<egui::Key>) -> bool {
         let Some(active_key) = translated else {
             return false;
         };
@@ -3166,17 +2393,11 @@ impl State {
 
         let pressed = *state == winit::event::ElementState::Pressed;
 
-        let physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key {
-            key_from_key_code(keycode)
-        } else {
-            None
-        };
+        let physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key { key_from_key_code(keycode) } else { None };
 
         let (latin_key, latin_char, prefer_latin) = latin_key(event, self.modifiers);
         if prefer_latin && let (Some(physical_key), Some(latin_char)) = (physical_key, latin_char) {
-            self.egui_input
-                .latin_layout_chars
-                .push((physical_key, latin_char));
+            self.egui_input.latin_layout_chars.push((physical_key, latin_char));
         }
         // The platforms winit reports Latin layouts on: X11 and Wayland.
         #[cfg(all(
@@ -3191,20 +2412,10 @@ impl State {
             use winit::platform::latin_layout::KeyEventExtLatinLayout as _;
             self.egui_input.keyboard_layout_is_latin = Some(event.is_latin_layout());
         }
-        let logical_key = letter_key(
-            key_from_winit_key(winit_logical_key),
-            latin_key,
-            prefer_latin,
-        );
+        let logical_key = letter_key(key_from_winit_key(winit_logical_key), latin_key, prefer_latin);
 
         // Helpful logging to enable when adding new key support
-        log::trace!(
-            "logical {:?} -> {:?},  physical {:?} -> {:?}",
-            event.logical_key,
-            logical_key,
-            event.physical_key,
-            physical_key
-        );
+        log::trace!("logical {:?} -> {:?},  physical {:?} -> {:?}", event.logical_key, logical_key, event.physical_key, physical_key);
 
         // "Logical OR physical key" is a fallback mechanism for keyboard layouts without Latin characters: it lets them
         // emit events as if the corresponding keys from the Latin layout were pressed. In this case, clipboard shortcuts
@@ -3221,11 +2432,7 @@ impl State {
             self.release_keyboard_input(event.physical_key);
         }
 
-        if let Some(text) = text
-            .as_ref()
-            .map(|t| t.as_str())
-            .or_else(|| winit_logical_key.to_text())
-        {
+        if let Some(text) = text.as_ref().map(|t| t.as_str()).or_else(|| winit_logical_key.to_text()) {
             // Make sure there is text, and that it is not control characters
             // (e.g. delete is sent as "\u{f728}" on macOS).
             if !text.is_empty() && text.chars().all(is_printable_char) {
@@ -3233,12 +2440,9 @@ impl State {
                 // We need to ignore these characters that are side-effects of commands.
                 // Also make sure the key is pressed (not released). On Linux, text might
                 // contain some data even when the key is released.
-                let is_cmd =
-                    self.modifiers.ctrl || self.modifiers.command || self.modifiers.mac_cmd;
+                let is_cmd = self.modifiers.ctrl || self.modifiers.command || self.modifiers.mac_cmd;
                 if pressed && !is_cmd {
-                    self.egui_input
-                        .events
-                        .push(egui::Event::Text(text.to_owned()));
+                    self.egui_input.events.push(egui::Event::Text(text.to_owned()));
                 }
             }
         }
@@ -3262,11 +2466,7 @@ impl State {
     /// * open any clicked urls
     /// * update the IME
     /// *
-    pub fn handle_platform_output(
-        &mut self,
-        window: &Window,
-        platform_output: egui::PlatformOutput,
-    ) {
+    pub fn handle_platform_output(&mut self, window: &Window, platform_output: egui::PlatformOutput) {
         self.handle_platform_output_inner(window, None, platform_output);
     }
 
@@ -3277,21 +2477,11 @@ impl State {
     /// [`Self::handle_platform_output`] instead — any custom cursor
     /// request is silently dropped there and the standard `cursor_icon`
     /// path still runs.
-    pub fn handle_platform_output_with_event_loop(
-        &mut self,
-        window: &Window,
-        event_loop: &ActiveEventLoop,
-        platform_output: egui::PlatformOutput,
-    ) {
+    pub fn handle_platform_output_with_event_loop(&mut self, window: &Window, event_loop: &ActiveEventLoop, platform_output: egui::PlatformOutput) {
         self.handle_platform_output_inner(window, Some(event_loop), platform_output);
     }
 
-    fn handle_platform_output_inner(
-        &mut self,
-        window: &Window,
-        event_loop: Option<&ActiveEventLoop>,
-        platform_output: egui::PlatformOutput,
-    ) {
+    fn handle_platform_output_inner(&mut self, window: &Window, event_loop: Option<&ActiveEventLoop>, platform_output: egui::PlatformOutput) {
         profiling::function_scope!();
 
         let egui::PlatformOutput {
@@ -3315,12 +2505,8 @@ impl State {
             self.primary_claim_is_suppressed(generation, text)
         });
         let regular_origin_policy = selection.regular.map(|regular| match regular.kind {
-            output_selector::RegularClipboardKind::Text => {
-                clipboard_bridge::RegularClaimOriginPolicy::AllowFreshFallback
-            }
-            output_selector::RegularClipboardKind::Image => {
-                clipboard_bridge::RegularClaimOriginPolicy::RequireCapturedOrigin
-            }
+            output_selector::RegularClipboardKind::Text => clipboard_bridge::RegularClaimOriginPolicy::AllowFreshFallback,
+            output_selector::RegularClipboardKind::Image => clipboard_bridge::RegularClaimOriginPolicy::RequireCapturedOrigin,
         });
         // A winning regular output supersedes any older pending image encode before origin
         // resolution. This happens even when the new attempt later fails. PRIMARY is independent.
@@ -3333,13 +2519,7 @@ impl State {
             not(all(
                 feature = "clipboard",
                 feature = "wayland",
-                any(
-                    target_os = "linux",
-                    target_os = "dragonfly",
-                    target_os = "freebsd",
-                    target_os = "netbsd",
-                    target_os = "openbsd"
-                ),
+                any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"),
             )),
             expect(clippy::let_unit_value)
         )]
@@ -3354,32 +2534,20 @@ impl State {
 
         for (index, command) in commands.into_iter().enumerate() {
             match command {
-                egui::OutputCommand::CopyText(text)
-                    if selection
-                        .regular
-                        .is_some_and(|regular| regular.index == index) =>
-                {
+                egui::OutputCommand::CopyText(text) if selection.regular.is_some_and(|regular| regular.index == index) => {
                     let origin = Self::take_regular_output_origin(&mut claim_origins);
                     self.copy_text_output(window, text, origin);
                 }
-                egui::OutputCommand::TextSelectionSettled(text)
-                    if selection.primary == Some(index) && !primary_suppressed =>
-                {
+                egui::OutputCommand::TextSelectionSettled(text) if selection.primary == Some(index) && !primary_suppressed => {
                     let origin = Self::take_primary_output_origin(&mut claim_origins);
                     self.primary_selection_output(window, text, origin);
                 }
-                egui::OutputCommand::CopyImage(image)
-                    if selection
-                        .regular
-                        .is_some_and(|regular| regular.index == index) =>
-                {
+                egui::OutputCommand::CopyImage(image) if selection.regular.is_some_and(|regular| regular.index == index) => {
                     let origin = Self::take_regular_output_origin(&mut claim_origins);
                     self.copy_image_output(window, image, origin);
                 }
                 // Superseded commands retain no payload or origin as a fallback.
-                egui::OutputCommand::CopyText(_)
-                | egui::OutputCommand::TextSelectionSettled(_)
-                | egui::OutputCommand::CopyImage(_) => {}
+                egui::OutputCommand::CopyText(_) | egui::OutputCommand::TextSelectionSettled(_) | egui::OutputCommand::CopyImage(_) => {}
                 egui::OutputCommand::OpenUrl(open_url) => {
                     open_url_in_browser(&open_url.url);
                 }
@@ -3450,15 +2618,11 @@ impl State {
         }
 
         // This is settled output. Preparing a call does not synthesize an input marker.
-        let reset_request =
-            self.ime_reset
-                .prepare(window.id(), self.viewport_id, ime.as_ref(), self.allow_ime);
+        let reset_request = self.ime_reset.prepare(window.id(), self.viewport_id, ime.as_ref(), self.allow_ime);
         let stock_interrupt = reset_request.is_none()
             && self.allow_ime
             && !is_toggling_ime
-            && ime
-                .as_ref()
-                .is_some_and(|ime| ime.should_interrupt_composition && ime.reset_request.is_none());
+            && ime.as_ref().is_some_and(|ime| ime.should_interrupt_composition && ime.reset_request.is_none());
         if reset_request.is_some() || stock_interrupt {
             if let Some(request) = reset_request {
                 window.reset_ime_with_request(request.as_u64());
@@ -3488,20 +2652,12 @@ impl State {
 
             let pixels_per_point = pixels_per_point(&self.egui_ctx, window);
             let ime_cursor_rect_px = pixels_per_point * ime.cursor_rect;
-            if self.ime_cursor_rect_px != Some(ime_cursor_rect_px)
-                || self.egui_ctx.input(|i| !i.events.is_empty())
-            {
+            if self.ime_cursor_rect_px != Some(ime_cursor_rect_px) || self.egui_ctx.input(|i| !i.events.is_empty()) {
                 self.ime_cursor_rect_px = Some(ime_cursor_rect_px);
                 profiling::scope!("set_ime_cursor_area");
                 window.set_ime_cursor_area(
-                    winit::dpi::PhysicalPosition {
-                        x: ime_cursor_rect_px.min.x,
-                        y: ime_cursor_rect_px.min.y,
-                    },
-                    winit::dpi::PhysicalSize {
-                        width: ime_cursor_rect_px.width(),
-                        height: ime_cursor_rect_px.height(),
-                    },
+                    winit::dpi::PhysicalPosition { x: ime_cursor_rect_px.min.x, y: ime_cursor_rect_px.min.y },
+                    winit::dpi::PhysicalSize { width: ime_cursor_rect_px.width(), height: ime_cursor_rect_px.height() },
                 );
             }
         } else {
@@ -3563,11 +2719,7 @@ impl State {
         // documented fallback for integrations that didn't opt in.
         if let (Some(image), Some(event_loop)) = (cursor_image, event_loop) {
             let key = std::sync::Arc::as_ptr(&image.rgba).cast::<u8>() as usize;
-            let cached = self
-                .current_custom_cursor
-                .as_ref()
-                .filter(|(k, _)| *k == key)
-                .map(|(_, c)| c.clone());
+            let cached = self.current_custom_cursor.as_ref().filter(|(k, _)| *k == key).map(|(_, c)| c.clone());
 
             let custom = match cached {
                 Some(c) => c,
@@ -3584,9 +2736,7 @@ impl State {
                         c
                     }
                     Err(err) => {
-                        log::warn!(
-                            "egui-winit: invalid cursor bitmap, falling back to cursor_icon: {err:?}"
-                        );
+                        log::warn!("egui-winit: invalid cursor bitmap, falling back to cursor_icon: {err:?}");
                         self.current_custom_cursor = None;
                         self.set_cursor_icon_inner(window, cursor_icon);
                         return;
@@ -3671,12 +2821,7 @@ pub fn outer_rect_in_points(window: &Window, pixels_per_point: f32) -> Option<Re
 /// Call before [`State::take_egui_input`].
 ///
 /// If this is called right after window creation, `is_init` should be `true`, otherwise `false`.
-pub fn update_viewport_info(
-    viewport_info: &mut ViewportInfo,
-    egui_ctx: &egui::Context,
-    window: &Window,
-    is_init: bool,
-) {
+pub fn update_viewport_info(viewport_info: &mut ViewportInfo, egui_ctx: &egui::Context, window: &Window, is_init: bool) {
     profiling::function_scope!();
     let pixels_per_point = pixels_per_point(egui_ctx, window);
 
@@ -3685,17 +2830,9 @@ pub fn update_viewport_info(
         Some(false) | None => true,
     };
 
-    let inner_rect = if has_a_position {
-        inner_rect_in_points(window, pixels_per_point)
-    } else {
-        None
-    };
+    let inner_rect = if has_a_position { inner_rect_in_points(window, pixels_per_point) } else { None };
 
-    let outer_rect = if has_a_position {
-        outer_rect_in_points(window, pixels_per_point)
-    } else {
-        None
-    };
+    let outer_rect = if has_a_position { outer_rect_in_points(window, pixels_per_point) } else { None };
 
     let monitor_size = {
         profiling::scope!("monitor_size");
@@ -3743,9 +2880,8 @@ fn open_url_in_browser(_url: &str) {
 /// We also ignore '\r', '\n', '\t'.
 /// Newlines are handled by the `Key::Enter` event.
 fn is_printable_char(chr: char) -> bool {
-    let is_in_private_use_area = '\u{e000}' <= chr && chr <= '\u{f8ff}'
-        || '\u{f0000}' <= chr && chr <= '\u{ffffd}'
-        || '\u{100000}' <= chr && chr <= '\u{10fffd}';
+    let is_in_private_use_area =
+        '\u{e000}' <= chr && chr <= '\u{f8ff}' || '\u{f0000}' <= chr && chr <= '\u{ffffd}' || '\u{100000}' <= chr && chr <= '\u{10fffd}';
 
     !is_in_private_use_area && !chr.is_ascii_control()
 }
@@ -3798,39 +2934,21 @@ fn key_from_winit_key(key: &winit::keyboard::Key) -> Option<egui::Key> {
 /// match the key the platform calls C, as it does in native apps. When `prefer_latin` and the
 /// Latin key is no letter, it stands in for a character egui has no key for: with Dvorak and
 /// Russian, the key that types `й` is Dvorak's `'`, not the Q of its position.
-fn letter_key(
-    logical_key: Option<egui::Key>,
-    latin_key: Option<egui::Key>,
-    prefer_latin: bool,
-) -> Option<egui::Key> {
+fn letter_key(logical_key: Option<egui::Key>, latin_key: Option<egui::Key>, prefer_latin: bool) -> Option<egui::Key> {
     let is_letter = |key: &egui::Key| {
         let name = key.name();
         name.len() == 1 && name.as_bytes()[0].is_ascii_alphabetic()
     };
     let latin_letter = latin_key.filter(is_letter);
-    if prefer_latin {
-        latin_letter.or(logical_key).or(latin_key)
-    } else {
-        logical_key
-            .filter(is_letter)
-            .or(latin_letter)
-            .or(logical_key)
-    }
+    if prefer_latin { latin_letter.or(logical_key).or(latin_key) } else { logical_key.filter(is_letter).or(latin_letter).or(logical_key) }
 }
 
 /// The platform's Latin key for this key, the character it stands for when shortcuts follow it
 /// ([`egui::RawInput::latin_layout_chars`]), and whether it takes precedence over the letter the
 /// layout types (see [`letter_key`]).
 #[cfg(target_os = "windows")]
-fn latin_key(
-    event: &winit::event::KeyEvent,
-    _modifiers: egui::Modifiers,
-) -> (Option<egui::Key>, Option<char>, bool) {
-    (
-        windows_virtual_letter(windows_virtual_key(event.physical_key)),
-        None,
-        false,
-    )
+fn latin_key(event: &winit::event::KeyEvent, _modifiers: egui::Modifiers) -> (Option<egui::Key>, Option<char>, bool) {
+    (windows_virtual_letter(windows_virtual_key(event.physical_key)), None, false)
 }
 
 /// The text around the cursor an input method deletes before the [`winit::event::Ime::Commit`]
@@ -3839,9 +2957,7 @@ fn ime_delete_surrounding(window: &Window) -> Option<(usize, usize)> {
     #[cfg(target_os = "macos")]
     {
         use winit::platform::macos::WindowExtMacOS as _;
-        window
-            .take_ime_delete_surrounding()
-            .map(|delete| (delete.before_bytes, delete.after_bytes))
+        window.take_ime_delete_surrounding().map(|delete| (delete.before_bytes, delete.after_bytes))
     }
     #[cfg(all(
         feature = "wayland",
@@ -3853,9 +2969,7 @@ fn ime_delete_surrounding(window: &Window) -> Option<(usize, usize)> {
     ))]
     {
         use winit::platform::wayland::WindowExtWayland as _;
-        window
-            .take_ime_delete_surrounding()
-            .map(|delete| (delete.before_bytes, delete.after_bytes))
+        window.take_ime_delete_surrounding().map(|delete| (delete.before_bytes, delete.after_bytes))
     }
     #[cfg(not(any(
         target_os = "macos",
@@ -3877,10 +2991,7 @@ fn ime_delete_surrounding(window: &Window) -> Option<(usize, usize)> {
 /// With ⌘ held, letters come from the layout's ⌘ table, which differs from what the layout
 /// types on non-Latin layouts and on layouts like "Dvorak – QWERTY ⌘".
 #[cfg(target_os = "macos")]
-fn latin_key(
-    event: &winit::event::KeyEvent,
-    modifiers: egui::Modifiers,
-) -> (Option<egui::Key>, Option<char>, bool) {
+fn latin_key(event: &winit::event::KeyEvent, modifiers: egui::Modifiers) -> (Option<egui::Key>, Option<char>, bool) {
     use winit::platform::macos::KeyEventExtMacOS as _;
     if modifiers.mac_cmd {
         let key = event.key_with_command();
@@ -3899,17 +3010,10 @@ fn latin_key(
     not(target_os = "redox"),
     any(feature = "x11", feature = "wayland")
 ))]
-fn latin_key(
-    event: &winit::event::KeyEvent,
-    _modifiers: egui::Modifiers,
-) -> (Option<egui::Key>, Option<char>, bool) {
+fn latin_key(event: &winit::event::KeyEvent, _modifiers: egui::Modifiers) -> (Option<egui::Key>, Option<char>, bool) {
     use winit::platform::latin_layout::KeyEventExtLatinLayout as _;
     let key = event.latin_key();
-    (
-        key.as_ref().and_then(key_from_winit_key),
-        key.as_ref().and_then(key_char),
-        !event.is_latin_layout(),
-    )
+    (key.as_ref().and_then(key_from_winit_key), key.as_ref().and_then(key_char), !event.is_latin_layout())
 }
 
 #[cfg(not(any(
@@ -3924,10 +3028,7 @@ fn latin_key(
         any(feature = "x11", feature = "wayland")
     )
 )))]
-fn latin_key(
-    _event: &winit::event::KeyEvent,
-    _modifiers: egui::Modifiers,
-) -> (Option<egui::Key>, Option<char>, bool) {
+fn latin_key(_event: &winit::event::KeyEvent, _modifiers: egui::Modifiers) -> (Option<egui::Key>, Option<char>, bool) {
     (None, None, false)
 }
 
@@ -3962,17 +3063,14 @@ fn windows_virtual_letter(virtual_key: Option<u32>) -> Option<egui::Key> {
 /// The virtual-key code the current keyboard layout gives this physical key.
 #[cfg(target_os = "windows")]
 fn windows_virtual_key(physical_key: winit::keyboard::PhysicalKey) -> Option<u32> {
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        GetKeyboardLayout, MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW,
-    };
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW};
     use winit::platform::scancode::PhysicalKeyExtScancode as _;
 
     let scancode = physical_key.to_scancode()?;
     // SAFETY: neither call takes pointers. Keyboard events arrive on the window's
     // thread, so `GetKeyboardLayout(0)` is the layout the key was typed with.
     #[expect(unsafe_code)]
-    let virtual_key =
-        unsafe { MapVirtualKeyExW(scancode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0)) };
+    let virtual_key = unsafe { MapVirtualKeyExW(scancode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0)) };
     (virtual_key != 0).then_some(virtual_key)
 }
 
@@ -4438,45 +3536,25 @@ fn process_viewport_command(
             }
         }
         ViewportCommand::OuterPosition(pos) => {
-            window.set_outer_position(PhysicalPosition::new(
-                pixels_per_point * pos.x,
-                pixels_per_point * pos.y,
-            ));
+            window.set_outer_position(PhysicalPosition::new(pixels_per_point * pos.x, pixels_per_point * pos.y));
         }
         ViewportCommand::MinInnerSize(s) => {
-            window.set_min_inner_size((s.is_finite() && s != Vec2::ZERO).then_some(
-                PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y),
-            ));
+            window
+                .set_min_inner_size((s.is_finite() && s != Vec2::ZERO).then_some(PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y)));
         }
         ViewportCommand::MaxInnerSize(s) => {
-            window.set_max_inner_size((s.is_finite() && s != Vec2::INFINITY).then_some(
-                PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y),
-            ));
-        }
-        ViewportCommand::ResizeIncrements(s) => {
-            window.set_resize_increments(
-                s.map(|s| PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y)),
+            window.set_max_inner_size(
+                (s.is_finite() && s != Vec2::INFINITY).then_some(PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y)),
             );
         }
+        ViewportCommand::ResizeIncrements(s) => {
+            window.set_resize_increments(s.map(|s| PhysicalSize::new(pixels_per_point * s.x, pixels_per_point * s.y)));
+        }
         ViewportCommand::Resizable(v) => window.set_resizable(v),
-        ViewportCommand::EnableButtons {
-            close,
-            minimized,
-            maximize,
-        } => window.set_enabled_buttons(
-            if close {
-                WindowButtons::CLOSE
-            } else {
-                WindowButtons::empty()
-            } | if minimized {
-                WindowButtons::MINIMIZE
-            } else {
-                WindowButtons::empty()
-            } | if maximize {
-                WindowButtons::MAXIMIZE
-            } else {
-                WindowButtons::empty()
-            },
+        ViewportCommand::EnableButtons { close, minimized, maximize } => window.set_enabled_buttons(
+            if close { WindowButtons::CLOSE } else { WindowButtons::empty() }
+                | if minimized { WindowButtons::MINIMIZE } else { WindowButtons::empty() }
+                | if maximize { WindowButtons::MAXIMIZE } else { WindowButtons::empty() },
         ),
         ViewportCommand::Minimized(v) => {
             window.set_minimized(v);
@@ -4497,10 +3575,7 @@ fn process_viewport_command(
             if let Some(monitor) = window.available_monitors().nth(idx) {
                 window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
             } else {
-                log::warn!(
-                    "ViewportCommand::SetMonitor({idx}): index out of range ({} monitors available)",
-                    window.available_monitors().count()
-                );
+                log::warn!("ViewportCommand::SetMonitor({idx}): index out of range ({} monitors available)", window.available_monitors().count());
             }
         }
         ViewportCommand::Decorations(v) => {
@@ -4525,20 +3600,14 @@ fn process_viewport_command(
         ViewportCommand::IMERect(rect) => {
             window.set_ime_cursor_area(
                 PhysicalPosition::new(pixels_per_point * rect.min.x, pixels_per_point * rect.min.y),
-                PhysicalSize::new(
-                    pixels_per_point * rect.size().x,
-                    pixels_per_point * rect.size().y,
-                ),
+                PhysicalSize::new(pixels_per_point * rect.size().x, pixels_per_point * rect.size().y),
             );
         }
         ViewportCommand::IMEAllowed(v) => {
             state.handle_external_ime_allowed(window, v);
         }
         ViewportCommand::IMEPurpose(p) => {
-            if state
-                .ime_reset
-                .apply_purpose_command(&mut state.old_ime_purpose, p)
-            {
+            if state.ime_reset.apply_purpose_command(&mut state.old_ime_purpose, p) {
                 window.set_ime_purpose(to_winit_ime_purpose(p));
                 #[cfg(all(
                     feature = "wayland",
@@ -4564,12 +3633,8 @@ fn process_viewport_command(
         ViewportCommand::RequestUserAttention(a) => {
             window.request_user_attention(match a {
                 egui::UserAttentionType::Reset => None,
-                egui::UserAttentionType::Critical => {
-                    Some(winit::window::UserAttentionType::Critical)
-                }
-                egui::UserAttentionType::Informational => {
-                    Some(winit::window::UserAttentionType::Informational)
-                }
+                egui::UserAttentionType::Critical => Some(winit::window::UserAttentionType::Critical),
+                egui::UserAttentionType::Informational => Some(winit::window::UserAttentionType::Informational),
             });
         }
         ViewportCommand::SetTheme(t) => {
@@ -4586,10 +3651,7 @@ fn process_viewport_command(
         }
         ViewportCommand::ContentProtected(v) => window.set_content_protected(v),
         ViewportCommand::CursorPosition(pos) => {
-            if let Err(err) = window.set_cursor_position(PhysicalPosition::new(
-                pixels_per_point * pos.x,
-                pixels_per_point * pos.y,
-            )) {
+            if let Err(err) = window.set_cursor_position(PhysicalPosition::new(pixels_per_point * pos.x, pixels_per_point * pos.y)) {
                 log::warn!("{command:?}: {err}");
             }
         }
@@ -4647,11 +3709,8 @@ pub fn create_window(
 ) -> Result<Window, winit::error::OsError> {
     profiling::function_scope!();
 
-    let window_attributes = apply_monitor_to_window_attributes(
-        create_winit_window_attributes(egui_ctx, viewport_builder.clone()),
-        viewport_builder,
-        event_loop,
-    );
+    let window_attributes =
+        apply_monitor_to_window_attributes(create_winit_window_attributes(egui_ctx, viewport_builder.clone()), viewport_builder, event_loop);
 
     let window = event_loop.create_window(window_attributes)?;
     apply_viewport_builder_to_window(egui_ctx, &window, viewport_builder);
@@ -4676,22 +3735,15 @@ pub fn apply_monitor_to_window_attributes(
 ) -> winit::window::WindowAttributes {
     if let Some(idx) = viewport_builder.monitor {
         if let Some(monitor) = event_loop.available_monitors().nth(idx) {
-            window_attributes = window_attributes
-                .with_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
+            window_attributes = window_attributes.with_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
         } else {
-            log::warn!(
-                "ViewportBuilder::with_monitor({idx}): index out of range ({} monitors available)",
-                event_loop.available_monitors().count()
-            );
+            log::warn!("ViewportBuilder::with_monitor({idx}): index out of range ({} monitors available)", event_loop.available_monitors().count());
         }
     }
     window_attributes
 }
 
-pub fn create_winit_window_attributes(
-    egui_ctx: &egui::Context,
-    viewport_builder: ViewportBuilder,
-) -> winit::window::WindowAttributes {
+pub fn create_winit_window_attributes(egui_ctx: &egui::Context, viewport_builder: ViewportBuilder) -> winit::window::WindowAttributes {
     profiling::function_scope!();
 
     let ViewportBuilder {
@@ -4732,9 +3784,9 @@ pub fn create_winit_window_attributes(
         window_type: _window_type,
         override_redirect: _override_redirect,
 
-        mouse_passthrough: _, // handled in `apply_viewport_builder_to_window`
+        mouse_passthrough: _,          // handled in `apply_viewport_builder_to_window`
         clamp_size_to_monitor_size: _, // Handled in `viewport_builder` in `epi_integration.rs`
-        monitor: _, // Handled in `create_window` (needs ActiveEventLoop for monitor handle)
+        monitor: _,                    // Handled in `create_window` (needs ActiveEventLoop for monitor handle)
     } = viewport_builder;
 
     let mut window_attributes = winit::window::WindowAttributes::default()
@@ -4757,9 +3809,7 @@ pub fn create_winit_window_attributes(
             egui::viewport::WindowLevel::AlwaysOnTop => WindowLevel::AlwaysOnTop,
             egui::viewport::WindowLevel::Normal => WindowLevel::Normal,
         })
-        .with_fullscreen(
-            fullscreen.and_then(|e| e.then_some(winit::window::Fullscreen::Borderless(None))),
-        )
+        .with_fullscreen(fullscreen.and_then(|e| e.then_some(winit::window::Fullscreen::Borderless(None))))
         .with_enabled_buttons({
             let mut buttons = WindowButtons::empty();
             if minimize_button.unwrap_or(true) {
@@ -4780,35 +3830,26 @@ pub fn create_winit_window_attributes(
     // and trying to do it anyway leads to weird bugs on Wayland, see:
     // https://github.com/emilk/egui/issues/7095#issuecomment-2920545377
     // https://github.com/rust-windowing/winit/issues/4266
-    #[expect(
-        clippy::disallowed_types,
-        reason = "zoom factor is manually accounted for"
-    )]
+    #[expect(clippy::disallowed_types, reason = "zoom factor is manually accounted for")]
     #[cfg(not(target_os = "ios"))]
     {
         use winit::dpi::{LogicalPosition, LogicalSize};
         let zoom_factor = egui_ctx.zoom_factor();
 
         if let Some(size) = inner_size {
-            window_attributes = window_attributes
-                .with_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
+            window_attributes = window_attributes.with_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
         }
 
         if let Some(size) = min_inner_size {
-            window_attributes = window_attributes
-                .with_min_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
+            window_attributes = window_attributes.with_min_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
         }
 
         if let Some(size) = max_inner_size {
-            window_attributes = window_attributes
-                .with_max_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
+            window_attributes = window_attributes.with_max_inner_size(LogicalSize::new(zoom_factor * size.x, zoom_factor * size.y));
         }
 
         if let Some(pos) = position {
-            window_attributes = window_attributes.with_position(LogicalPosition::new(
-                zoom_factor * pos.x,
-                zoom_factor * pos.y,
-            ));
+            window_attributes = window_attributes.with_position(LogicalPosition::new(zoom_factor * pos.x, zoom_factor * pos.y));
         }
     }
     #[cfg(target_os = "ios")]
@@ -4849,18 +3890,12 @@ pub fn create_winit_window_attributes(
     // have every later window — and every child process — replay it.
     #[cfg(all(target_os = "linux", any(feature = "wayland", feature = "x11")))]
     {
-        use winit::platform::startup_notify::{
-            WindowAttributesExtStartupNotify as _, reset_activation_token_env,
-        };
-        let token = std::env::var("XDG_ACTIVATION_TOKEN")
-            .or_else(|_| std::env::var("DESKTOP_STARTUP_ID"))
-            .ok()
-            .filter(|t| !t.is_empty());
+        use winit::platform::startup_notify::{WindowAttributesExtStartupNotify as _, reset_activation_token_env};
+        let token = std::env::var("XDG_ACTIVATION_TOKEN").or_else(|_| std::env::var("DESKTOP_STARTUP_ID")).ok().filter(|t| !t.is_empty());
         if let Some(token) = token {
             log::debug!("using the activation token from the environment to focus the window");
             reset_activation_token_env();
-            window_attributes = window_attributes
-                .with_activation_token(winit::window::ActivationToken::from_raw(token));
+            window_attributes = window_attributes.with_activation_token(winit::window::ActivationToken::from_raw(token));
         }
     }
 
@@ -4937,11 +3972,7 @@ fn to_winit_icon(icon: &egui::IconData) -> Option<winit::window::Icon> {
 }
 
 /// Applies what `create_winit_window_builder` couldn't
-pub fn apply_viewport_builder_to_window(
-    egui_ctx: &egui::Context,
-    window: &Window,
-    builder: &ViewportBuilder,
-) {
+pub fn apply_viewport_builder_to_window(egui_ctx: &egui::Context, window: &Window, builder: &ViewportBuilder) {
     if let Some(mouse_passthrough) = builder.mouse_passthrough
         && let Err(err) = window.set_cursor_hittest(!mouse_passthrough)
     {
@@ -4957,26 +3988,15 @@ pub fn apply_viewport_builder_to_window(
         let pixels_per_point = pixels_per_point(egui_ctx, window);
 
         if let Some(size) = builder.inner_size
-            && window
-                .request_inner_size(PhysicalSize::new(
-                    pixels_per_point * size.x,
-                    pixels_per_point * size.y,
-                ))
-                .is_some()
+            && window.request_inner_size(PhysicalSize::new(pixels_per_point * size.x, pixels_per_point * size.y)).is_some()
         {
             log::debug!("Failed to set window size");
         }
         if let Some(size) = builder.min_inner_size {
-            window.set_min_inner_size(Some(PhysicalSize::new(
-                pixels_per_point * size.x,
-                pixels_per_point * size.y,
-            )));
+            window.set_min_inner_size(Some(PhysicalSize::new(pixels_per_point * size.x, pixels_per_point * size.y)));
         }
         if let Some(size) = builder.max_inner_size {
-            window.set_max_inner_size(Some(PhysicalSize::new(
-                pixels_per_point * size.x,
-                pixels_per_point * size.y,
-            )));
+            window.set_max_inner_size(Some(PhysicalSize::new(pixels_per_point * size.x, pixels_per_point * size.y)));
         }
         if let Some(pos) = builder.position {
             let pos = PhysicalPosition::new(pixels_per_point * pos.x, pixels_per_point * pos.y);
@@ -5023,12 +4043,7 @@ fn set_maximized_while_hidden(window: &winit::window::Window) {
         // SAFETY: `hwnd` is a valid window handle and `value` is a BOOL, as DWMWA_CLOAK expects.
         #[expect(unsafe_code)]
         unsafe {
-            DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_CLOAK as u32,
-                (&raw const value).cast(),
-                size_of::<i32>() as u32,
-            )
+            DwmSetWindowAttribute(hwnd, DWMWA_CLOAK as u32, (&raw const value).cast(), size_of::<i32>() as u32)
         }
     };
 
@@ -5138,24 +4153,14 @@ mod tests {
     #[test]
     fn destroyed_window_resets_ime_cursor_purpose_and_allow_on_every_platform() {
         let mut allow_ime = true;
-        let mut cursor_rect_px = Some(egui::Rect::from_min_size(
-            egui::pos2(10.0, 20.0),
-            egui::vec2(30.0, 40.0),
-        ));
+        let mut cursor_rect_px = Some(egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(30.0, 40.0)));
         let mut old_ime_purpose = egui::IMEPurpose::Password;
 
         reset_ime_window_latches(&mut allow_ime, &mut cursor_rect_px, &mut old_ime_purpose);
 
         assert!(!allow_ime, "a reused State must enable the new window");
-        assert_eq!(
-            cursor_rect_px, None,
-            "the new window needs its first cursor area"
-        );
-        assert_eq!(
-            old_ime_purpose,
-            egui::IMEPurpose::Normal,
-            "the new window starts with the default purpose"
-        );
+        assert_eq!(cursor_rect_px, None, "the new window needs its first cursor area");
+        assert_eq!(old_ime_purpose, egui::IMEPurpose::Normal, "the new window starts with the default purpose");
     }
 
     #[test]
@@ -5163,63 +4168,33 @@ mod tests {
         let claim = (7, "selected".to_owned());
         assert!(unchanged_primary_is_suppressed(Some(&claim), 7, "selected"));
         assert!(!unchanged_primary_is_suppressed(Some(&claim), 7, "other"));
-        assert!(
-            !unchanged_primary_is_suppressed(Some(&claim), 8, "selected"),
-            "a new input generation may claim the same PRIMARY text again"
-        );
+        assert!(!unchanged_primary_is_suppressed(Some(&claim), 8, "selected"), "a new input generation may claim the same PRIMARY text again");
         assert!(!unchanged_primary_is_suppressed(None, 7, "selected"));
     }
 
     #[test]
     fn clipboard_input_classification_ignores_release_and_repaint() {
         use crate::clipboard_bridge::InputKind;
-        use winit::event::{
-            DeviceId, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
-        };
+        use winit::event::{DeviceId, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 
-        let mouse = |state| WindowEvent::MouseInput {
-            device_id: DeviceId::dummy(),
-            state,
-            button: MouseButton::Middle,
-        };
-        assert_eq!(
-            clipboard_input_kind(&mouse(ElementState::Pressed)),
-            InputKind::PointerPress
-        );
+        let mouse = |state| WindowEvent::MouseInput { device_id: DeviceId::dummy(), state, button: MouseButton::Middle };
+        assert_eq!(clipboard_input_kind(&mouse(ElementState::Pressed)), InputKind::PointerPress);
         assert_eq!(
             clipboard_input_kind(&mouse(ElementState::Released)),
             InputKind::NonInvalidating,
             "the pointer release after middle-click must not cancel its paste"
         );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::RedrawRequested),
-            InputKind::NonInvalidating
-        );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::CloseRequested),
-            InputKind::Close
-        );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::Destroyed),
-            InputKind::Close
-        );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::Focused(false)),
-            InputKind::Focus
-        );
+        assert_eq!(clipboard_input_kind(&WindowEvent::RedrawRequested), InputKind::NonInvalidating);
+        assert_eq!(clipboard_input_kind(&WindowEvent::CloseRequested), InputKind::Close);
+        assert_eq!(clipboard_input_kind(&WindowEvent::Destroyed), InputKind::Close);
+        assert_eq!(clipboard_input_kind(&WindowEvent::Focused(false)), InputKind::Focus);
         assert_eq!(
             clipboard_input_kind(&WindowEvent::Focused(true)),
             InputKind::FocusGained,
             "click-to-focus must not cancel the middle-click it completes"
         );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::Occluded(true)),
-            InputKind::Hide
-        );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::Occluded(false)),
-            InputKind::NonInvalidating
-        );
+        assert_eq!(clipboard_input_kind(&WindowEvent::Occluded(true)), InputKind::Hide);
+        assert_eq!(clipboard_input_kind(&WindowEvent::Occluded(false)), InputKind::NonInvalidating);
         assert_eq!(
             clipboard_input_kind(&WindowEvent::MouseWheel {
                 device_id: DeviceId::dummy(),
@@ -5228,21 +4203,12 @@ mod tests {
             }),
             InputKind::Scroll
         );
-        assert_eq!(
-            clipboard_input_kind(&WindowEvent::Ime(Ime::Commit("x".into()))),
-            InputKind::Edit
-        );
+        assert_eq!(clipboard_input_kind(&WindowEvent::Ime(Ime::Commit("x".into()))), InputKind::Edit);
 
         // The released initiating shortcut must not cancel the read it started. KeyEvent itself
         // has a winit-private platform field, so the testable seam is the pure classifier.
-        assert_eq!(
-            clipboard_key_input_kind(ElementState::Released, false),
-            InputKind::NonInvalidating
-        );
-        assert_eq!(
-            clipboard_key_input_kind(ElementState::Pressed, false),
-            InputKind::KeyPress
-        );
+        assert_eq!(clipboard_key_input_kind(ElementState::Released, false), InputKind::NonInvalidating);
+        assert_eq!(clipboard_key_input_kind(ElementState::Pressed, false), InputKind::KeyPress);
         assert_eq!(
             clipboard_key_input_kind(ElementState::Pressed, true),
             InputKind::NonInvalidating,
@@ -5250,12 +4216,8 @@ mod tests {
         );
 
         assert!(clipboard_input_claims_origin(&mouse(ElementState::Pressed)));
-        assert!(clipboard_input_claims_origin(&mouse(
-            ElementState::Released
-        )));
-        assert!(!clipboard_input_claims_origin(
-            &WindowEvent::RedrawRequested
-        ));
+        assert!(clipboard_input_claims_origin(&mouse(ElementState::Released)));
+        assert!(!clipboard_input_claims_origin(&WindowEvent::RedrawRequested));
     }
 
     #[test]
@@ -5265,18 +4227,10 @@ mod tests {
         for kind in [InputKind::Focus, InputKind::Close, InputKind::Hide] {
             assert!(clipboard_input_invalidates_claim_batch(kind));
         }
-        for kind in [
-            InputKind::FocusGained,
-            InputKind::PointerPress,
-            InputKind::KeyPress,
-            InputKind::Edit,
-            InputKind::Scroll,
-            InputKind::NonInvalidating,
-        ] {
-            assert!(
-                !clipboard_input_invalidates_claim_batch(kind),
-                "must not invalidate the batch for {kind:?}"
-            );
+        for kind in
+            [InputKind::FocusGained, InputKind::PointerPress, InputKind::KeyPress, InputKind::Edit, InputKind::Scroll, InputKind::NonInvalidating]
+        {
+            assert!(!clipboard_input_invalidates_claim_batch(kind), "must not invalidate the batch for {kind:?}");
         }
     }
 
@@ -5352,11 +4306,7 @@ mod tests {
         ];
         for (layout, typed, with_command, command, expected) in macos {
             // Mirrors the macOS `latin_key`.
-            let (latin, prefer_latin) = if command {
-                (key(with_command), true)
-            } else {
-                (None, false)
-            };
+            let (latin, prefer_latin) = if command { (key(with_command), true) } else { (None, false) };
             let got = letter_key(key(typed), latin, prefer_latin);
             assert_eq!(got, expected, "macOS {layout} {typed:?} ⌘ {command}");
         }
@@ -5367,9 +4317,7 @@ mod tests {
         assert_eq!(key_char(&winit_key("j")), Some('j'));
         assert_eq!(key_char(&winit_key("ae")), None);
 
-        let enter = key_from_winit_key(&winit::keyboard::Key::Named(
-            winit::keyboard::NamedKey::Enter,
-        ));
+        let enter = key_from_winit_key(&winit::keyboard::Key::Named(winit::keyboard::NamedKey::Enter));
         let enter_vk = windows_virtual_letter(Some(VK_RETURN));
         assert_eq!(letter_key(enter, enter_vk, false), Some(Key::Enter));
         assert_eq!(letter_key(enter, None, true), Some(Key::Enter));

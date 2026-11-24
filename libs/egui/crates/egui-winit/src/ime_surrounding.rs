@@ -103,12 +103,7 @@ pub(crate) struct SurroundingText {
 
 impl SurroundingText {
     fn new(text: &str, cursor: usize, anchor: usize) -> Self {
-        Self {
-            text: text.to_owned(),
-            cursor,
-            anchor,
-            cause: ImeChangeCause::Other,
-        }
+        Self { text: text.to_owned(), cursor, anchor, cause: ImeChangeCause::Other }
     }
 
     fn with_cause(mut self, cause: ImeChangeCause) -> Self {
@@ -182,13 +177,7 @@ pub(crate) trait ImeSurroundingSink {
     fn clear_ime_context(&mut self) -> SinkOutcome;
 
     /// Publish bounded committed text and UTF-8 byte offsets.
-    fn set_ime_surrounding_text(
-        &mut self,
-        text: &str,
-        cursor: usize,
-        anchor: usize,
-        cause: ImeChangeCause,
-    ) -> SinkOutcome;
+    fn set_ime_surrounding_text(&mut self, text: &str, cursor: usize, anchor: usize, cause: ImeChangeCause) -> SinkOutcome;
 }
 
 /// Per-window outgoing IME surrounding-text state.
@@ -218,12 +207,7 @@ impl ImeSurroundingSync {
     ///
     /// The returned action is useful for redacted tracing. The cache is only updated after every
     /// sink operation for this action reported [`SinkOutcome::Applied`].
-    pub(crate) fn update(
-        &mut self,
-        sink: &mut impl ImeSurroundingSink,
-        ime: Option<&IMEOutput>,
-        ime_allowed: bool,
-    ) -> ImeSurroundingAction {
+    pub(crate) fn update(&mut self, sink: &mut impl ImeSurroundingSink, ime: Option<&IMEOutput>, ime_allowed: bool) -> ImeSurroundingAction {
         if !sink.supports_ime_surrounding_text() {
             // X11 and non-Wayland integrations do not receive surrounding text from us. Do not
             // keep a cache that could suppress a later operation on a different backend.
@@ -257,19 +241,12 @@ impl ImeSurroundingSync {
             // IME already. Winit forgets its cached text on disable, so we only drop our own
             // knowledge. Do not plan a clear: issuing disable/enable here would re-enable a
             // window that is deliberately disabled and can fight the focus latch.
-            return Transition {
-                action: ImeSurroundingAction::None,
-                next: NextState::Forget,
-            };
+            return Transition { action: ImeSurroundingAction::None, next: NextState::Forget };
         }
 
         let Some(normalized) = NormalizedIme::new(ime) else {
             return Transition {
-                action: if self.backend.is_some() {
-                    ImeSurroundingAction::Clear
-                } else {
-                    ImeSurroundingAction::None
-                },
+                action: if self.backend.is_some() { ImeSurroundingAction::Clear } else { ImeSurroundingAction::None },
                 next: NextState::Forget,
             };
         };
@@ -281,45 +258,22 @@ impl ImeSurroundingSync {
             if backend.key == key {
                 return match available {
                     Some((text, cursor, anchor)) => {
-                        if backend
-                            .published
-                            .as_ref()
-                            .is_some_and(|old| old.matches(text, cursor, anchor))
-                        {
-                            Transition {
-                                action: ImeSurroundingAction::None,
-                                next: NextState::Keep,
-                            }
+                        if backend.published.as_ref().is_some_and(|old| old.matches(text, cursor, anchor)) {
+                            Transition { action: ImeSurroundingAction::None, next: NextState::Keep }
                         } else {
-                            let cause = if backend.published.is_some() {
-                                normalized.cause
-                            } else {
-                                ImeChangeCause::Other
-                            };
+                            let cause = if backend.published.is_some() { normalized.cause } else { ImeChangeCause::Other };
                             let text = SurroundingText::new(text, cursor, anchor).with_cause(cause);
                             Transition {
                                 action: ImeSurroundingAction::Set(text.clone()),
-                                next: NextState::Publish(BackendContext {
-                                    key,
-                                    published: Some(text),
-                                }),
+                                next: NextState::Publish(BackendContext { key, published: Some(text) }),
                             }
                         }
                     }
                     None => {
                         if backend.published.is_none() {
-                            Transition {
-                                action: ImeSurroundingAction::None,
-                                next: NextState::Keep,
-                            }
+                            Transition { action: ImeSurroundingAction::None, next: NextState::Keep }
                         } else {
-                            Transition {
-                                action: ImeSurroundingAction::Clear,
-                                next: NextState::Publish(BackendContext {
-                                    key,
-                                    published: None,
-                                }),
-                            }
+                            Transition { action: ImeSurroundingAction::Clear, next: NextState::Publish(BackendContext { key, published: None }) }
                         }
                     }
                 };
@@ -331,19 +285,10 @@ impl ImeSurroundingSync {
                     let text = SurroundingText::new(text, cursor, anchor);
                     Transition {
                         action: ImeSurroundingAction::ClearThenSet(text.clone()),
-                        next: NextState::Publish(BackendContext {
-                            key,
-                            published: Some(text),
-                        }),
+                        next: NextState::Publish(BackendContext { key, published: Some(text) }),
                     }
                 }
-                None => Transition {
-                    action: ImeSurroundingAction::Clear,
-                    next: NextState::Publish(BackendContext {
-                        key,
-                        published: None,
-                    }),
-                },
+                None => Transition { action: ImeSurroundingAction::Clear, next: NextState::Publish(BackendContext { key, published: None }) },
             };
         }
 
@@ -354,19 +299,10 @@ impl ImeSurroundingSync {
                 let text = SurroundingText::new(text, cursor, anchor);
                 Transition {
                     action: ImeSurroundingAction::Set(text.clone()),
-                    next: NextState::Publish(BackendContext {
-                        key,
-                        published: Some(text),
-                    }),
+                    next: NextState::Publish(BackendContext { key, published: Some(text) }),
                 }
             }
-            None => Transition {
-                action: ImeSurroundingAction::None,
-                next: NextState::Publish(BackendContext {
-                    key,
-                    published: None,
-                }),
-            },
+            None => Transition { action: ImeSurroundingAction::None, next: NextState::Publish(BackendContext { key, published: None }) },
         }
     }
 }
@@ -378,21 +314,13 @@ impl ImeSurroundingSync {
 fn apply_action(sink: &mut impl ImeSurroundingSink, action: &ImeSurroundingAction) -> bool {
     match action {
         ImeSurroundingAction::None => true,
-        ImeSurroundingAction::Set(text) => {
-            sink.set_ime_surrounding_text(&text.text, text.cursor, text.anchor, text.cause)
-                == SinkOutcome::Applied
-        }
+        ImeSurroundingAction::Set(text) => sink.set_ime_surrounding_text(&text.text, text.cursor, text.anchor, text.cause) == SinkOutcome::Applied,
         ImeSurroundingAction::Clear => sink.clear_ime_context() == SinkOutcome::Applied,
         ImeSurroundingAction::ClearThenSet(text) => {
             if sink.clear_ime_context() != SinkOutcome::Applied {
                 return false;
             }
-            sink.set_ime_surrounding_text(
-                &text.text,
-                text.cursor,
-                text.anchor,
-                ImeChangeCause::Other,
-            ) == SinkOutcome::Applied
+            sink.set_ime_surrounding_text(&text.text, text.cursor, text.anchor, ImeChangeCause::Other) == SinkOutcome::Applied
         }
     }
 }
@@ -407,32 +335,18 @@ struct NormalizedIme<'a> {
 impl<'a> NormalizedIme<'a> {
     fn new(ime: Option<&'a IMEOutput>) -> Option<Self> {
         let ime = ime?;
-        let key = ContextKey {
-            owner: ime.owner,
-            generation: ime.context_generation,
-            purpose: ime.purpose,
-        };
+        let key = ContextKey { owner: ime.owner, generation: ime.context_generation, purpose: ime.purpose };
 
         // Password fields never publish text, even if a caller built an `Available` payload by
         // hand. This is the last line of defense against stale password text in public output.
-        let payload = if ime.purpose == IMEPurpose::Password {
-            None
-        } else {
-            ime.surrounding_text
-                .available()
-                .filter(|payload| valid_payload(payload))
-        };
+        let payload =
+            if ime.purpose == IMEPurpose::Password { None } else { ime.surrounding_text.available().filter(|payload| valid_payload(payload)) };
 
-        Some(Self {
-            key,
-            payload,
-            cause: ime.change_cause,
-        })
+        Some(Self { key, payload, cause: ime.change_cause })
     }
 
     fn available(&self) -> Option<(&'a str, usize, usize)> {
-        self.payload
-            .map(|payload| (payload.text.as_str(), payload.cursor, payload.anchor))
+        self.payload.map(|payload| (payload.text.as_str(), payload.cursor, payload.anchor))
     }
 }
 
@@ -522,19 +436,12 @@ impl ImeGate {
     ///
     /// `current_allow` is the last value passed to `Window::set_ime_allowed`. `changed` means the
     /// integration must commit the transition and invalidate the surrounding-text cache.
-    pub(crate) fn transition(
-        &mut self,
-        ime_requested: bool,
-        current_allow: bool,
-    ) -> ImeAllowTransition {
+    pub(crate) fn transition(&mut self, ime_requested: bool, current_allow: bool) -> ImeAllowTransition {
         // A real descriptor satisfies a pending external enable, consuming the latch.
         // A `None` pass must not.
         self.pending_external_enable &= !ime_requested;
         let allow = self.permits_ime(ime_requested);
-        ImeAllowTransition {
-            allow,
-            changed: allow != current_allow,
-        }
+        ImeAllowTransition { allow, changed: allow != current_allow }
     }
 
     /// External permission changes cannot create an editor descriptor.
@@ -544,15 +451,8 @@ impl ImeGate {
     /// ordering policy used by both eframe (which has to pre-apply the command before platform
     /// output) and `egui_glow` (which already runs commands before platform output).
     pub(crate) fn external_transition(&self, current_allow: bool) -> ImeAllowTransition {
-        let allow = if self.external_ime_disabled || !self.focused {
-            false
-        } else {
-            current_allow
-        };
-        ImeAllowTransition {
-            allow,
-            changed: allow != current_allow,
-        }
+        let allow = if self.external_ime_disabled || !self.focused { false } else { current_allow };
+        ImeAllowTransition { allow, changed: allow != current_allow }
     }
 
     /// Whether an external enable is still waiting for a descriptor-carrying pass.
@@ -595,10 +495,7 @@ pub(crate) struct WinitImeSurroundingSink<'a> {
 
 impl<'a> WinitImeSurroundingSink<'a> {
     pub(crate) fn new(window: &'a Window, ime_allowed: bool) -> Self {
-        Self {
-            window,
-            ime_allowed,
-        }
+        Self { window, ime_allowed }
     }
 }
 
@@ -622,13 +519,7 @@ impl ImeSurroundingSink for WinitImeSurroundingSink<'_> {
         SinkOutcome::Applied
     }
 
-    fn set_ime_surrounding_text(
-        &mut self,
-        text: &str,
-        cursor: usize,
-        anchor: usize,
-        cause: ImeChangeCause,
-    ) -> SinkOutcome {
+    fn set_ime_surrounding_text(&mut self, text: &str, cursor: usize, anchor: usize, cause: ImeChangeCause) -> SinkOutcome {
         if !self.ime_allowed {
             // winit would cache the snapshot without committing it while disabled. Report the
             // suppression so the planner forgets instead of assuming the text is published.
@@ -637,13 +528,10 @@ impl ImeSurroundingSink for WinitImeSurroundingSink<'_> {
 
         use winit::platform::wayland::WindowExtWayland as _;
         let cause = match cause {
-            ImeChangeCause::InputMethod => {
-                winit::platform::wayland::ImeTextChangeCause::InputMethod
-            }
+            ImeChangeCause::InputMethod => winit::platform::wayland::ImeTextChangeCause::InputMethod,
             ImeChangeCause::Other => winit::platform::wayland::ImeTextChangeCause::Other,
         };
-        self.window
-            .set_ime_surrounding_text_with_change_cause(text, cursor, anchor, cause);
+        self.window.set_ime_surrounding_text_with_change_cause(text, cursor, anchor, cause);
         SinkOutcome::Applied
     }
 }
@@ -695,20 +583,11 @@ mod tests {
 
     impl FakeSink {
         fn new() -> Self {
-            Self {
-                calls: Vec::new(),
-                causes: Vec::new(),
-                supported: true,
-                allowed: true,
-                published: None,
-            }
+            Self { calls: Vec::new(), causes: Vec::new(), supported: true, allowed: true, published: None }
         }
 
         fn unsupported() -> Self {
-            Self {
-                supported: false,
-                ..Self::new()
-            }
+            Self { supported: false, ..Self::new() }
         }
     }
 
@@ -729,16 +608,9 @@ mod tests {
             SinkOutcome::Applied
         }
 
-        fn set_ime_surrounding_text(
-            &mut self,
-            text: &str,
-            cursor: usize,
-            anchor: usize,
-            cause: ImeChangeCause,
-        ) -> SinkOutcome {
+        fn set_ime_surrounding_text(&mut self, text: &str, cursor: usize, anchor: usize, cause: ImeChangeCause) -> SinkOutcome {
             if !self.supported || !self.allowed {
-                self.calls
-                    .push(Call::SuppressedSet(text.to_owned(), cursor, anchor));
+                self.calls.push(Call::SuppressedSet(text.to_owned(), cursor, anchor));
                 return SinkOutcome::Suppressed;
             }
 
@@ -756,11 +628,7 @@ mod tests {
         let mut first = output(1, 1, IMEPurpose::Normal, "a");
         first.change_cause = ImeChangeCause::InputMethod;
         sync.update(&mut sink, Some(&first), true);
-        assert_eq!(
-            sink.causes,
-            [ImeChangeCause::Other],
-            "initial context is application-origin"
-        );
+        assert_eq!(sink.causes, [ImeChangeCause::Other], "initial context is application-origin");
 
         let mut edited = output(1, 1, IMEPurpose::Normal, "ab");
         edited.change_cause = ImeChangeCause::InputMethod;
@@ -768,40 +636,22 @@ mod tests {
         assert_eq!(sink.causes.last(), Some(&ImeChangeCause::InputMethod));
         let calls = sink.calls.len();
         edited.change_cause = ImeChangeCause::Other;
-        assert_eq!(
-            sync.update(&mut sink, Some(&edited), true),
-            ImeSurroundingAction::None
-        );
-        assert_eq!(
-            sink.calls.len(),
-            calls,
-            "cause alone does not republish identical text"
-        );
+        assert_eq!(sync.update(&mut sink, Some(&edited), true), ImeSurroundingAction::None);
+        assert_eq!(sink.calls.len(), calls, "cause alone does not republish identical text");
     }
 
     #[test]
     fn change_cause_is_other_after_owner_generation_or_availability_changes() {
         let mut sync = ImeSurroundingSync::default();
         let mut sink = FakeSink::new();
-        sync.update(
-            &mut sink,
-            Some(&output(1, 1, IMEPurpose::Normal, "a")),
-            true,
-        );
+        sync.update(&mut sink, Some(&output(1, 1, IMEPurpose::Normal, "a")), true);
         for (owner, generation) in [(2, 1), (2, 2)] {
             let mut next = output(owner, generation, IMEPurpose::Normal, "b");
             next.change_cause = ImeChangeCause::InputMethod;
-            assert!(matches!(
-                sync.update(&mut sink, Some(&next), true),
-                ImeSurroundingAction::ClearThenSet(_)
-            ));
+            assert!(matches!(sync.update(&mut sink, Some(&next), true), ImeSurroundingAction::ClearThenSet(_)));
             assert_eq!(sink.causes.last(), Some(&ImeChangeCause::Other));
         }
-        sync.update(
-            &mut sink,
-            Some(&output_unavailable(2, 2, IMEPurpose::Normal)),
-            true,
-        );
+        sync.update(&mut sink, Some(&output_unavailable(2, 2, IMEPurpose::Normal)), true);
         let mut next = output(2, 2, IMEPurpose::Normal, "c");
         next.change_cause = ImeChangeCause::InputMethod;
         sync.update(&mut sink, Some(&next), true);
@@ -812,84 +662,42 @@ mod tests {
     fn suppressed_change_does_not_cache_cause_or_text_as_published() {
         let mut sync = ImeSurroundingSync::default();
         let mut sink = FakeSink::new();
-        sync.update(
-            &mut sink,
-            Some(&output(1, 1, IMEPurpose::Normal, "a")),
-            true,
-        );
+        sync.update(&mut sink, Some(&output(1, 1, IMEPurpose::Normal, "a")), true);
         sink.allowed = false;
         let mut edited = output(1, 1, IMEPurpose::Normal, "ab");
         edited.change_cause = ImeChangeCause::InputMethod;
         sync.update(&mut sink, Some(&edited), true);
         assert_eq!(sink.causes, [ImeChangeCause::Other]);
         sink.allowed = true;
-        assert!(matches!(
-            sync.update(&mut sink, Some(&edited), true),
-            ImeSurroundingAction::Set(_)
-        ));
+        assert!(matches!(sync.update(&mut sink, Some(&edited), true), ImeSurroundingAction::Set(_)));
         assert_eq!(sink.published, Some(("ab".into(), 2, 2)));
-        assert_eq!(
-            sink.causes.last(),
-            Some(&ImeChangeCause::Other),
-            "restored context is a fresh boundary"
-        );
+        assert_eq!(sink.causes.last(), Some(&ImeChangeCause::Other), "restored context is a fresh boundary");
     }
 
     fn output(owner: u64, generation: u64, purpose: IMEPurpose, text: &str) -> IMEOutput {
-        let mut ime = IMEOutput::new(
-            Id::unique(owner),
-            generation,
-            purpose,
-            Rect::ZERO,
-            Rect::ZERO,
-        );
+        let mut ime = IMEOutput::new(Id::unique(owner), generation, purpose, Rect::ZERO, Rect::ZERO);
         ime.surrounding_text = if purpose == IMEPurpose::Password {
             // Deliberately provide text to prove the consumer rejects it for password fields.
-            IMESurroundingText::Available(IMESurroundingTextPayload {
-                text: text.to_owned(),
-                cursor: text.len(),
-                anchor: text.len(),
-            })
+            IMESurroundingText::Available(IMESurroundingTextPayload { text: text.to_owned(), cursor: text.len(), anchor: text.len() })
         } else {
             IMESurroundingText::from_text(text, text.len(), text.len(), None)
         };
         ime
     }
 
-    fn output_with_payload(
-        owner: u64,
-        generation: u64,
-        purpose: IMEPurpose,
-        payload: IMESurroundingTextPayload,
-    ) -> IMEOutput {
-        let mut ime = IMEOutput::new(
-            Id::unique(owner),
-            generation,
-            purpose,
-            Rect::ZERO,
-            Rect::ZERO,
-        );
+    fn output_with_payload(owner: u64, generation: u64, purpose: IMEPurpose, payload: IMESurroundingTextPayload) -> IMEOutput {
+        let mut ime = IMEOutput::new(Id::unique(owner), generation, purpose, Rect::ZERO, Rect::ZERO);
         ime.surrounding_text = IMESurroundingText::Available(payload);
         ime
     }
 
     fn output_unavailable(owner: u64, generation: u64, purpose: IMEPurpose) -> IMEOutput {
-        let mut ime = IMEOutput::new(
-            Id::unique(owner),
-            generation,
-            purpose,
-            Rect::ZERO,
-            Rect::ZERO,
-        );
+        let mut ime = IMEOutput::new(Id::unique(owner), generation, purpose, Rect::ZERO, Rect::ZERO);
         ime.surrounding_text = IMESurroundingText::Unavailable;
         ime
     }
 
-    fn update(
-        sync: &mut ImeSurroundingSync,
-        sink: &mut FakeSink,
-        ime: Option<&IMEOutput>,
-    ) -> ImeSurroundingAction {
+    fn update(sync: &mut ImeSurroundingSync, sink: &mut FakeSink, ime: Option<&IMEOutput>) -> ImeSurroundingAction {
         sync.update(sink, ime, true)
     }
 
@@ -908,13 +716,7 @@ mod tests {
         fn new() -> Self {
             let mut sink = FakeSink::new();
             sink.allowed = false;
-            Self {
-                gate: ImeGate::default(),
-                sync: ImeSurroundingSync::default(),
-                sink,
-                allow_ime: false,
-                old_ime_purpose: IMEPurpose::Normal,
-            }
+            Self { gate: ImeGate::default(), sync: ImeSurroundingSync::default(), sink, allow_ime: false, old_ime_purpose: IMEPurpose::Normal }
         }
 
         fn pass(&mut self, ime: Option<&IMEOutput>) -> ImeSurroundingAction {
@@ -922,11 +724,7 @@ mod tests {
             if transition.changed {
                 self.allow_ime = transition.allow;
                 self.sink.allowed = transition.allow;
-                self.sink.calls.push(if transition.allow {
-                    Call::WindowEnable
-                } else {
-                    Call::WindowDisable
-                });
+                self.sink.calls.push(if transition.allow { Call::WindowEnable } else { Call::WindowDisable });
                 // winit forgets its cached text at every enable/disable boundary.
                 self.sink.published = None;
                 self.sync.forget_backend();
@@ -969,11 +767,7 @@ mod tests {
             if transition.changed {
                 self.sink.allowed = transition.allow;
                 self.sink.published = None;
-                self.sink.calls.push(if transition.allow {
-                    Call::WindowEnable
-                } else {
-                    Call::WindowDisable
-                });
+                self.sink.calls.push(if transition.allow { Call::WindowEnable } else { Call::WindowDisable });
                 // Only a real platform transition resets winit's cached text.
                 self.sync.forget_backend();
             }
@@ -990,11 +784,7 @@ mod tests {
 
         /// eframe ordering: an `IMEAllowed` command for this viewport is pre-applied before the
         /// platform-output pass, then the pass publishes surrounding text.
-        fn eframe_pass(
-            &mut self,
-            ime: Option<&IMEOutput>,
-            external_allowed: Option<bool>,
-        ) -> ImeSurroundingAction {
+        fn eframe_pass(&mut self, ime: Option<&IMEOutput>, external_allowed: Option<bool>) -> ImeSurroundingAction {
             if let Some(allowed) = external_allowed {
                 self.external_ime_allowed(allowed);
             }
@@ -1080,13 +870,7 @@ mod tests {
         ime.surrounding_text = IMESurroundingText::from_text(text, 1, 3, None);
         update(&mut sync, &mut sink, Some(&ime));
 
-        assert_eq!(
-            sink.calls,
-            vec![
-                Call::Set("abcd".to_owned(), 4, 4),
-                Call::Set("abcd".to_owned(), 1, 3),
-            ]
-        );
+        assert_eq!(sink.calls, vec![Call::Set("abcd".to_owned(), 4, 4), Call::Set("abcd".to_owned(), 1, 3),]);
     }
 
     #[test]
@@ -1115,10 +899,7 @@ mod tests {
 
         let unavailable = output_unavailable(1, 1, IMEPurpose::Normal);
         update(&mut sync, &mut sink, Some(&unavailable));
-        assert!(
-            sink.calls.is_empty(),
-            "an unavailable first context has nothing to clear"
-        );
+        assert!(sink.calls.is_empty(), "an unavailable first context has nothing to clear");
 
         let available = output(1, 1, IMEPurpose::Normal, "hello");
         update(&mut sync, &mut sink, Some(&available));
@@ -1164,10 +945,7 @@ mod tests {
 
         assert_eq!(
             sink.calls,
-            vec![
-                Call::Set("secret old text".to_owned(), 15, 15),
-                Call::SinkClear,
-            ],
+            vec![Call::Set("secret old text".to_owned(), 15, 15), Call::SinkClear,],
             "the old text must not be republished for the new owner"
         );
     }
@@ -1183,31 +961,15 @@ mod tests {
         let password = output(1, 1, IMEPurpose::Password, "hunter2");
         update(&mut sync, &mut sink, Some(&password));
 
-        assert_eq!(
-            sink.calls,
-            vec![Call::Set("visible".to_owned(), 7, 7), Call::SinkClear],
-            "password text is never sent"
-        );
+        assert_eq!(sink.calls, vec![Call::Set("visible".to_owned(), 7, 7), Call::SinkClear], "password text is never sent");
     }
 
     #[test]
     fn invalid_public_payloads_never_reach_the_sink() {
         let cases = [
-            IMESurroundingTextPayload {
-                text: "abc".to_owned(),
-                cursor: 4,
-                anchor: 4,
-            },
-            IMESurroundingTextPayload {
-                text: "abc".to_owned(),
-                cursor: 0,
-                anchor: 4,
-            },
-            IMESurroundingTextPayload {
-                text: "é".to_owned(),
-                cursor: 1,
-                anchor: 1,
-            },
+            IMESurroundingTextPayload { text: "abc".to_owned(), cursor: 4, anchor: 4 },
+            IMESurroundingTextPayload { text: "abc".to_owned(), cursor: 0, anchor: 4 },
+            IMESurroundingTextPayload { text: "é".to_owned(), cursor: 1, anchor: 1 },
             IMESurroundingTextPayload {
                 text: "x".repeat(MAX_IME_SURROUNDING_TEXT_BYTES + 1),
                 cursor: MAX_IME_SURROUNDING_TEXT_BYTES + 1,
@@ -1242,14 +1004,7 @@ mod tests {
 
         update(&mut sync, &mut sink, Some(&ime));
 
-        assert_eq!(
-            sink.calls,
-            vec![Call::Set(
-                text,
-                MAX_IME_SURROUNDING_TEXT_BYTES,
-                MAX_IME_SURROUNDING_TEXT_BYTES
-            )]
-        );
+        assert_eq!(sink.calls, vec![Call::Set(text, MAX_IME_SURROUNDING_TEXT_BYTES, MAX_IME_SURROUNDING_TEXT_BYTES)]);
     }
 
     #[test]
@@ -1262,10 +1017,7 @@ mod tests {
         update(&mut sync, &mut sink, None);
         update(&mut sync, &mut sink, None);
 
-        assert_eq!(
-            sink.calls,
-            vec![Call::Set("hello".to_owned(), 5, 5), Call::SinkClear,]
-        );
+        assert_eq!(sink.calls, vec![Call::Set("hello".to_owned(), 5, 5), Call::SinkClear,]);
     }
 
     #[test]
@@ -1282,11 +1034,7 @@ mod tests {
 
         let action = sync.update(&mut sink, None, false);
         assert_eq!(action, ImeSurroundingAction::None);
-        assert_eq!(
-            sink.calls,
-            vec![Call::Set("hello".to_owned(), 5, 5)],
-            "an already-disabled window must not receive a clear or an enable"
-        );
+        assert_eq!(sink.calls, vec![Call::Set("hello".to_owned(), 5, 5)], "an already-disabled window must not receive a clear or an enable");
     }
 
     #[test]
@@ -1301,10 +1049,7 @@ mod tests {
 
         assert_eq!(
             sink.calls,
-            vec![
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::Set("hello".to_owned(), 5, 5),
-            ],
+            vec![Call::Set("hello".to_owned(), 5, 5), Call::Set("hello".to_owned(), 5, 5),],
             "a reset cache must not suppress the next full payload"
         );
     }
@@ -1316,10 +1061,7 @@ mod tests {
         let ime = output(1, 1, IMEPurpose::Normal, "hello");
 
         update(&mut sync, &mut unsupported, Some(&ime));
-        assert!(
-            unsupported.calls.is_empty(),
-            "unsupported backend must not touch the sink"
-        );
+        assert!(unsupported.calls.is_empty(), "unsupported backend must not touch the sink");
 
         let mut supported = FakeSink::new();
         update(&mut sync, &mut supported, Some(&ime));
@@ -1335,10 +1077,7 @@ mod tests {
         let action = sync.update(&mut sink, Some(&ime), false);
 
         assert_eq!(action, ImeSurroundingAction::None);
-        assert!(
-            sink.calls.is_empty(),
-            "a disabled pass must not publish text"
-        );
+        assert!(sink.calls.is_empty(), "a disabled pass must not publish text");
     }
 
     #[test]
@@ -1396,10 +1135,7 @@ mod tests {
             ],
             "a clear must not enable a window the integration disabled"
         );
-        assert!(
-            !sink.allowed,
-            "the dedicated clear must preserve the allowed state"
-        );
+        assert!(!sink.allowed, "the dedicated clear must preserve the allowed state");
 
         sink.allowed = true;
         sync.update(&mut sink, Some(&second), true);
@@ -1428,11 +1164,7 @@ mod tests {
 
         assert_eq!(
             sink.calls,
-            vec![
-                Call::Set("old editor".to_owned(), 10, 10),
-                Call::SinkClear,
-                Call::Set("new editor".to_owned(), 10, 10),
-            ],
+            vec![Call::Set("old editor".to_owned(), 10, 10), Call::SinkClear, Call::Set("new editor".to_owned(), 10, 10),],
             "a context clear is one dedicated commit, not a disable/enable pair"
         );
         assert!(sink.allowed, "the clear must not disable the window");
@@ -1443,10 +1175,7 @@ mod tests {
     fn every_context_boundary_uses_one_clear_and_never_publishes_old_text() {
         // Password and unavailable payloads have no text of their own; the previous owner's text
         // must be forgotten with one dedicated clear, without an enable/disable cycle.
-        let cases = [
-            output_unavailable(2, 1, IMEPurpose::Normal),
-            output(2, 1, IMEPurpose::Password, "hunter2"),
-        ];
+        let cases = [output_unavailable(2, 1, IMEPurpose::Normal), output(2, 1, IMEPurpose::Password, "hunter2")];
 
         for boundary in cases {
             let mut sync = ImeSurroundingSync::default();
@@ -1459,10 +1188,7 @@ mod tests {
 
             assert_eq!(
                 sink.calls,
-                vec![
-                    Call::Set("secret old text".to_owned(), 15, 15),
-                    Call::SinkClear
-                ],
+                vec![Call::Set("secret old text".to_owned(), 15, 15), Call::SinkClear],
                 "one clear for the boundary, then quiet passes"
             );
             assert!(sink.allowed);
@@ -1476,10 +1202,7 @@ mod tests {
         let ime = output(1, 1, IMEPurpose::Normal, "hello");
 
         harness.pass(Some(&ime));
-        assert_eq!(
-            harness.sink.calls,
-            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5),]
-        );
+        assert_eq!(harness.sink.calls, vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5),]);
 
         harness.window_focus_lost();
         // egui still reports the same IME-owning widget; these passes must stay silent.
@@ -1487,17 +1210,10 @@ mod tests {
         harness.pass(Some(&ime));
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,],
             "an unfocused window must not be re-enabled or republished"
         );
-        assert!(
-            !harness.sink.allowed,
-            "the window must stay disabled while unfocused"
-        );
+        assert!(!harness.sink.allowed, "the window must stay disabled while unfocused");
 
         harness.window_focus_gained();
         harness.pass(Some(&ime));
@@ -1542,19 +1258,8 @@ mod tests {
         // next editor descriptor has not changed yet.
         harness.sync.forget_backend();
         harness.pass(Some(&ime));
-        assert_eq!(
-            harness
-                .sink
-                .calls
-                .iter()
-                .filter(|call| matches!(call, Call::Set(..)))
-                .count(),
-            2
-        );
-        assert_eq!(
-            harness.sink.causes.last(),
-            Some(&egui::output::ImeChangeCause::Other)
-        );
+        assert_eq!(harness.sink.calls.iter().filter(|call| matches!(call, Call::Set(..))).count(), 2);
+        assert_eq!(harness.sink.causes.last(), Some(&egui::output::ImeChangeCause::Other));
     }
 
     #[test]
@@ -1571,17 +1276,10 @@ mod tests {
         harness.pass(Some(&ime));
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,],
             "IMEAllowed(false) must disable and suppress the stale descriptor"
         );
-        assert!(
-            !harness.sink.allowed,
-            "external disable must leave the window disabled"
-        );
+        assert!(!harness.sink.allowed, "external disable must leave the window disabled");
 
         harness.external_ime_allowed(true);
         harness.pass(Some(&ime));
@@ -1618,11 +1316,7 @@ mod tests {
         assert!(!harness.allow_ime);
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,],
             "the stale descriptor must not cause a second WindowEnable"
         );
 
@@ -1656,11 +1350,7 @@ mod tests {
 
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,],
             "WindowDisable must precede any surrounding-text Set for this pass"
         );
         assert!(!harness.allow_ime);
@@ -1680,18 +1370,10 @@ mod tests {
         assert!(harness.allow_ime);
 
         let second = output(2, 2, IMEPurpose::Normal, "same text");
-        assert!(matches!(
-            harness.pass(Some(&second)),
-            ImeSurroundingAction::ClearThenSet(_)
-        ));
+        assert!(matches!(harness.pass(Some(&second)), ImeSurroundingAction::ClearThenSet(_)));
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("same text".to_owned(), 9, 9),
-                Call::SinkClear,
-                Call::Set("same text".to_owned(), 9, 9),
-            ],
+            vec![Call::WindowEnable, Call::Set("same text".to_owned(), 9, 9), Call::SinkClear, Call::Set("same text".to_owned(), 9, 9),],
             "a redundant external enable must not turn the new owner into an initial context"
         );
     }
@@ -1704,34 +1386,18 @@ mod tests {
         harness.pass(Some(&ime));
 
         harness.external_ime_purpose(IMEPurpose::Normal);
-        assert!(matches!(
-            harness.pass(Some(&ime)),
-            ImeSurroundingAction::None
-        ));
+        assert!(matches!(harness.pass(Some(&ime)), ImeSurroundingAction::None));
         assert_eq!(
-            harness
-                .sink
-                .calls
-                .iter()
-                .filter(|call| matches!(call, Call::Set(..)))
-                .count(),
+            harness.sink.calls.iter().filter(|call| matches!(call, Call::Set(..))).count(),
             1,
             "an unchanged external purpose must be a no-op"
         );
 
         let second = output(2, 2, IMEPurpose::Normal, "same text");
-        assert!(matches!(
-            harness.pass(Some(&second)),
-            ImeSurroundingAction::ClearThenSet(_)
-        ));
+        assert!(matches!(harness.pass(Some(&second)), ImeSurroundingAction::ClearThenSet(_)));
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("same text".to_owned(), 9, 9),
-                Call::SinkClear,
-                Call::Set("same text".to_owned(), 9, 9),
-            ],
+            vec![Call::WindowEnable, Call::Set("same text".to_owned(), 9, 9), Call::SinkClear, Call::Set("same text".to_owned(), 9, 9),],
             "the unchanged purpose must not hide the later owner transition"
         );
     }
@@ -1752,10 +1418,7 @@ mod tests {
         harness.window_focus_gained();
         harness.pass(Some(&ime));
         assert!(harness.allow_ime);
-        assert_eq!(
-            harness.sink.calls.last(),
-            Some(&Call::Set("hello".to_owned(), 5, 5))
-        );
+        assert_eq!(harness.sink.calls.last(), Some(&Call::Set("hello".to_owned(), 5, 5)));
     }
 
     #[test]
@@ -1775,11 +1438,7 @@ mod tests {
 
         assert_eq!(
             a.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("alpha".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("alpha".to_owned(), 5, 5), Call::WindowDisable,],
             "the external disable belongs only to state A"
         );
         assert_eq!(
@@ -1821,10 +1480,7 @@ mod tests {
         let mut fresh = PassHarness::new();
         fresh.window_focus_gained();
         fresh.pass(Some(&ime));
-        assert_eq!(
-            fresh.sink.calls,
-            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5),]
-        );
+        assert_eq!(fresh.sink.calls, vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5),]);
         assert!(fresh.sink.allowed);
     }
 
@@ -1839,14 +1495,7 @@ mod tests {
         // synchronous disable must not be undone by the same pass's stale IME descriptor.
         harness.external_ime_allowed(false);
         harness.pass(Some(&ime));
-        assert_eq!(
-            harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ]
-        );
+        assert_eq!(harness.sink.calls, vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,]);
 
         // An external enable while unfocused latches but does not transiently enable the window,
         // even when the same pass still has an IME descriptor.
@@ -1855,11 +1504,7 @@ mod tests {
         harness.pass(Some(&ime));
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::WindowDisable,
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::WindowDisable,],
             "the focus veto must survive an external enable and platform output"
         );
         assert!(!harness.sink.allowed);
@@ -1903,60 +1548,26 @@ mod tests {
 
         let b_edited = output(2, 1, IMEPurpose::Normal, "beta!");
         update(&mut sync_b, &mut sink_b, Some(&b_edited));
-        assert_eq!(
-            sink_b.calls,
-            vec![
-                Call::Set("beta".to_owned(), 4, 4),
-                Call::Set("beta!".to_owned(), 5, 5),
-            ]
-        );
+        assert_eq!(sink_b.calls, vec![Call::Set("beta".to_owned(), 4, 4), Call::Set("beta!".to_owned(), 5, 5),]);
     }
 
     #[test]
     fn ime_gate_requires_focus_and_no_external_disable() {
         let mut gate = ImeGate::default();
-        assert_eq!(
-            gate.transition(true, false),
-            ImeAllowTransition {
-                allow: false,
-                changed: false,
-            },
-            "no IME is enabled before winit reports focus"
-        );
+        assert_eq!(gate.transition(true, false), ImeAllowTransition { allow: false, changed: false }, "no IME is enabled before winit reports focus");
 
         gate.set_focused(true);
-        assert_eq!(
-            gate.transition(true, false),
-            ImeAllowTransition {
-                allow: true,
-                changed: true,
-            }
-        );
-        assert!(
-            gate.transition(false, true).changed,
-            "dropping the IME request must disable the window"
-        );
+        assert_eq!(gate.transition(true, false), ImeAllowTransition { allow: true, changed: true });
+        assert!(gate.transition(false, true).changed, "dropping the IME request must disable the window");
 
         gate.set_external_ime_allowed(false);
-        assert_eq!(
-            gate.transition(true, true),
-            ImeAllowTransition {
-                allow: false,
-                changed: true,
-            }
-        );
+        assert_eq!(gate.transition(true, true), ImeAllowTransition { allow: false, changed: true });
 
         gate.set_external_ime_allowed(true);
-        assert!(
-            gate.transition(true, false).allow,
-            "clearing the external disable must permit IME again"
-        );
+        assert!(gate.transition(true, false).allow, "clearing the external disable must permit IME again");
 
         gate.set_focused(false);
-        assert!(
-            !gate.transition(true, true).allow,
-            "focus loss must veto IME even when an external enable is latched"
-        );
+        assert!(!gate.transition(true, true).allow, "focus loss must veto IME even when an external enable is latched");
     }
 
     #[test]
@@ -1973,11 +1584,7 @@ mod tests {
 
         assert_eq!(
             harness.sink.calls,
-            vec![
-                Call::WindowEnable,
-                Call::Set("hello".to_owned(), 5, 5),
-                Call::Set("hello".to_owned(), 5, 5),
-            ],
+            vec![Call::WindowEnable, Call::Set("hello".to_owned(), 5, 5), Call::Set("hello".to_owned(), 5, 5),],
             "the lifecycle event must not toggle IME and must cause at most one resend"
         );
     }

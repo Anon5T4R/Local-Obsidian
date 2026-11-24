@@ -144,27 +144,15 @@ impl TextEditState {
     ///
     /// The generation is stable through ordinary text and selection updates. It changes when
     /// this widget acquires focus, or when its IME purpose changes while focused.
-    pub(crate) fn update_ime_context(
-        &mut self,
-        focused: bool,
-        gained_focus: bool,
-        purpose: IMEPurpose,
-        pass_nr: u64,
-    ) -> u64 {
+    pub(crate) fn update_ime_context(&mut self, focused: bool, gained_focus: bool, purpose: IMEPurpose, pass_nr: u64) -> u64 {
         if focused {
             // A hidden editor cannot update its per-widget focus flag. Consult actual focus
             // transitions too, and treat reappearance after an absent pass as a new context.
             let new_pass = self.ime_last_seen_pass != Some(pass_nr);
-            let was_absent = self
-                .ime_last_seen_pass
-                .is_some_and(|last| last != pass_nr && last.checked_add(1) != Some(pass_nr));
-            let context_changed = !self.ime_context_focused
-                || self.ime_context_purpose != purpose
-                || (new_pass && gained_focus)
-                || was_absent;
+            let was_absent = self.ime_last_seen_pass.is_some_and(|last| last != pass_nr && last.checked_add(1) != Some(pass_nr));
+            let context_changed = !self.ime_context_focused || self.ime_context_purpose != purpose || (new_pass && gained_focus) || was_absent;
             if context_changed {
-                self.ime_context_generation =
-                    crate::ime_context::next_context_generation().unwrap_or(0);
+                self.ime_context_generation = crate::ime_context::next_context_generation().unwrap_or(0);
             }
             self.ime_context_purpose = purpose;
             self.ime_context_focused = true;
@@ -190,23 +178,14 @@ impl TextEditState {
     /// The receipt is accepted only when `before` differs from `after` and continues the
     /// frame's receipt chain from the last observed baseline. A mismatch marks the frame
     /// [`ImeChangeCause::Other`]. A no-op mutation is ignored without poisoning the frame.
-    pub(crate) fn note_ime_input_method_apply(
-        &mut self,
-        frame_nr: u64,
-        before: IMESurroundingText,
-        after: IMESurroundingText,
-    ) -> bool {
+    pub(crate) fn note_ime_input_method_apply(&mut self, frame_nr: u64, before: IMESurroundingText, after: IMESurroundingText) -> bool {
         self.ensure_ime_cause_frame(frame_nr);
         if before == after {
             return false;
         }
 
-        let chain_is_valid = self
-            .ime_cause_receipt_chain
-            .as_ref()
-            .map_or(before == self.ime_baseline, |chain| {
-                chain.continues(&self.ime_baseline, &before)
-            });
+        let chain_is_valid =
+            self.ime_cause_receipt_chain.as_ref().map_or(before == self.ime_baseline, |chain| chain.continues(&self.ime_baseline, &before));
 
         if !chain_is_valid {
             self.ime_cause_origin_other = true;
@@ -218,11 +197,7 @@ impl TextEditState {
         if let Some(chain) = &mut self.ime_cause_receipt_chain {
             chain.push(after);
         } else {
-            self.ime_cause_receipt_chain = Some(ImeReceiptChain {
-                first_before: before,
-                last_after: after,
-                count: 1,
-            });
+            self.ime_cause_receipt_chain = Some(ImeReceiptChain { first_before: before, last_after: after, count: 1 });
         }
         true
     }
@@ -244,12 +219,7 @@ impl TextEditState {
     /// The returned cause is [`ImeChangeCause::Other`] for context transitions and for any
     /// change not proven by an exact chain of accepted IME receipts. An unchanged pass keeps
     /// the frame's first cause; a changed pass always builds a new descriptor.
-    pub(crate) fn observe_ime_committed(
-        &mut self,
-        frame_nr: u64,
-        generation: u64,
-        snapshot: &IMESurroundingText,
-    ) -> ImeChangeCause {
+    pub(crate) fn observe_ime_committed(&mut self, frame_nr: u64, generation: u64, snapshot: &IMESurroundingText) -> ImeChangeCause {
         self.ensure_ime_cause_frame(frame_nr);
 
         if self.ime_baseline_generation != generation {
@@ -265,10 +235,7 @@ impl TextEditState {
         let previous = core::mem::replace(&mut self.ime_baseline, snapshot.clone());
         let changed = previous != *snapshot;
         let cause = if changed {
-            let receipts_are_exact = self
-                .ime_cause_receipt_chain
-                .as_ref()
-                .is_some_and(|chain| chain.is_exact(&previous, snapshot));
+            let receipts_are_exact = self.ime_cause_receipt_chain.as_ref().is_some_and(|chain| chain.is_exact(&previous, snapshot));
             let cause = if self.ime_cause_origin_other {
                 ImeChangeCause::Other
             } else if receipts_are_exact {
@@ -368,25 +335,14 @@ impl TextEditCursorPurpose {
     pub(crate) fn preedit_matches(&self, text: &str) -> bool {
         match self {
             Self::Selection => true,
-            Self::ImeComposition {
-                preedit_range,
-                preedit_text,
-                ..
-            } => slice_char_range(text, preedit_range) == Some(preedit_text.as_str()),
+            Self::ImeComposition { preedit_range, preedit_text, .. } => slice_char_range(text, preedit_range) == Some(preedit_text.as_str()),
         }
     }
 
     /// Refresh the remembered pre-edit text from the current buffer.
     pub(crate) fn refresh_preedit_text(&mut self, text: &str) {
-        if let Self::ImeComposition {
-            preedit_range,
-            preedit_text,
-            ..
-        } = self
-        {
-            *preedit_text = slice_char_range(text, preedit_range)
-                .unwrap_or_default()
-                .to_owned();
+        if let Self::ImeComposition { preedit_range, preedit_text, .. } = self {
+            *preedit_text = slice_char_range(text, preedit_range).unwrap_or_default().to_owned();
         }
     }
 }
@@ -406,10 +362,7 @@ fn byte_index_from_char_index(text: &str, char_index: usize) -> Option<usize> {
     if char_index == 0 {
         return Some(0);
     }
-    text.char_indices()
-        .nth(char_index)
-        .map(|(byte_index, _)| byte_index)
-        .or_else(|| (text.chars().count() == char_index).then_some(text.len()))
+    text.char_indices().nth(char_index).map(|(byte_index, _)| byte_index).or_else(|| (text.chars().count() == char_index).then_some(text.len()))
 }
 
 #[cfg(test)]
@@ -420,11 +373,8 @@ mod tests {
     fn many_ime_receipts_are_compressed_to_one_bounded_chain() {
         const RECEIPTS: usize = 2_000;
 
-        let mut state = TextEditState {
-            ime_baseline: IMESurroundingText::from_text("", 0, 0, None),
-            ime_baseline_generation: 7,
-            ..Default::default()
-        };
+        let mut state =
+            TextEditState { ime_baseline: IMESurroundingText::from_text("", 0, 0, None), ime_baseline_generation: 7, ..Default::default() };
 
         let mut text = String::new();
         for _ in 0..RECEIPTS {
@@ -434,31 +384,18 @@ mod tests {
             assert!(state.note_ime_input_method_apply(3, before, after));
         }
 
-        let chain = state
-            .ime_cause_receipt_chain
-            .as_ref()
-            .expect("accepted receipts keep one compressed chain");
+        let chain = state.ime_cause_receipt_chain.as_ref().expect("accepted receipts keep one compressed chain");
         assert_eq!(chain.count, RECEIPTS);
-        assert_eq!(
-            chain.last_after,
-            IMESurroundingText::from_text(&text, text.len(), text.len(), None)
-        );
+        assert_eq!(chain.last_after, IMESurroundingText::from_text(&text, text.len(), text.len(), None));
 
         let current = IMESurroundingText::from_text(&text, text.len(), text.len(), None);
-        assert_eq!(
-            state.observe_ime_committed(3, 7, &current),
-            ImeChangeCause::InputMethod
-        );
+        assert_eq!(state.observe_ime_committed(3, 7, &current), ImeChangeCause::InputMethod);
         assert!(state.ime_cause_receipt_chain.is_none());
     }
 
     #[test]
     fn preedit_text_detects_out_of_band_buffer_mutation() {
-        let mut purpose = TextEditCursorPurpose::ImeComposition {
-            active_range: None,
-            preedit_range: 2..4,
-            preedit_text: "にほ".to_owned(),
-        };
+        let mut purpose = TextEditCursorPurpose::ImeComposition { active_range: None, preedit_range: 2..4, preedit_text: "にほ".to_owned() };
         assert!(purpose.preedit_matches("abにほ"));
         assert!(!purpose.preedit_matches("00abに"));
 

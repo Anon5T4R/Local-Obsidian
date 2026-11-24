@@ -1,5 +1,5 @@
 [package]
-name = "localobsidian-convert"
+name = "localnotebook-convert"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

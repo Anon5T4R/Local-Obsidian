@@ -15,7 +15,7 @@
   timestamp server, ...). Optional overrides: WINDOWS_TIMESTAMP_URL, SIGNTOOL (path to signtool.exe).
 
 .EXAMPLE
-  pwsh packaging/windows/sign.ps1 dist/localobsidian.exe dist/localobsidian-1.0.0-windows-x64.msi
+  pwsh packaging/windows/sign.ps1 dist/localnotebook.exe dist/localnotebook-1.0.0-windows-x64.msi
 #>
 param(
   [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
@@ -56,7 +56,7 @@ if (-not $haveCert -and -not $haveAzure) {
 
 $script:SignTool = Find-SignTool
 $common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'Local Notebook', '/du', 'https://github.com/Anon5T4R/Local-Obsidian')
-$tmp = Join-Path ([IO.Path]::GetTempPath()) "localobsidian-sign-$([IO.Path]::GetRandomFileName())"
+$tmp = Join-Path ([IO.Path]::GetTempPath()) "localnotebook-sign-$([IO.Path]::GetRandomFileName())"
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {

@@ -120,7 +120,7 @@ pub fn vault(dir: Option<&str>) -> Result<(), String> {
 /// `cargo xtask qa-shots [vault]`: one PNG of the app per window size.
 pub fn shots(vault: Option<&str>) -> Result<(), String> {
     let root = crate::root();
-    let app = root.join("target").join("debug").join(if cfg!(windows) { "localobsidian.exe" } else { "localobsidian" });
+    let app = root.join("target").join("debug").join(if cfg!(windows) { "localnotebook.exe" } else { "localnotebook" });
     if !app.is_file() {
         return Err(format!("{} is missing: run `cargo build` first", app.display()));
     }
@@ -192,7 +192,7 @@ pub fn shots(vault: Option<&str>) -> Result<(), String> {
 /// The `-light`/`-dark` suffix of the file names, when the run pinning the theme asks for one: a
 /// light capture must not overwrite the dark one (nor be compared against it).
 fn theme_suffix() -> String {
-    match std::env::var("LOCALOBSIDIAN_QA_THEME").ok().as_deref() {
+    match std::env::var("LOCALNOTEBOOK_QA_THEME").ok().as_deref() {
         Some(theme) if !theme.is_empty() && theme != "system" => format!("-{theme}"),
         _ => String::new(),
     }
@@ -202,18 +202,18 @@ fn theme_suffix() -> String {
 fn shoot(app: &Path, vault: &Path, note: Option<&str>, width: u32, height: u32, shot: &Path) -> Result<(), String> {
     let mut command = Command::new(app);
     command
-        .env("LOCALOBSIDIAN_NO_PREFS", "1")
-        .env("LOCALOBSIDIAN_QA_SHOT", shot)
-        .env("LOCALOBSIDIAN_QA_VAULT", vault)
-        .env("LOCALOBSIDIAN_QA_VIEW", "read")
-        .env("LOCALOBSIDIAN_QA_SIZE", format!("{width}x{height}"))
-        .env("LOCALOBSIDIAN_QA_FRAMES", "45");
+        .env("LOCALNOTEBOOK_NO_PREFS", "1")
+        .env("LOCALNOTEBOOK_QA_SHOT", shot)
+        .env("LOCALNOTEBOOK_QA_VAULT", vault)
+        .env("LOCALNOTEBOOK_QA_VIEW", "read")
+        .env("LOCALNOTEBOOK_QA_SIZE", format!("{width}x{height}"))
+        .env("LOCALNOTEBOOK_QA_FRAMES", "45");
     // The theme of the capture follows the caller's, so a light run is reproducible on any machine.
-    if let Ok(theme) = std::env::var("LOCALOBSIDIAN_QA_THEME") {
-        command.env("LOCALOBSIDIAN_QA_THEME", theme);
+    if let Ok(theme) = std::env::var("LOCALNOTEBOOK_QA_THEME") {
+        command.env("LOCALNOTEBOOK_QA_THEME", theme);
     }
     if let Some(note) = note {
-        command.env("LOCALOBSIDIAN_QA_NOTE", note);
+        command.env("LOCALNOTEBOOK_QA_NOTE", note);
     }
     let status = command.status().map_err(|error| format!("cannot start {}: {error}", app.display()))?;
     if !status.success() {
@@ -279,18 +279,27 @@ pub fn sample(count: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
-/// The settings file, per platform (see `apps/localobsidian/src/prefs.rs`).
+/// The settings file, per platform (see `apps/localnotebook/src/prefs.rs`). A machine that hasn't
+/// started the renamed app yet still has it under the old name (Local Obsidian), so that is the fallback.
 fn prefs_path() -> Option<PathBuf> {
+    let current = prefs_path_named("LocalNotebook", "localnotebook")?;
+    if current.is_file() {
+        return Some(current);
+    }
+    prefs_path_named("LocalObsidian", "localobsidian").filter(|old| old.is_file()).or(Some(current))
+}
+
+fn prefs_path_named(app_dir: &str, xdg_dir: &str) -> Option<PathBuf> {
     let dir = if cfg!(windows) {
-        std::env::var_os("APPDATA").map(PathBuf::from)?.join("LocalObsidian")
+        std::env::var_os("APPDATA").map(PathBuf::from)?.join(app_dir)
     } else if cfg!(target_os = "macos") {
-        PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support/LocalObsidian")
+        PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support").join(app_dir)
     } else {
         match std::env::var_os("XDG_CONFIG_HOME").filter(|dir| !dir.is_empty()) {
             Some(dir) => PathBuf::from(dir),
             None => PathBuf::from(std::env::var_os("HOME")?).join(".config"),
         }
-        .join("localobsidian")
+        .join(xdg_dir)
     };
     Some(dir.join("prefs.json"))
 }

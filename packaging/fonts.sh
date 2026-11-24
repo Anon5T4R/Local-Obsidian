@@ -2,7 +2,7 @@
 # Font setup for local packaging; sourced after packaging/env.sh.
 #
 # The app embeds a craft-fonts checkout as its CJK/Arabic/Hebrew/Devanagari faces (see
-# `apps/localobsidian/src/fonts.rs`). Releases must build with it: `CRAFT_FONTS_REQUIRED=1` below makes
+# `apps/localnotebook/src/fonts.rs`). Releases must build with it: `CRAFT_FONTS_REQUIRED=1` below makes
 # a missing face a build error instead of a release whose Japanese menus are boxes.
 prepare_fonts() {
   # This repository vendors craft-fonts at assets/craft-fonts (the CI and release builds pass it

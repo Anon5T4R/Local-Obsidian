@@ -937,7 +937,7 @@ mod tests {
     fn the_file_round_trips_and_keeps_the_field_order() {
         let mut file = SrsFile::default();
         file.cards.insert("abcdef0123456789".into(), CardState { suspended: true, ..base() });
-        let directory = std::env::temp_dir().join(format!("localobsidian-srs-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!("localnotebook-srs-{}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("temp dir");
         let path = directory.join("srs.json");
         save(&path, &file).expect("save");
@@ -956,7 +956,7 @@ mod tests {
     fn a_file_written_by_the_phone_is_read_as_is() {
         // The Android app writes `interval` as a Double (`1.0`), the desktop as a Number (`1`), and
         // only `suspended: true` is written at all. Both shapes must land on the same schedule.
-        let directory = std::env::temp_dir().join(format!("localobsidian-srs-android-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!("localnotebook-srs-android-{}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("temp dir");
         let path = directory.join("srs.json");
         std::fs::write(
@@ -986,7 +986,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_file_is_an_empty_schedule() {
-        let path = std::env::temp_dir().join(format!("localobsidian-srs-bad-{}.json", std::process::id()));
+        let path = std::env::temp_dir().join(format!("localnotebook-srs-bad-{}.json", std::process::id()));
         std::fs::write(&path, "isto não é json").expect("write");
         let (file, dropped) = load(&path);
         assert!(file.cards.is_empty());
@@ -997,7 +997,7 @@ mod tests {
 
     #[test]
     fn a_card_with_an_absolute_path_is_dropped() {
-        let path = std::env::temp_dir().join(format!("localobsidian-srs-abs-{}.json", std::process::id()));
+        let path = std::env::temp_dir().join(format!("localnotebook-srs-abs-{}.json", std::process::id()));
         std::fs::write(
             &path,
             r#"{"version":1,"cards":{"a":{"file":"C:/vault/Nota.md","q":"P","ease":2.5,"interval":0,"reps":0,"due":"2026-07-21","lapses":0}}}"#,

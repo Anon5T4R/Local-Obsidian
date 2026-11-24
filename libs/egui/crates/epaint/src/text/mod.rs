@@ -29,10 +29,7 @@ pub use {
     font_provider::{FallbackRequest, FontProvider},
     font_tweak::{FallbackAlign, FontTweak, HintingTarget, SmoothHinting},
     fonts::{Fonts, FontsView, MAX_GLYPH_SIZE, MissingGlyphPolicy, ViewportKey},
-    glyph_rasterizer::{
-        GlyphBitmap, GlyphRasterizer, GlyphRasterizerRequest, RasterizedGlyph,
-        has_emoji_presentation,
-    },
+    glyph_rasterizer::{GlyphBitmap, GlyphRasterizer, GlyphRasterizerRequest, RasterizedGlyph, has_emoji_presentation},
     index::{ByteIndex, ByteRange, ByteRangeExt, CharIndex, CharRange, CharRangeExt},
     line_break::{LineBreak, LineBreakKind, LineBreaker, SimpleLineBreaker},
     text_layout_types::*,

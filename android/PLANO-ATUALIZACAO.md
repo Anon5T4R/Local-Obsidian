@@ -1,4 +1,4 @@
-# Plano de atualização — OpenObsidian Android
+# Plano de atualização — Local Notebook Android (antes OpenObsidian Android)
 
 > Comparativo entre o **desktop v1.2.1** (Electron) e o **Android 3.4.0**.
 > Atualizado em 2026-07-22. A versão anterior comparava com o desktop v1.0.0 e

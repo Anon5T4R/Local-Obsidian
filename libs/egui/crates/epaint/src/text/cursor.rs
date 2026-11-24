@@ -32,10 +32,7 @@ impl CCursor {
     /// To put the cursor after the last character of a string, use [`Self::end_of_str`].
     #[inline]
     pub fn new(index: impl Into<CharIndex>) -> Self {
-        Self {
-            index: index.into(),
-            prefer_next_row: false,
-        }
+        Self { index: index.into(), prefer_next_row: false }
     }
 
     /// A cursor placed after the last character of `text`,
@@ -59,10 +56,7 @@ impl core::ops::Add<usize> for CCursor {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
-        Self {
-            index: self.index.saturating_add(rhs),
-            prefer_next_row: self.prefer_next_row,
-        }
+        Self { index: self.index.saturating_add(rhs), prefer_next_row: self.prefer_next_row }
     }
 }
 
@@ -70,10 +64,7 @@ impl core::ops::Add<CharIndex> for CCursor {
     type Output = Self;
 
     fn add(self, rhs: CharIndex) -> Self::Output {
-        Self {
-            index: self.index + rhs,
-            prefer_next_row: self.prefer_next_row,
-        }
+        Self { index: self.index + rhs, prefer_next_row: self.prefer_next_row }
     }
 }
 
@@ -81,10 +72,7 @@ impl core::ops::Sub<usize> for CCursor {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
-        Self {
-            index: self.index.saturating_sub(rhs),
-            prefer_next_row: self.prefer_next_row,
-        }
+        Self { index: self.index.saturating_sub(rhs), prefer_next_row: self.prefer_next_row }
     }
 }
 
@@ -92,10 +80,7 @@ impl core::ops::Sub<CharIndex> for CCursor {
     type Output = Self;
 
     fn sub(self, rhs: CharIndex) -> Self::Output {
-        Self {
-            index: self.index - rhs,
-            prefer_next_row: self.prefer_next_row,
-        }
+        Self { index: self.index - rhs, prefer_next_row: self.prefer_next_row }
     }
 }
 

@@ -90,11 +90,7 @@ impl ImeResetId {
         static NEXT: AtomicU64 = AtomicU64::new(1);
         // Process-unique even if a Context/Memory/State is replaced while a callback is queued.
         // Exhaustion remains conservative instead of wrapping into a previously accepted token.
-        let serial = NEXT
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
-                next.checked_add(1)
-            })
-            .ok()?;
+        let serial = NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| next.checked_add(1)).ok()?;
         Some(Self { viewport, serial })
     }
 
@@ -131,10 +127,7 @@ pub struct ImeTarget {
 impl ImeTarget {
     /// Create a target from a stable owner and a replacement epoch.
     pub const fn new(owner: Id, replacement_epoch: u64) -> Self {
-        Self {
-            owner,
-            replacement_epoch,
-        }
+        Self { owner, replacement_epoch }
     }
 }
 
@@ -159,9 +152,7 @@ impl PartialEq for ImeMutationStamp {
     fn eq(&self, other: &Self) -> bool {
         match (&self.snapshot, &other.snapshot) {
             (IMESurroundingText::Available(a), IMESurroundingText::Available(b)) => a == b,
-            (IMESurroundingText::Unavailable, IMESurroundingText::Unavailable) => {
-                self.unavailable_revision == other.unavailable_revision
-            }
+            (IMESurroundingText::Unavailable, IMESurroundingText::Unavailable) => self.unavailable_revision == other.unavailable_revision,
             _ => false,
         }
     }
@@ -175,16 +166,8 @@ impl ImeMutationStamp {
     /// `preedit` is the byte range of the current pre-edit to remove before comparison. Invalid
     /// offsets produce an [`IMESurroundingText::Unavailable`] stamp without a revision. Copying
     /// is bounded by [`crate::output::MAX_IME_SURROUNDING_TEXT_BYTES`].
-    pub fn from_committed(
-        text: &str,
-        cursor: usize,
-        anchor: usize,
-        preedit: Option<Range<usize>>,
-    ) -> Self {
-        Self {
-            snapshot: IMESurroundingText::from_text(text, cursor, anchor, preedit),
-            unavailable_revision: None,
-        }
+    pub fn from_committed(text: &str, cursor: usize, anchor: usize, preedit: Option<Range<usize>>) -> Self {
+        Self { snapshot: IMESurroundingText::from_text(text, cursor, anchor, preedit), unavailable_revision: None }
     }
 
     /// Capture a stamp from an already-built bounded snapshot.
@@ -199,10 +182,7 @@ impl ImeMutationStamp {
         {
             return Self::unavailable();
         }
-        Self {
-            snapshot,
-            unavailable_revision: None,
-        }
+        Self { snapshot, unavailable_revision: None }
     }
 
     /// A stamp for an owner that cannot provide surrounding text.
@@ -220,10 +200,7 @@ impl ImeMutationStamp {
     }
 
     fn unavailable_at_revision_opt(unavailable_revision: Option<u64>) -> Self {
-        Self {
-            snapshot: IMESurroundingText::Unavailable,
-            unavailable_revision,
-        }
+        Self { snapshot: IMESurroundingText::Unavailable, unavailable_revision }
     }
 
     /// The revision attached to an unavailable stamp, if any.
@@ -277,12 +254,7 @@ impl core::fmt::Debug for CommittedText<'_> {
 impl<'a> CommittedText<'a> {
     /// Describe committed text with a collapsed selection at `cursor`.
     pub const fn new(text: &'a str, cursor: usize, anchor: usize) -> Self {
-        Self {
-            text,
-            cursor,
-            anchor,
-            preedit: None,
-        }
+        Self { text, cursor, anchor, preedit: None }
     }
 
     /// Set the byte range of a pre-edit that must be removed from the snapshot.
@@ -301,10 +273,7 @@ impl<'a> CommittedText<'a> {
     /// The resulting stamp never carries an unavailable revision; use
     /// [`ImeObservation::unavailable_revision`] for observations that cannot provide text.
     pub fn stamp(&self) -> ImeMutationStamp {
-        ImeMutationStamp {
-            snapshot: self.snapshot(),
-            unavailable_revision: None,
-        }
+        ImeMutationStamp { snapshot: self.snapshot(), unavailable_revision: None }
     }
 }
 
@@ -350,15 +319,7 @@ pub struct ImeObservation<'a> {
 impl<'a> ImeObservation<'a> {
     /// Start a focused, normal-purpose observation with unavailable surrounding text.
     pub fn new(frame_nr: u64, pass_nr: u64, target: ImeTarget) -> Self {
-        Self {
-            frame_nr,
-            pass_nr,
-            target,
-            focused: true,
-            purpose: IMEPurpose::Normal,
-            committed: None,
-            unavailable_revision: None,
-        }
+        Self { frame_nr, pass_nr, target, focused: true, purpose: IMEPurpose::Normal, committed: None, unavailable_revision: None }
     }
 
     /// Set whether the editor currently owns focus.
@@ -455,18 +416,12 @@ impl ImeReceiptChain {
 fn receipt_transition_is_valid(before: &ImeMutationStamp, after: &ImeMutationStamp) -> bool {
     match (&before.snapshot, &after.snapshot) {
         (IMESurroundingText::Available(a), IMESurroundingText::Available(b)) => a != b,
-        (IMESurroundingText::Unavailable, IMESurroundingText::Unavailable) => {
-            match (before.unavailable_revision, after.unavailable_revision) {
-                (Some(before), Some(after)) => before < after,
-                _ => false,
-            }
-        }
-        (IMESurroundingText::Unavailable, IMESurroundingText::Available(_)) => {
-            before.unavailable_revision.is_some()
-        }
-        (IMESurroundingText::Available(_), IMESurroundingText::Unavailable) => {
-            after.unavailable_revision.is_some()
-        }
+        (IMESurroundingText::Unavailable, IMESurroundingText::Unavailable) => match (before.unavailable_revision, after.unavailable_revision) {
+            (Some(before), Some(after)) => before < after,
+            _ => false,
+        },
+        (IMESurroundingText::Unavailable, IMESurroundingText::Available(_)) => before.unavailable_revision.is_some(),
+        (IMESurroundingText::Available(_), IMESurroundingText::Unavailable) => after.unavailable_revision.is_some(),
     }
 }
 
@@ -504,8 +459,7 @@ pub struct ImeContextTracker {
 // A native bridge can outlive a custom editor's tracker. Generations therefore belong to
 // the process, not the tracker, so recreating an editor cannot reuse a still-cached context.
 // A mutex also works on targets without 64-bit atomics. Exhaustion fails closed.
-static CONTEXT_GENERATION: std::sync::LazyLock<epaint::mutex::Mutex<u64>> =
-    std::sync::LazyLock::new(|| epaint::mutex::Mutex::new(0));
+static CONTEXT_GENERATION: std::sync::LazyLock<epaint::mutex::Mutex<u64>> = std::sync::LazyLock::new(|| epaint::mutex::Mutex::new(0));
 
 pub(crate) fn next_context_generation() -> Option<u64> {
     let mut generation = CONTEXT_GENERATION.lock();
@@ -583,12 +537,7 @@ impl ImeContextTracker {
             return false;
         }
 
-        let chain_is_valid = frame
-            .receipt_chain
-            .as_ref()
-            .map_or(before == context.baseline, |chain| {
-                chain.continues(&context.baseline, &before)
-            });
+        let chain_is_valid = frame.receipt_chain.as_ref().map_or(before == context.baseline, |chain| chain.continues(&context.baseline, &before));
 
         if !chain_is_valid {
             poison_frame(frame);
@@ -598,11 +547,7 @@ impl ImeContextTracker {
         if let Some(chain) = &mut frame.receipt_chain {
             chain.push(after);
         } else {
-            frame.receipt_chain = Some(ImeReceiptChain {
-                first_before: before,
-                last_after: after,
-                count: 1,
-            });
+            frame.receipt_chain = Some(ImeReceiptChain { first_before: before, last_after: after, count: 1 });
         }
         true
     }
@@ -615,12 +560,7 @@ impl ImeContextTracker {
     /// `Other` then dominates all later changes in the same frame.
     ///
     /// Returns `false` when the viewport has no focused context or `target` does not match it.
-    pub fn note_application_change(
-        &mut self,
-        viewport: ViewportId,
-        frame_nr: u64,
-        target: ImeTarget,
-    ) -> bool {
+    pub fn note_application_change(&mut self, viewport: ViewportId, frame_nr: u64, target: ImeTarget) -> bool {
         let Some(state) = self.viewports.get_mut(&viewport) else {
             return false;
         };
@@ -653,11 +593,7 @@ impl ImeContextTracker {
     /// [`Self::end_viewport`] when the native viewport is gone.
     ///
     /// Returns `None` when the observation is absent or unfocused.
-    pub fn observe(
-        &mut self,
-        viewport: ViewportId,
-        observation: Option<ImeObservation<'_>>,
-    ) -> Option<ImeContextUpdate> {
+    pub fn observe(&mut self, viewport: ViewportId, observation: Option<ImeObservation<'_>>) -> Option<ImeContextUpdate> {
         let Some(observation) = observation else {
             if let Some(state) = self.viewports.get_mut(&viewport) {
                 if let Some(context) = state.context.as_mut() {
@@ -668,15 +604,7 @@ impl ImeContextTracker {
             return None;
         };
 
-        let ImeObservation {
-            frame_nr,
-            pass_nr,
-            target,
-            focused,
-            purpose,
-            committed,
-            unavailable_revision,
-        } = observation;
+        let ImeObservation { frame_nr, pass_nr, target, focused, purpose, committed, unavailable_revision } = observation;
         let state = self.viewports.entry(viewport).or_default();
 
         if !focused {
@@ -694,9 +622,7 @@ impl ImeContextTracker {
                 !context.focused
                     || context.target != target
                     || context.purpose != purpose
-                    || state
-                        .last_seen_pass
-                        .is_some_and(|last| last != pass_nr && last.checked_add(1) != Some(pass_nr))
+                    || state.last_seen_pass.is_some_and(|last| last != pass_nr && last.checked_add(1) != Some(pass_nr))
             }
         };
 
@@ -720,13 +646,7 @@ impl ImeContextTracker {
                 state.frame = None;
                 return None;
             };
-            state.context = Some(ContextState {
-                target,
-                generation,
-                focused: true,
-                purpose,
-                baseline: stamp.clone(),
-            });
+            state.context = Some(ContextState { target, generation, focused: true, purpose, baseline: stamp.clone() });
             state.last_seen_pass = Some(pass_nr);
 
             let frame = ensure_frame(state, frame_nr);
@@ -753,10 +673,7 @@ impl ImeContextTracker {
         let changed = previous != stamp;
 
         let cause = if changed {
-            let receipts_are_exact = frame
-                .receipt_chain
-                .as_ref()
-                .is_some_and(|chain| chain.is_exact(&previous, &stamp));
+            let receipts_are_exact = frame.receipt_chain.as_ref().is_some_and(|chain| chain.is_exact(&previous, &stamp));
             let cause = if frame.origin_other {
                 ImeChangeCause::Other
             } else if receipts_are_exact {
@@ -803,12 +720,7 @@ fn ensure_frame(state: &mut ViewportState, frame_nr: u64) -> &mut FrameState {
         None => true,
     };
     if needs_reset {
-        state.frame = Some(FrameState {
-            frame_nr,
-            origin_other: false,
-            receipt_chain: None,
-            last_cause: None,
-        });
+        state.frame = Some(FrameState { frame_nr, origin_other: false, receipt_chain: None, last_cause: None });
     }
     state.frame.as_mut().expect("frame initialized above")
 }
@@ -824,16 +736,8 @@ mod tests {
         ImeTarget::new(Id::unique(owner), 0)
     }
 
-    fn observation(
-        frame_nr: u64,
-        pass_nr: u64,
-        target: ImeTarget,
-        text: &str,
-        cursor: usize,
-        anchor: usize,
-    ) -> ImeObservation<'_> {
-        ImeObservation::new(frame_nr, pass_nr, target)
-            .committed(Some(CommittedText::new(text, cursor, anchor)))
+    fn observation(frame_nr: u64, pass_nr: u64, target: ImeTarget, text: &str, cursor: usize, anchor: usize) -> ImeObservation<'_> {
+        ImeObservation::new(frame_nr, pass_nr, target).committed(Some(CommittedText::new(text, cursor, anchor)))
     }
 
     fn observe(
@@ -844,29 +748,10 @@ mod tests {
         target: ImeTarget,
         text: &str,
     ) -> ImeContextUpdate {
-        tracker
-            .observe(
-                viewport,
-                Some(observation(
-                    frame_nr,
-                    pass_nr,
-                    target,
-                    text,
-                    text.len(),
-                    text.len(),
-                )),
-            )
-            .expect("focused observation")
+        tracker.observe(viewport, Some(observation(frame_nr, pass_nr, target, text, text.len(), text.len()))).expect("focused observation")
     }
 
-    fn receipt(
-        tracker: &mut ImeContextTracker,
-        viewport: ViewportId,
-        frame_nr: u64,
-        target: ImeTarget,
-        before: &str,
-        after: &str,
-    ) -> bool {
+    fn receipt(tracker: &mut ImeContextTracker, viewport: ViewportId, frame_nr: u64, target: ImeTarget, before: &str, after: &str) -> bool {
         tracker.note_input_method_apply(
             viewport,
             frame_nr,
@@ -876,12 +761,7 @@ mod tests {
         )
     }
 
-    fn unavailable_observation(
-        frame_nr: u64,
-        pass_nr: u64,
-        target: ImeTarget,
-        revision: Option<u64>,
-    ) -> ImeObservation<'static> {
+    fn unavailable_observation(frame_nr: u64, pass_nr: u64, target: ImeTarget, revision: Option<u64>) -> ImeObservation<'static> {
         let observation = ImeObservation::new(frame_nr, pass_nr, target);
         match revision {
             Some(revision) => observation.unavailable_revision(revision),
@@ -897,20 +777,12 @@ mod tests {
         before: Option<u64>,
         after: Option<u64>,
     ) -> bool {
-        let stamp = |revision: Option<u64>| {
-            revision.map_or_else(
-                ImeMutationStamp::unavailable,
-                ImeMutationStamp::unavailable_at_revision,
-            )
-        };
+        let stamp = |revision: Option<u64>| revision.map_or_else(ImeMutationStamp::unavailable, ImeMutationStamp::unavailable_at_revision);
         tracker.note_input_method_apply(viewport, frame_nr, target, stamp(before), stamp(after))
     }
 
     fn payload(update: &ImeContextUpdate) -> &crate::output::IMESurroundingTextPayload {
-        update
-            .surrounding_text
-            .available()
-            .expect("surrounding text is available")
+        update.surrounding_text.available().expect("surrounding text is available")
     }
 
     #[test]
@@ -926,21 +798,13 @@ mod tests {
         let typed = observe(&mut tracker, viewport, 1, 1, target, "hello world");
         assert_eq!(typed.context_generation, first.context_generation);
 
-        let reversed = tracker
-            .observe(viewport, Some(observation(1, 2, target, "aé", 1, 3)))
-            .unwrap();
+        let reversed = tracker.observe(viewport, Some(observation(1, 2, target, "aé", 1, 3))).unwrap();
         assert_eq!(reversed.context_generation, first.context_generation);
         assert_eq!(payload(&reversed).cursor, 1);
         assert_eq!(payload(&reversed).anchor, 3);
 
         let preedit = tracker
-            .observe(
-                viewport,
-                Some(
-                    observation(1, 3, target, "abに", 5, 5)
-                        .committed(Some(CommittedText::new("abに", 5, 5).with_preedit(2..5))),
-                ),
-            )
+            .observe(viewport, Some(observation(1, 3, target, "abに", 5, 5).committed(Some(CommittedText::new("abに", 5, 5).with_preedit(2..5)))))
             .unwrap();
         assert_eq!(preedit.context_generation, first.context_generation);
         assert_eq!(payload(&preedit).text, "ab");
@@ -949,13 +813,7 @@ mod tests {
         // Extending or clearing the pre-edit changes only the transient range. The committed
         // baseline and the context generation stay identical.
         let longer_preedit = tracker
-            .observe(
-                viewport,
-                Some(
-                    observation(1, 4, target, "abにほ", 8, 8)
-                        .committed(Some(CommittedText::new("abにほ", 8, 8).with_preedit(2..8))),
-                ),
-            )
+            .observe(viewport, Some(observation(1, 4, target, "abにほ", 8, 8).committed(Some(CommittedText::new("abにほ", 8, 8).with_preedit(2..8)))))
             .unwrap();
         assert_eq!(longer_preedit.context_generation, first.context_generation);
         assert_eq!(payload(&longer_preedit).text, "ab");
@@ -994,29 +852,15 @@ mod tests {
             assert!(receipt(&mut tracker, viewport, 1, target, &before, &text));
         }
 
-        let frame = tracker
-            .viewports
-            .get(&viewport)
-            .and_then(|state| state.frame.as_ref())
-            .expect("accepted receipts keep one frame");
-        let chain = frame
-            .receipt_chain
-            .as_ref()
-            .expect("accepted receipts keep one compressed chain");
+        let frame = tracker.viewports.get(&viewport).and_then(|state| state.frame.as_ref()).expect("accepted receipts keep one frame");
+        let chain = frame.receipt_chain.as_ref().expect("accepted receipts keep one compressed chain");
         assert_eq!(chain.count, RECEIPTS);
-        assert_eq!(
-            chain.last_after,
-            ImeMutationStamp::from_committed(&text, text.len(), text.len(), None)
-        );
+        assert_eq!(chain.last_after, ImeMutationStamp::from_committed(&text, text.len(), text.len(), None));
 
         let observed = observe(&mut tracker, viewport, 1, 1, target, &text);
         assert_eq!(observed.change_cause, ImeChangeCause::InputMethod);
         assert!(
-            tracker
-                .viewports
-                .get(&viewport)
-                .and_then(|state| state.frame.as_ref())
-                .is_some_and(|frame| frame.receipt_chain.is_none()),
+            tracker.viewports.get(&viewport).and_then(|state| state.frame.as_ref()).is_some_and(|frame| frame.receipt_chain.is_none()),
             "observing the pass consumes the compressed chain"
         );
     }
@@ -1025,22 +869,8 @@ mod tests {
     fn recreated_tracker_cannot_reuse_a_live_bridge_context() {
         let viewport = ViewportId::ROOT;
         let target = target(82);
-        let first = observe(
-            &mut ImeContextTracker::new(),
-            viewport,
-            0,
-            0,
-            target,
-            "same",
-        );
-        let recreated = observe(
-            &mut ImeContextTracker::new(),
-            viewport,
-            0,
-            0,
-            target,
-            "same",
-        );
+        let first = observe(&mut ImeContextTracker::new(), viewport, 0, 0, target, "same");
+        let recreated = observe(&mut ImeContextTracker::new(), viewport, 0, 0, target, "same");
         assert_eq!(first.owner, recreated.owner);
         assert_ne!(first.context_generation, recreated.context_generation);
         assert_eq!(recreated.change_cause, ImeChangeCause::Other);
@@ -1049,26 +879,14 @@ mod tests {
     #[test]
     fn public_receipt_payloads_are_validated_before_retaining_them() {
         use crate::output::{IMESurroundingTextPayload, MAX_IME_SURROUNDING_TEXT_BYTES};
-        for (text, cursor, anchor) in [
-            ("x".repeat(MAX_IME_SURROUNDING_TEXT_BYTES + 1), 0, 0),
-            ("é".to_owned(), 1, 2),
-            ("é".to_owned(), 2, 1),
-            ("x".to_owned(), 2, 0),
-        ] {
-            let stamp = ImeMutationStamp::from_surrounding_text(IMESurroundingText::Available(
-                IMESurroundingTextPayload {
-                    text,
-                    cursor,
-                    anchor,
-                },
-            ));
+        for (text, cursor, anchor) in
+            [("x".repeat(MAX_IME_SURROUNDING_TEXT_BYTES + 1), 0, 0), ("é".to_owned(), 1, 2), ("é".to_owned(), 2, 1), ("x".to_owned(), 2, 0)]
+        {
+            let stamp = ImeMutationStamp::from_surrounding_text(IMESurroundingText::Available(IMESurroundingTextPayload { text, cursor, anchor }));
             assert_eq!(stamp, ImeMutationStamp::unavailable());
         }
         let valid = IMESurroundingText::from_text("é", 2, 0, None);
-        assert_eq!(
-            ImeMutationStamp::from_surrounding_text(valid.clone()).snapshot,
-            valid
-        );
+        assert_eq!(ImeMutationStamp::from_surrounding_text(valid.clone()).snapshot, valid);
     }
 
     #[test]
@@ -1087,10 +905,7 @@ mod tests {
         assert!(gap.context_generation > refocused.context_generation);
 
         let same_pass_again = observe(&mut tracker, viewport, 2, 5, target, "text");
-        assert_eq!(
-            same_pass_again.context_generation, gap.context_generation,
-            "repeating one pass must not start another context"
-        );
+        assert_eq!(same_pass_again.context_generation, gap.context_generation, "repeating one pass must not start another context");
     }
 
     #[test]
@@ -1099,32 +914,17 @@ mod tests {
         let mut tracker = ImeContextTracker::new();
 
         let first = observe(&mut tracker, viewport, 0, 0, target(3), "one");
-        let replacement = observe(
-            &mut tracker,
-            viewport,
-            1,
-            1,
-            ImeTarget::new(target(3).owner, 1),
-            "one",
-        );
+        let replacement = observe(&mut tracker, viewport, 1, 1, ImeTarget::new(target(3).owner, 1), "one");
         assert!(replacement.context_generation > first.context_generation);
 
         let other_owner = observe(&mut tracker, viewport, 2, 2, target(4), "two");
         assert_ne!(other_owner.owner, first.owner);
         assert!(other_owner.context_generation > replacement.context_generation);
 
-        let password = tracker
-            .observe(
-                viewport,
-                Some(observation(3, 3, target(4), "secret", 6, 6).purpose(IMEPurpose::Password)),
-            )
-            .unwrap();
+        let password = tracker.observe(viewport, Some(observation(3, 3, target(4), "secret", 6, 6).purpose(IMEPurpose::Password))).unwrap();
         assert_eq!(password.purpose, IMEPurpose::Password);
         assert!(password.context_generation > other_owner.context_generation);
-        assert!(matches!(
-            password.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(password.surrounding_text, IMESurroundingText::Unavailable));
         assert!(!format!("{password:?}").contains("secret"));
 
         let normal_again = observe(&mut tracker, viewport, 4, 4, target(4), "secret");
@@ -1191,11 +991,7 @@ mod tests {
 
         assert!(receipt(&mut tracker, viewport, 2, target, "abc", "abcd"));
         let ime = observe(&mut tracker, viewport, 2, 2, target, "abcd");
-        assert_eq!(
-            ime.change_cause,
-            ImeChangeCause::InputMethod,
-            "the observed application edit is the new baseline, not a stale stamp"
-        );
+        assert_eq!(ime.change_cause, ImeChangeCause::InputMethod, "the observed application edit is the new baseline, not a stale stamp");
     }
 
     #[test]
@@ -1248,10 +1044,7 @@ mod tests {
         let mut tracker = ImeContextTracker::new();
         observe(&mut tracker, viewport, 0, 0, target, "abc");
 
-        assert!(
-            !receipt(&mut tracker, viewport, 1, target, "abc", "abc"),
-            "a no-op receipt is rejected"
-        );
+        assert!(!receipt(&mut tracker, viewport, 1, target, "abc", "abc"), "a no-op receipt is rejected");
         assert!(
             !tracker.note_input_method_apply(
                 viewport,
@@ -1284,26 +1077,11 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(11);
         let mut tracker = ImeContextTracker::new();
-        let password = tracker
-            .observe(
-                viewport,
-                Some(observation(0, 0, target, "secret", 6, 6).purpose(IMEPurpose::Password)),
-            )
-            .unwrap();
+        let password = tracker.observe(viewport, Some(observation(0, 0, target, "secret", 6, 6).purpose(IMEPurpose::Password))).unwrap();
         assert_eq!(password.purpose, IMEPurpose::Password);
-        assert!(matches!(
-            password.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(password.surrounding_text, IMESurroundingText::Unavailable));
 
-        assert!(!receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            "secret",
-            "secret2"
-        ));
+        assert!(!receipt(&mut tracker, viewport, 1, target, "secret", "secret2"));
         let debug = format!("{tracker:?}");
         assert!(!debug.contains("secret"));
     }
@@ -1321,15 +1099,8 @@ mod tests {
         assert_eq!(payload(&first_pass).text, "ab");
 
         let unchanged_second_pass = observe(&mut tracker, viewport, 1, 2, target, "ab");
-        assert_eq!(
-            unchanged_second_pass.change_cause,
-            ImeChangeCause::InputMethod,
-            "an unchanged discarded pass retains the frame cause"
-        );
-        assert_eq!(
-            unchanged_second_pass.context_generation,
-            first_pass.context_generation
-        );
+        assert_eq!(unchanged_second_pass.change_cause, ImeChangeCause::InputMethod, "an unchanged discarded pass retains the frame cause");
+        assert_eq!(unchanged_second_pass.context_generation, first_pass.context_generation);
 
         // A later change in the same pass is rebuilt from the current observation, never from
         // a cached first-pass descriptor.
@@ -1337,10 +1108,7 @@ mod tests {
         let changed_same_pass = observe(&mut tracker, viewport, 1, 2, target, "abc");
         assert_eq!(changed_same_pass.change_cause, ImeChangeCause::InputMethod);
         assert_eq!(payload(&changed_same_pass).text, "abc");
-        assert_eq!(
-            changed_same_pass.context_generation,
-            first_pass.context_generation
-        );
+        assert_eq!(changed_same_pass.context_generation, first_pass.context_generation);
     }
 
     #[test]
@@ -1396,22 +1164,12 @@ mod tests {
         let mut root_updates = Vec::new();
         let mut aux_updates = Vec::new();
 
-        for (viewport, text, updates) in [
-            (root, "root", &mut root_updates),
-            (aux, "aux", &mut aux_updates),
-        ] {
-            let mut raw = RawInput {
-                viewport_id: viewport,
-                ..Default::default()
-            };
+        for (viewport, text, updates) in [(root, "root", &mut root_updates), (aux, "aux", &mut aux_updates)] {
+            let mut raw = RawInput { viewport_id: viewport, ..Default::default() };
             raw.viewports.entry(viewport).or_default();
             let output = ctx.run_ui(raw, |ui| {
                 if viewport == root {
-                    ui.ctx().show_viewport_deferred(
-                        aux,
-                        crate::ViewportBuilder::default(),
-                        |_, _| {},
-                    );
+                    ui.ctx().show_viewport_deferred(aux, crate::ViewportBuilder::default(), |_, _| {});
                 }
                 let actual_viewport = ui.ctx().viewport_id();
                 assert_eq!(actual_viewport, viewport);
@@ -1436,22 +1194,12 @@ mod tests {
 
         // Both viewports have their own pass counter, so both are at pass 1 here. Their state
         // must not collide even though the numeric pass values are equal.
-        for (viewport, text, updates) in [
-            (root, "root2", &mut root_updates),
-            (aux, "aux2", &mut aux_updates),
-        ] {
-            let mut raw = RawInput {
-                viewport_id: viewport,
-                ..Default::default()
-            };
+        for (viewport, text, updates) in [(root, "root2", &mut root_updates), (aux, "aux2", &mut aux_updates)] {
+            let mut raw = RawInput { viewport_id: viewport, ..Default::default() };
             raw.viewports.entry(viewport).or_default();
             let output = ctx.run_ui(raw, |ui| {
                 if viewport == root {
-                    ui.ctx().show_viewport_deferred(
-                        aux,
-                        crate::ViewportBuilder::default(),
-                        |_, _| {},
-                    );
+                    ui.ctx().show_viewport_deferred(aux, crate::ViewportBuilder::default(), |_, _| {});
                 }
                 let actual_viewport = ui.ctx().viewport_id();
                 assert_eq!(ui.ctx().cumulative_pass_nr_for(actual_viewport), 1);
@@ -1492,12 +1240,7 @@ mod tests {
                 text.len(),
                 text.len(),
             );
-            updates.push(
-                tracker
-                    .borrow_mut()
-                    .observe(viewport, Some(observation))
-                    .unwrap(),
-            );
+            updates.push(tracker.borrow_mut().observe(viewport, Some(observation)).unwrap());
         });
         baseline.drop_without_applying_deltas();
         updates.clear();
@@ -1510,42 +1253,23 @@ mod tests {
                 let before = ImeMutationStamp::from_committed(&text, text.len(), text.len(), None);
                 text.push('x');
                 let after = ImeMutationStamp::from_committed(&text, text.len(), text.len(), None);
-                assert!(
-                    tracker
-                        .borrow_mut()
-                        .note_input_method_apply(viewport, frame_nr, target, before, after,)
-                );
+                assert!(tracker.borrow_mut().note_input_method_apply(viewport, frame_nr, target, before, after,));
                 ui.ctx().request_discard("exercise a second IME pass");
             } else {
                 text.push('y');
-                assert!(
-                    tracker
-                        .borrow_mut()
-                        .note_application_change(viewport, frame_nr, target)
-                );
+                assert!(tracker.borrow_mut().note_application_change(viewport, frame_nr, target));
             }
 
             let observation = observation(frame_nr, pass, target, &text, text.len(), text.len());
-            updates.push(
-                tracker
-                    .borrow_mut()
-                    .observe(viewport, Some(observation))
-                    .unwrap(),
-            );
+            updates.push(tracker.borrow_mut().observe(viewport, Some(observation)).unwrap());
         });
         output.drop_without_applying_deltas();
 
         assert_eq!(updates.len(), 2, "the frame ran two real passes");
         assert_eq!(updates[0].change_cause, ImeChangeCause::InputMethod);
         assert_eq!(updates[1].change_cause, ImeChangeCause::Other);
-        assert_eq!(
-            updates[1].surrounding_text.available().unwrap().text,
-            "basexy"
-        );
-        assert_eq!(
-            updates[0].context_generation, updates[1].context_generation,
-            "a discarded pass is not a new context"
-        );
+        assert_eq!(updates[1].surrounding_text.available().unwrap().text, "basexy");
+        assert_eq!(updates[0].context_generation, updates[1].context_generation, "a discarded pass is not a new context");
     }
 
     #[test]
@@ -1566,10 +1290,7 @@ mod tests {
                 text.len(),
                 text.len(),
             );
-            tracker
-                .borrow_mut()
-                .observe(viewport, Some(observation))
-                .unwrap();
+            tracker.borrow_mut().observe(viewport, Some(observation)).unwrap();
         });
         baseline.drop_without_applying_deltas();
 
@@ -1579,76 +1300,37 @@ mod tests {
             let frame_nr = ui.ctx().cumulative_frame_nr_for(viewport);
             if pass == 1 {
                 text.push('y');
-                assert!(
-                    tracker
-                        .borrow_mut()
-                        .note_application_change(viewport, frame_nr, target)
-                );
-                ui.ctx()
-                    .request_discard("exercise a second application pass");
+                assert!(tracker.borrow_mut().note_application_change(viewport, frame_nr, target));
+                ui.ctx().request_discard("exercise a second application pass");
             } else {
                 let before = ImeMutationStamp::from_committed(&text, text.len(), text.len(), None);
                 text.push('x');
                 let after = ImeMutationStamp::from_committed(&text, text.len(), text.len(), None);
-                assert!(
-                    tracker
-                        .borrow_mut()
-                        .note_input_method_apply(viewport, frame_nr, target, before, after,)
-                );
+                assert!(tracker.borrow_mut().note_input_method_apply(viewport, frame_nr, target, before, after,));
             }
 
             let observation = observation(frame_nr, pass, target, &text, text.len(), text.len());
-            updates.push(
-                tracker
-                    .borrow_mut()
-                    .observe(viewport, Some(observation))
-                    .unwrap(),
-            );
+            updates.push(tracker.borrow_mut().observe(viewport, Some(observation)).unwrap());
         });
         output.drop_without_applying_deltas();
 
         assert_eq!(updates.len(), 2);
         assert_eq!(updates[0].change_cause, ImeChangeCause::Other);
         assert_eq!(updates[1].change_cause, ImeChangeCause::Other);
-        assert_eq!(
-            updates[1].surrounding_text.available().unwrap().text,
-            "baseyx"
-        );
+        assert_eq!(updates[1].surrounding_text.available().unwrap().text, "baseyx");
     }
 
     #[test]
     fn stamp_equality_follows_the_transition_table() {
         let snapshot = IMESurroundingText::from_text("ab", 2, 2, None);
-        let available = ImeMutationStamp {
-            snapshot: snapshot.clone(),
-            unavailable_revision: None,
-        };
-        let available_with_private_revision = ImeMutationStamp {
-            snapshot: snapshot.clone(),
-            unavailable_revision: Some(99),
-        };
-        assert_eq!(
-            available, available_with_private_revision,
-            "available identity is exact text plus selection, ignoring any private revision"
-        );
-        assert_ne!(
-            available,
-            ImeMutationStamp::from_committed("ab", 1, 1, None),
-            "available selection is part of the identity"
-        );
+        let available = ImeMutationStamp { snapshot: snapshot.clone(), unavailable_revision: None };
+        let available_with_private_revision = ImeMutationStamp { snapshot: snapshot.clone(), unavailable_revision: Some(99) };
+        assert_eq!(available, available_with_private_revision, "available identity is exact text plus selection, ignoring any private revision");
+        assert_ne!(available, ImeMutationStamp::from_committed("ab", 1, 1, None), "available selection is part of the identity");
 
-        assert_eq!(
-            ImeMutationStamp::unavailable_at_revision(3),
-            ImeMutationStamp::unavailable_at_revision(3)
-        );
-        assert_ne!(
-            ImeMutationStamp::unavailable_at_revision(3),
-            ImeMutationStamp::unavailable_at_revision(4)
-        );
-        assert_ne!(
-            ImeMutationStamp::unavailable(),
-            ImeMutationStamp::unavailable_at_revision(3)
-        );
+        assert_eq!(ImeMutationStamp::unavailable_at_revision(3), ImeMutationStamp::unavailable_at_revision(3));
+        assert_ne!(ImeMutationStamp::unavailable_at_revision(3), ImeMutationStamp::unavailable_at_revision(4));
+        assert_ne!(ImeMutationStamp::unavailable(), ImeMutationStamp::unavailable_at_revision(3));
         assert_ne!(ImeMutationStamp::unavailable(), available);
         assert_ne!(available, ImeMutationStamp::unavailable());
     }
@@ -1658,37 +1340,14 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(90);
         let mut tracker = ImeContextTracker::new();
-        let initial = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(10))),
-            )
-            .unwrap();
-        assert!(matches!(
-            initial.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        let initial = tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(10)))).unwrap();
+        assert!(matches!(initial.surrounding_text, IMESurroundingText::Unavailable));
         assert_eq!(initial.change_cause, ImeChangeCause::Other);
 
-        assert!(unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            Some(10),
-            Some(11)
-        ));
-        let update = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(11))),
-            )
-            .unwrap();
+        assert!(unavailable_receipt(&mut tracker, viewport, 1, target, Some(10), Some(11)));
+        let update = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(11)))).unwrap();
         assert_eq!(update.change_cause, ImeChangeCause::InputMethod);
-        assert!(matches!(
-            update.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(update.surrounding_text, IMESurroundingText::Unavailable));
     }
 
     #[test]
@@ -1697,49 +1356,19 @@ mod tests {
         let target = target(91);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(10))),
-            )
-            .unwrap();
-        assert!(
-            !unavailable_receipt(&mut tracker, viewport, 1, target, Some(10), Some(10)),
-            "an equal unavailable pair cannot prove a mutation"
-        );
-        let equal = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(10))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(10)))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, Some(10), Some(10)), "an equal unavailable pair cannot prove a mutation");
+        let equal = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(10)))).unwrap();
         assert_eq!(equal.change_cause, ImeChangeCause::Other);
         assert!(
-            tracker
-                .viewports
-                .get(&viewport)
-                .and_then(|state| state.frame.as_ref())
-                .is_some_and(|frame| frame.receipt_chain.is_none()),
+            tracker.viewports.get(&viewport).and_then(|state| state.frame.as_ref()).is_some_and(|frame| frame.receipt_chain.is_none()),
             "an invalid receipt clears the chain"
         );
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(11))),
-            )
-            .unwrap();
-        assert!(
-            !unavailable_receipt(&mut tracker, viewport, 1, target, Some(11), Some(10)),
-            "a decreasing unavailable pair cannot prove a mutation"
-        );
-        let backwards = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(11))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(11)))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, Some(11), Some(10)), "a decreasing unavailable pair cannot prove a mutation");
+        let backwards = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(11)))).unwrap();
         assert_eq!(backwards.change_cause, ImeChangeCause::Other);
     }
 
@@ -1749,52 +1378,21 @@ mod tests {
         let target = target(92);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(viewport, Some(unavailable_observation(0, 0, target, None)))
-            .unwrap();
-        assert!(!unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            None,
-            None
-        ));
-        let missing_both = tracker
-            .observe(viewport, Some(unavailable_observation(1, 1, target, None)))
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, None))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, None, None));
+        let missing_both = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, None))).unwrap();
         assert_eq!(missing_both.change_cause, ImeChangeCause::Other);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(viewport, Some(unavailable_observation(0, 0, target, None)))
-            .unwrap();
-        assert!(
-            !unavailable_receipt(&mut tracker, viewport, 1, target, None, Some(1)),
-            "a revision on only the after side is not a proof"
-        );
-        let missing_before = tracker
-            .observe(viewport, Some(unavailable_observation(1, 1, target, None)))
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, None))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, None, Some(1)), "a revision on only the after side is not a proof");
+        let missing_before = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, None))).unwrap();
         assert_eq!(missing_before.change_cause, ImeChangeCause::Other);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(1))),
-            )
-            .unwrap();
-        assert!(
-            !unavailable_receipt(&mut tracker, viewport, 1, target, Some(1), None),
-            "a revision on only the before side is not a proof"
-        );
-        let missing_after = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(1))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(1)))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, Some(1), None), "a revision on only the before side is not a proof");
+        let missing_after = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(1)))).unwrap();
         assert_eq!(missing_after.change_cause, ImeChangeCause::Other);
     }
 
@@ -1803,39 +1401,15 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(93);
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(1))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(1)))).unwrap();
 
-        assert!(unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            Some(1),
-            Some(2)
-        ));
-        assert!(unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            Some(2),
-            Some(3)
-        ));
+        assert!(unavailable_receipt(&mut tracker, viewport, 1, target, Some(1), Some(2)));
+        assert!(unavailable_receipt(&mut tracker, viewport, 1, target, Some(2), Some(3)));
         assert!(
             !unavailable_receipt(&mut tracker, viewport, 1, target, Some(4), Some(5)),
             "a structurally valid pair that skips the chain's last revision is rejected"
         );
-        let update = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(3))),
-            )
-            .unwrap();
+        let update = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(3)))).unwrap();
         assert_eq!(update.change_cause, ImeChangeCause::Other);
     }
 
@@ -1846,12 +1420,7 @@ mod tests {
 
         // Unavailable -> available without a before revision is rejected.
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(5))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(5)))).unwrap();
         assert!(!tracker.note_input_method_apply(
             viewport,
             1,
@@ -1859,19 +1428,12 @@ mod tests {
             ImeMutationStamp::unavailable(),
             ImeMutationStamp::from_committed("a", 1, 1, None),
         ));
-        let rejected = tracker
-            .observe(viewport, Some(observation(1, 1, target, "a", 1, 1)))
-            .unwrap();
+        let rejected = tracker.observe(viewport, Some(observation(1, 1, target, "a", 1, 1))).unwrap();
         assert_eq!(rejected.change_cause, ImeChangeCause::Other);
 
         // The same transition is accepted with the unavailable revision.
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(5))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(5)))).unwrap();
         assert!(tracker.note_input_method_apply(
             viewport,
             1,
@@ -1879,17 +1441,13 @@ mod tests {
             ImeMutationStamp::unavailable_at_revision(5),
             ImeMutationStamp::from_committed("a", 1, 1, None),
         ));
-        let available = tracker
-            .observe(viewport, Some(observation(1, 1, target, "a", 1, 1)))
-            .unwrap();
+        let available = tracker.observe(viewport, Some(observation(1, 1, target, "a", 1, 1))).unwrap();
         assert_eq!(available.change_cause, ImeChangeCause::InputMethod);
         assert_eq!(payload(&available).text, "a");
 
         // Available -> unavailable without an after revision is rejected.
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(viewport, Some(observation(0, 0, target, "a", 1, 1)))
-            .unwrap();
+        tracker.observe(viewport, Some(observation(0, 0, target, "a", 1, 1))).unwrap();
         assert!(!tracker.note_input_method_apply(
             viewport,
             1,
@@ -1897,19 +1455,12 @@ mod tests {
             ImeMutationStamp::from_committed("a", 1, 1, None),
             ImeMutationStamp::unavailable(),
         ));
-        let rejected = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(6))),
-            )
-            .unwrap();
+        let rejected = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(6)))).unwrap();
         assert_eq!(rejected.change_cause, ImeChangeCause::Other);
 
         // The reverse transition is accepted with the unavailable revision.
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(viewport, Some(observation(0, 0, target, "a", 1, 1)))
-            .unwrap();
+        tracker.observe(viewport, Some(observation(0, 0, target, "a", 1, 1))).unwrap();
         assert!(tracker.note_input_method_apply(
             viewport,
             1,
@@ -1917,17 +1468,9 @@ mod tests {
             ImeMutationStamp::from_committed("a", 1, 1, None),
             ImeMutationStamp::unavailable_at_revision(6),
         ));
-        let unavailable = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(6))),
-            )
-            .unwrap();
+        let unavailable = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(6)))).unwrap();
         assert_eq!(unavailable.change_cause, ImeChangeCause::InputMethod);
-        assert!(matches!(
-            unavailable.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(unavailable.surrounding_text, IMESurroundingText::Unavailable));
     }
 
     #[test]
@@ -1936,60 +1479,21 @@ mod tests {
         let target = target(95);
         let mut tracker = ImeContextTracker::new();
 
-        let available = tracker
-            .observe(
-                viewport,
-                Some(observation(0, 0, target, "abc", 3, 3).unavailable_revision(7)),
-            )
-            .unwrap();
+        let available = tracker.observe(viewport, Some(observation(0, 0, target, "abc", 3, 3).unavailable_revision(7))).unwrap();
         assert_eq!(payload(&available).text, "abc");
-        let baseline = &tracker
-            .viewports
-            .get(&viewport)
-            .and_then(|state| state.context.as_ref())
-            .expect("context")
-            .baseline;
+        let baseline = &tracker.viewports.get(&viewport).and_then(|state| state.context.as_ref()).expect("context").baseline;
         assert_eq!(baseline.unavailable_revision(), None);
 
-        let unavailable = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(42))),
-            )
-            .unwrap();
-        assert!(matches!(
-            unavailable.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
-        let baseline = &tracker
-            .viewports
-            .get(&viewport)
-            .and_then(|state| state.context.as_ref())
-            .expect("context")
-            .baseline;
+        let unavailable = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(42)))).unwrap();
+        assert!(matches!(unavailable.surrounding_text, IMESurroundingText::Unavailable));
+        let baseline = &tracker.viewports.get(&viewport).and_then(|state| state.context.as_ref()).expect("context").baseline;
         assert_eq!(baseline.unavailable_revision(), Some(42));
 
-        let password = tracker
-            .observe(
-                viewport,
-                Some(
-                    observation(2, 2, target, "secret", 6, 6)
-                        .purpose(IMEPurpose::Password)
-                        .unavailable_revision(9),
-                ),
-            )
-            .unwrap();
+        let password =
+            tracker.observe(viewport, Some(observation(2, 2, target, "secret", 6, 6).purpose(IMEPurpose::Password).unavailable_revision(9))).unwrap();
         assert_eq!(password.purpose, IMEPurpose::Password);
-        assert!(matches!(
-            password.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
-        let baseline = &tracker
-            .viewports
-            .get(&viewport)
-            .and_then(|state| state.context.as_ref())
-            .expect("context")
-            .baseline;
+        assert!(matches!(password.surrounding_text, IMESurroundingText::Unavailable));
+        let baseline = &tracker.viewports.get(&viewport).and_then(|state| state.context.as_ref()).expect("context").baseline;
         assert_eq!(baseline.unavailable_revision(), None);
         assert!(!format!("{tracker:?}").contains("secret"));
     }
@@ -1999,22 +1503,9 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(99);
         let mut tracker = ImeContextTracker::new();
-        let update = tracker
-            .observe(
-                viewport,
-                Some(observation(0, 0, target, "é", 1, 1).unavailable_revision(11)),
-            )
-            .unwrap();
-        assert!(matches!(
-            update.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
-        let baseline = &tracker
-            .viewports
-            .get(&viewport)
-            .and_then(|state| state.context.as_ref())
-            .expect("context")
-            .baseline;
+        let update = tracker.observe(viewport, Some(observation(0, 0, target, "é", 1, 1).unavailable_revision(11))).unwrap();
+        assert!(matches!(update.surrounding_text, IMESurroundingText::Unavailable));
+        let baseline = &tracker.viewports.get(&viewport).and_then(|state| state.context.as_ref()).expect("context").baseline;
         assert_eq!(baseline.unavailable_revision(), Some(11));
     }
 
@@ -2023,37 +1514,13 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(96);
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(1))),
-            )
-            .unwrap();
-        assert!(unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            Some(1),
-            Some(2)
-        ));
-        assert!(
-            !unavailable_receipt(&mut tracker, viewport, 1, target, Some(2), Some(2)),
-            "an equal receipt after an accepted one is still invalid"
-        );
-        let update = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(2))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(1)))).unwrap();
+        assert!(unavailable_receipt(&mut tracker, viewport, 1, target, Some(1), Some(2)));
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, Some(2), Some(2)), "an equal receipt after an accepted one is still invalid");
+        let update = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(2)))).unwrap();
         assert_eq!(update.change_cause, ImeChangeCause::Other);
         assert!(
-            tracker
-                .viewports
-                .get(&viewport)
-                .and_then(|state| state.frame.as_ref())
-                .is_some_and(|frame| frame.receipt_chain.is_none()),
+            tracker.viewports.get(&viewport).and_then(|state| state.frame.as_ref()).is_some_and(|frame| frame.receipt_chain.is_none()),
             "the accepted chain does not survive an invalid receipt"
         );
     }
@@ -2063,49 +1530,19 @@ mod tests {
         let viewport = ViewportId::ROOT;
         let target = target(97);
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(1))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(1)))).unwrap();
 
-        assert!(unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            Some(1),
-            Some(2)
-        ));
-        let accepted = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(2))),
-            )
-            .unwrap();
+        assert!(unavailable_receipt(&mut tracker, viewport, 1, target, Some(1), Some(2)));
+        let accepted = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(2)))).unwrap();
         assert_eq!(accepted.change_cause, ImeChangeCause::InputMethod);
 
         // The snapshot is still Unavailable, so only the revision shows this change. Without a
         // receipt it must not inherit the previous pass's InputMethod cause.
-        let advanced = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 2, target, Some(3))),
-            )
-            .unwrap();
+        let advanced = tracker.observe(viewport, Some(unavailable_observation(1, 2, target, Some(3)))).unwrap();
         assert_eq!(advanced.change_cause, ImeChangeCause::Other);
-        assert!(matches!(
-            advanced.surrounding_text,
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(advanced.surrounding_text, IMESurroundingText::Unavailable));
 
-        let unchanged = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 3, target, Some(3))),
-            )
-            .unwrap();
+        let unchanged = tracker.observe(viewport, Some(unavailable_observation(1, 3, target, Some(3)))).unwrap();
         assert_eq!(unchanged.change_cause, ImeChangeCause::Other);
     }
 
@@ -2115,39 +1552,18 @@ mod tests {
         let target = target(98);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(viewport, Some(unavailable_observation(0, 0, target, None)))
-            .unwrap();
-        assert!(!unavailable_receipt(
-            &mut tracker,
-            viewport,
-            1,
-            target,
-            None,
-            None
-        ));
-        let exhausted = tracker
-            .observe(viewport, Some(unavailable_observation(1, 1, target, None)))
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, None))).unwrap();
+        assert!(!unavailable_receipt(&mut tracker, viewport, 1, target, None, None));
+        let exhausted = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, None))).unwrap();
         assert_eq!(exhausted.change_cause, ImeChangeCause::Other);
 
         let mut tracker = ImeContextTracker::new();
-        tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(0, 0, target, Some(u64::MAX))),
-            )
-            .unwrap();
+        tracker.observe(viewport, Some(unavailable_observation(0, 0, target, Some(u64::MAX)))).unwrap();
         assert!(
             !unavailable_receipt(&mut tracker, viewport, 1, target, Some(u64::MAX), None),
             "a maximum revision with no successor cannot prove a pair"
         );
-        let maximum = tracker
-            .observe(
-                viewport,
-                Some(unavailable_observation(1, 1, target, Some(u64::MAX))),
-            )
-            .unwrap();
+        let maximum = tracker.observe(viewport, Some(unavailable_observation(1, 1, target, Some(u64::MAX)))).unwrap();
         assert_eq!(maximum.change_cause, ImeChangeCause::Other);
     }
 }

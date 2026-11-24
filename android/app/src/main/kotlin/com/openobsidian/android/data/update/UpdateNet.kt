@@ -20,7 +20,7 @@ class UpdateException(val failure: UpdateFailure, val code: Int = 0, cause: Thro
  */
 object UpdateNet {
     const val LATEST_URL = "https://api.github.com/repos/Anon5T4R/Local-Obsidian/releases/latest"
-    private const val USER_AGENT = "LocalObsidian-Android"
+    private const val USER_AGENT = "LocalNotebook-Android"
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 30_000
     private const val MAX_JSON_BYTES = 4L * 1024 * 1024

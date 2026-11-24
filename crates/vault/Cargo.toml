@@ -1,5 +1,5 @@
 [package]
-name = "localobsidian-vault"
+name = "localnotebook-vault"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ description = "Local Notebook's vault: the folder scan, the note tree, the index
 workspace = true
 
 [dependencies]
-localobsidian-md = { workspace = true }
+localnotebook-md = { workspace = true }
 log = { workspace = true }
 # The search panel's `.*` mode. Pure Rust, no C.
 regex = { workspace = true }

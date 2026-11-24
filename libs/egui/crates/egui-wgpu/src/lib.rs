@@ -24,10 +24,7 @@ mod renderer;
 mod setup;
 
 pub use renderer::*;
-pub use setup::{
-    EguiDisplayHandle, NativeAdapterSelectorMethod, WgpuSetup, WgpuSetupCreateNew,
-    WgpuSetupExisting,
-};
+pub use setup::{EguiDisplayHandle, NativeAdapterSelectorMethod, WgpuSetup, WgpuSetupCreateNew, WgpuSetupExisting};
 
 /// Helpers for capturing screenshots of the UI.
 #[cfg(feature = "capture")]
@@ -190,11 +187,7 @@ async fn request_adapter(
         })?;
 
     if 1 < available_adapters.len() {
-        log::info!(
-            "There are {} available wgpu adapters: {}",
-            available_adapters.len(),
-            describe_adapters(available_adapters)
-        );
+        log::info!("There are {} available wgpu adapters: {}", available_adapters.len(), describe_adapters(available_adapters));
     }
 
     Ok(adapter)
@@ -240,53 +233,33 @@ impl RenderState {
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     if let Some(native_adapter_selector) = _native_adapter_selector {
-                        native_adapter_selector(&available_adapters, compatible_surface)
-                            .map_err(WgpuError::CustomNativeAdapterSelectionError)
+                        native_adapter_selector(&available_adapters, compatible_surface).map_err(WgpuError::CustomNativeAdapterSelectionError)
                     } else {
-                        request_adapter(
-                            instance,
-                            power_preference,
-                            compatible_surface,
-                            &available_adapters,
-                        )
-                        .await
+                        request_adapter(instance, power_preference, compatible_surface, &available_adapters).await
                     }
                 }?;
 
                 let (device, queue) = {
                     profiling::scope!("request_device");
-                    adapter
-                        .request_device(&(*device_descriptor)(&adapter))
-                        .await?
+                    adapter.request_device(&(*device_descriptor)(&adapter)).await?
                 };
 
                 (instance.clone(), adapter, device, queue)
             }
-            WgpuSetup::Existing(WgpuSetupExisting {
-                instance,
-                adapter,
-                device,
-                queue,
-            }) => (instance, adapter, device, queue),
+            WgpuSetup::Existing(WgpuSetupExisting { instance, adapter, device, queue }) => (instance, adapter, device, queue),
         };
 
         log_adapter_info(&adapter.get_info());
 
         let surface_formats = {
             profiling::scope!("get_capabilities");
-            compatible_surface.map_or_else(
-                || vec![wgpu::TextureFormat::Rgba8Unorm],
-                |s| s.get_capabilities(&adapter).formats,
-            )
+            compatible_surface.map_or_else(|| vec![wgpu::TextureFormat::Rgba8Unorm], |s| s.get_capabilities(&adapter).formats)
         };
         let target_format = crate::preferred_framebuffer_format(&surface_formats)?;
 
         // Return startup pipeline errors so eframe's caller can retry with another renderer.
         #[cfg(feature = "winit")]
-        let renderer =
-            winit::catch_errors(&device, || Renderer::new(&device, target_format, options))
-                .await
-                .map_err(WgpuError::CreateRenderer)?;
+        let renderer = winit::catch_errors(&device, || Renderer::new(&device, target_format, options)).await.map_err(WgpuError::CreateRenderer)?;
         #[cfg(not(feature = "winit"))]
         let renderer = Renderer::new(&device, target_format, options);
 
@@ -312,11 +285,7 @@ fn describe_adapters(adapters: &[wgpu::Adapter]) -> String {
     } else if adapters.len() == 1 {
         adapter_info_summary(&adapters[0].get_info())
     } else {
-        adapters
-            .iter()
-            .map(|a| format!("{{{}}}", adapter_info_summary(&a.get_info())))
-            .collect::<Vec<_>>()
-            .join(", ")
+        adapters.iter().map(|a| format!("{{{}}}", adapter_info_summary(&a.get_info()))).collect::<Vec<_>>().join(", ")
     }
 }
 
@@ -355,21 +324,14 @@ pub struct WgpuConfiguration {
     /// [`wgpu::CurrentSurfaceTexture::Suboptimal`], egui uses the frame as-is and
     /// defers surface reconfiguration to the next frame — the callback is not invoked
     /// in that case either.
-    pub on_surface_status:
-        Arc<dyn Fn(&wgpu::CurrentSurfaceTexture) -> SurfaceErrorAction + Send + Sync>,
+    pub on_surface_status: Arc<dyn Fn(&wgpu::CurrentSurfaceTexture) -> SurfaceErrorAction + Send + Sync>,
 }
 
 // Compile-time check that `WgpuConfiguration` is `Send + Sync`.
 // Deliberately not a `#[test]`: tests never run on wasm, but `cargo check` does.
 // On wasm this only holds with `fragile-send-sync-non-atomic-wasm` and without threads;
 // look at the feature flag for an explanation.
-#[cfg(any(
-    not(target_arch = "wasm32"),
-    all(
-        feature = "fragile-send-sync-non-atomic-wasm",
-        not(target_feature = "atomics")
-    ),
-))]
+#[cfg(any(not(target_arch = "wasm32"), all(feature = "fragile-send-sync-non-atomic-wasm", not(target_feature = "atomics")),))]
 const _: () = {
     const fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<WgpuConfiguration>();
@@ -377,15 +339,8 @@ const _: () = {
 
 impl core::fmt::Debug for WgpuConfiguration {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self {
-            surface,
-            wgpu_setup,
-            on_surface_status: _,
-        } = self;
-        f.debug_struct("WgpuConfiguration")
-            .field("surface", &surface)
-            .field("wgpu_setup", &wgpu_setup)
-            .finish_non_exhaustive()
+        let Self { surface, wgpu_setup, on_surface_status: _ } = self;
+        f.debug_struct("WgpuConfiguration").field("surface", &surface).field("wgpu_setup", &wgpu_setup).finish_non_exhaustive()
     }
 }
 
@@ -436,22 +391,14 @@ impl Default for WgpuConfiguration {
 ///
 /// # Errors
 /// Returns [`WgpuError::NoSurfaceFormatsAvailable`] if the given list of formats is empty.
-pub fn preferred_framebuffer_format(
-    formats: &[wgpu::TextureFormat],
-) -> Result<wgpu::TextureFormat, WgpuError> {
+pub fn preferred_framebuffer_format(formats: &[wgpu::TextureFormat]) -> Result<wgpu::TextureFormat, WgpuError> {
     for &format in formats {
-        if matches!(
-            format,
-            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm
-        ) {
+        if matches!(format, wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm) {
             return Ok(format);
         }
     }
 
-    formats
-        .first()
-        .copied()
-        .ok_or(WgpuError::NoSurfaceFormatsAvailable)
+    formats.first().copied().ok_or(WgpuError::NoSurfaceFormatsAvailable)
 }
 
 /// Take's epi's depth/stencil bits and returns the corresponding wgpu format.
@@ -519,12 +466,7 @@ pub fn adapter_info_summary(info: &wgpu::AdapterInfo) -> String {
     if *vendor != 0 {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            write!(
-                summary,
-                ", vendor: {} (0x{vendor:04X})",
-                parse_vendor_id(*vendor)
-            )
-            .ok();
+            write!(summary, ", vendor: {} (0x{vendor:04X})", parse_vendor_id(*vendor)).ok();
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -538,17 +480,9 @@ pub fn adapter_info_summary(info: &wgpu::AdapterInfo) -> String {
         write!(summary, ", pci_bus_id: {device_pci_bus_id:?}").ok();
     }
     if *subgroup_min_size != 0 || *subgroup_max_size != 0 {
-        write!(
-            summary,
-            ", subgroup_size: {subgroup_min_size}..={subgroup_max_size}"
-        )
-        .ok();
+        write!(summary, ", subgroup_size: {subgroup_min_size}..={subgroup_max_size}").ok();
     }
-    write!(
-        summary,
-        ", transient_saves_memory: {transient_saves_memory:?}"
-    )
-    .ok();
+    write!(summary, ", transient_saves_memory: {transient_saves_memory:?}").ok();
     write!(summary, ", limit_bucket: {limit_bucket:?}").ok();
 
     summary

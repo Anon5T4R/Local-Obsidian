@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use localobsidian_md::links;
+use localnotebook_md::links;
 
 use crate::tree::NoteFile;
 

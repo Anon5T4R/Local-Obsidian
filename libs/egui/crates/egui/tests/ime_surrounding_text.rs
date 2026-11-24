@@ -1,6 +1,5 @@
 use egui::{
-    Context, Event, Id, ImeEvent, Key, Modifiers, RawInput, Rect, TextEdit, ViewportBuilder,
-    ViewportCommand, ViewportId,
+    Context, Event, Id, ImeEvent, Key, Modifiers, RawInput, Rect, TextEdit, ViewportBuilder, ViewportCommand, ViewportId,
     output::{IMESurroundingText, ImeChangeCause},
     pos2, vec2,
 };
@@ -47,22 +46,16 @@ impl Field {
                 }
                 ui.add(edit);
                 if core::mem::take(&mut discard_once) {
-                    ui.ctx()
-                        .request_discard("retain an IME interrupt across a discarded pass");
+                    ui.ctx().request_discard("retain an IME interrupt across a discarded pass");
                 }
             },
         );
         output.textures_delta.clear();
-        output
-            .platform_output
-            .ime
-            .expect("the focused editable field emits an IME descriptor")
+        output.platform_output.ime.expect("the focused editable field emits an IME descriptor")
     }
 
     fn payload(ime: &egui::output::IMEOutput) -> &egui::output::IMESurroundingTextPayload {
-        ime.surrounding_text
-            .available()
-            .expect("this field provides surrounding text")
+        ime.surrounding_text.available().expect("this field provides surrounding text")
     }
 }
 
@@ -72,10 +65,7 @@ fn commit(text: &str) -> Event {
 
 fn preedit(text: &str) -> Event {
     let end = text.chars().count();
-    Event::Ime(ImeEvent::Preedit {
-        text: text.to_owned(),
-        active_range_chars: (end > 0).then_some(end..end),
-    })
+    Event::Ime(ImeEvent::Preedit { text: text.to_owned(), active_range_chars: (end > 0).then_some(end..end) })
 }
 
 #[test]
@@ -85,16 +75,12 @@ fn accessible_whole_value_replacement_discards_the_old_composition_range() {
     field.frame(vec![preedit("compose")]);
     assert_eq!(field.text, "prefixcompose");
     field.discard_once = true;
-    let output = field.frame(vec![Event::AccessKitActionRequest(
-        egui::accesskit::ActionRequest {
-            action: egui::accesskit::Action::SetValue,
-            target_node: field.id.accesskit_id(),
-            target_tree: egui::accesskit::TreeId::ROOT,
-            data: Some(egui::accesskit::ActionData::Value(
-                "replacement text".into(),
-            )),
-        },
-    )]);
+    let output = field.frame(vec![Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::SetValue,
+        target_node: field.id.accesskit_id(),
+        target_tree: egui::accesskit::TreeId::ROOT,
+        data: Some(egui::accesskit::ActionData::Value("replacement text".into())),
+    })]);
     assert_eq!(field.text, "replacement text");
     assert_eq!(Field::payload(&output).text, field.text);
     assert_eq!(Field::payload(&output).cursor, field.text.len());
@@ -150,15 +136,7 @@ fn hidden_editor_with_stale_preedit_does_not_interrupt_the_focused_editor() {
         ui.add(TextEdit::singleline(&mut text_b).id(b).cursor_at_end(true));
     });
     composed.textures_delta.clear();
-    assert_eq!(
-        composed
-            .platform_output
-            .ime
-            .as_ref()
-            .expect("B owns the focused IME")
-            .owner,
-        b
-    );
+    assert_eq!(composed.platform_output.ime.as_ref().expect("B owns the focused IME").owner, b);
 
     // Re-show A with a changed buffer. This `TextEdit` no longer owns IME, so its stale
     // pre-edit must be discarded without interrupting B's viewport-global composition.
@@ -170,15 +148,9 @@ fn hidden_editor_with_stale_preedit_does_not_interrupt_the_focused_editor() {
     });
     reshown.textures_delta.clear();
 
-    let ime = reshown
-        .platform_output
-        .ime
-        .expect("B still owns the focused IME");
+    let ime = reshown.platform_output.ime.expect("B still owns the focused IME");
     assert_eq!(ime.owner, b);
-    assert!(
-        !ime.should_interrupt_composition,
-        "a non-owning hidden editor must not cancel the focused editor's composition"
-    );
+    assert!(!ime.should_interrupt_composition, "a non-owning hidden editor must not cancel the focused editor's composition");
 }
 
 #[test]
@@ -198,35 +170,22 @@ fn immediate_viewport_receives_its_own_ime_command_before_platform_output() {
             let mut output = ctx.run_ui(
                 RawInput {
                     viewport_id: ids.this,
-                    viewports: core::iter::once((ids.this, egui::ViewportInfo::default()))
-                        .collect(),
+                    viewports: core::iter::once((ids.this, egui::ViewportInfo::default())).collect(),
                     screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0))),
                     ..Default::default()
                 },
                 |ui| {
                     ui.memory_mut(|mem| mem.request_focus(child_editor));
-                    ui.ctx()
-                        .send_viewport_cmd(ViewportCommand::IMEAllowed(false));
-                    ui.add(
-                        TextEdit::singleline(&mut child_text)
-                            .id(child_editor)
-                            .cursor_at_end(true),
-                    );
+                    ui.ctx().send_viewport_cmd(ViewportCommand::IMEAllowed(false));
+                    ui.add(TextEdit::singleline(&mut child_text).id(child_editor).cursor_at_end(true));
                     viewport_ui_cb(ui);
                 },
             );
             output.textures_delta.clear();
 
-            let child_commands = output
-                .viewport_output
-                .get(&ids.this)
-                .map(|viewport| viewport.commands.clone())
-                .unwrap_or_default();
+            let child_commands = output.viewport_output.get(&ids.this).map(|viewport| viewport.commands.clone()).unwrap_or_default();
             let mut order = Vec::new();
-            if child_commands
-                .iter()
-                .any(|command| matches!(command, ViewportCommand::IMEAllowed(false)))
-            {
+            if child_commands.iter().any(|command| matches!(command, ViewportCommand::IMEAllowed(false))) {
                 order.push("child WindowDisable");
             }
             if output.platform_output.ime.is_some() {
@@ -236,30 +195,18 @@ fn immediate_viewport_receives_its_own_ime_command_before_platform_output() {
         }
     });
 
-    let mut parent_output = ctx.run_ui(
-        RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0))),
-            ..Default::default()
-        },
-        |ui| {
-            ui.ctx()
-                .send_viewport_cmd(ViewportCommand::IMEAllowed(true));
+    let mut parent_output =
+        ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0))), ..Default::default() }, |ui| {
+            ui.ctx().send_viewport_cmd(ViewportCommand::IMEAllowed(true));
             ui.show_viewport_immediate(child_viewport, ViewportBuilder::default(), |ui, _class| {
                 ui.label("immediate child");
             });
-        },
-    );
+        });
     parent_output.textures_delta.clear();
 
-    let (child_commands, order) = recorded
-        .lock()
-        .take()
-        .expect("the real show_viewport_immediate renderer ran");
+    let (child_commands, order) = recorded.lock().take().expect("the real show_viewport_immediate renderer ran");
     assert_eq!(
-        child_commands
-            .iter()
-            .filter(|command| matches!(command, ViewportCommand::IMEAllowed(_)))
-            .collect::<Vec<_>>(),
+        child_commands.iter().filter(|command| matches!(command, ViewportCommand::IMEAllowed(_))).collect::<Vec<_>>(),
         vec![&ViewportCommand::IMEAllowed(false)],
         "the immediate child must receive its own command from its child pass"
     );
@@ -269,30 +216,11 @@ fn immediate_viewport_receives_its_own_ime_command_before_platform_output() {
         "the child command is available to the integration before its platform output"
     );
 
-    let child_output = parent_output
-        .viewport_output
-        .get(&child_viewport)
-        .expect("child viewport output");
-    assert!(
-        child_output.commands.is_empty(),
-        "the child command must not be duplicated in the parent pass"
-    );
-    let root_output = parent_output
-        .viewport_output
-        .get(&ViewportId::ROOT)
-        .expect("root viewport output");
-    assert!(
-        root_output
-            .commands
-            .contains(&ViewportCommand::IMEAllowed(true)),
-        "an unrelated parent command stays in the parent's queue"
-    );
-    assert!(
-        !root_output
-            .commands
-            .contains(&ViewportCommand::IMEAllowed(false)),
-        "the child command must not be stolen into the parent's queue"
-    );
+    let child_output = parent_output.viewport_output.get(&child_viewport).expect("child viewport output");
+    assert!(child_output.commands.is_empty(), "the child command must not be duplicated in the parent pass");
+    let root_output = parent_output.viewport_output.get(&ViewportId::ROOT).expect("root viewport output");
+    assert!(root_output.commands.contains(&ViewportCommand::IMEAllowed(true)), "an unrelated parent command stays in the parent's queue");
+    assert!(!root_output.commands.contains(&ViewportCommand::IMEAllowed(false)), "the child command must not be stolen into the parent's queue");
 }
 
 #[test]
@@ -300,14 +228,12 @@ fn accessible_selection_replacement_interrupts_the_old_composition() {
     let mut field = Field::new("prefix");
     field.frame(vec![]);
     field.frame(vec![preedit("compose")]);
-    let output = field.frame(vec![Event::AccessKitActionRequest(
-        egui::accesskit::ActionRequest {
-            action: egui::accesskit::Action::ReplaceSelectedText,
-            target_node: field.id.accesskit_id(),
-            target_tree: egui::accesskit::TreeId::ROOT,
-            data: Some(egui::accesskit::ActionData::Value("replacement".into())),
-        },
-    )]);
+    let output = field.frame(vec![Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::ReplaceSelectedText,
+        target_node: field.id.accesskit_id(),
+        target_tree: egui::accesskit::TreeId::ROOT,
+        data: Some(egui::accesskit::ActionData::Value("replacement".into())),
+    })]);
     assert_eq!(field.text, "prefixreplacement");
     assert_eq!(Field::payload(&output).text, field.text);
     assert_eq!(output.change_cause, ImeChangeCause::Other);
@@ -335,10 +261,7 @@ fn password_to_normal_starts_a_new_available_context() {
     let normal = field.frame(vec![]);
     assert!(normal.context_generation > password.context_generation);
     assert_eq!(Field::payload(&normal).text, "private value");
-    assert_eq!(
-        field.frame(vec![]).context_generation,
-        normal.context_generation
-    );
+    assert_eq!(field.frame(vec![]).context_generation, normal.context_generation);
 }
 
 #[test]
@@ -348,31 +271,14 @@ fn discarded_layout_passes_keep_one_focused_context_generation() {
     let mut generations = Vec::new();
     let mut output = field.ctx.run_ui(RawInput::default(), |ui| {
         ui.add(TextEdit::singleline(&mut field.text).id(field.id));
-        generations.push(ui.output(|output| {
-            output
-                .ime
-                .as_ref()
-                .expect("focused field")
-                .context_generation
-        }));
+        generations.push(ui.output(|output| output.ime.as_ref().expect("focused field").context_generation));
         if generations.len() == 1 {
-            ui.ctx()
-                .request_discard("exercise the same editor in another layout pass");
+            ui.ctx().request_discard("exercise the same editor in another layout pass");
         }
     });
     output.textures_delta.clear();
-    assert_eq!(
-        generations,
-        [first.context_generation, first.context_generation]
-    );
-    assert_eq!(
-        output
-            .platform_output
-            .ime
-            .expect("final descriptor")
-            .context_generation,
-        first.context_generation
-    );
+    assert_eq!(generations, [first.context_generation, first.context_generation]);
+    assert_eq!(output.platform_output.ime.expect("final descriptor").context_generation, first.context_generation);
 }
 
 #[test]
@@ -381,10 +287,7 @@ fn multibyte_window_uses_the_full_bound_without_splitting_code_points() {
     let surrounding = IMESurroundingText::from_text(&text, 3000, 3000, None);
     let payload = surrounding.available().expect("valid UTF-8 selection");
     assert_eq!(payload.text, "é".repeat(2000));
-    assert_eq!(
-        payload.text.len(),
-        egui::output::MAX_IME_SURROUNDING_TEXT_BYTES
-    );
+    assert_eq!(payload.text.len(), egui::output::MAX_IME_SURROUNDING_TEXT_BYTES);
     assert_eq!((payload.cursor, payload.anchor), (2000, 2000));
     assert_eq!(&payload.text[..payload.cursor], "é".repeat(1000));
 }
@@ -444,8 +347,7 @@ fn final_discard_pass_without_an_editor_clears_ime_output() {
         if calls == 1 {
             ui.add(TextEdit::singleline(&mut field.text).id(field.id));
             assert!(ui.output(|output| output.ime.is_some()));
-            ui.ctx()
-                .request_discard("exercise a later pass without an editor");
+            ui.ctx().request_discard("exercise a later pass without an editor");
         } else {
             ui.label("The final pass has no editor");
         }
@@ -474,13 +376,7 @@ fn delete_and_commit_are_reflected_in_the_same_pass() {
     let mut field = Field::new("éx");
     field.frame(vec![]);
 
-    let output = field.frame(vec![
-        Event::Ime(ImeEvent::DeleteSurroundingBytes {
-            before_bytes: 1,
-            after_bytes: 0,
-        }),
-        commit("y"),
-    ]);
+    let output = field.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes { before_bytes: 1, after_bytes: 0 }), commit("y")]);
     assert_eq!(field.text, "éy");
     let payload = Field::payload(&output);
     assert_eq!(payload.text, "éy");
@@ -518,13 +414,7 @@ fn reversed_selection_preserves_primary_and_anchor_bytes() {
     let mut field = Field::new("aé");
     field.frame(vec![]);
 
-    let output = field.frame(vec![Event::Key {
-        key: Key::ArrowLeft,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::SHIFT,
-    }]);
+    let output = field.frame(vec![Event::Key { key: Key::ArrowLeft, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::SHIFT }]);
     let payload = Field::payload(&output);
     assert_eq!(payload.text, "aé");
     // Shift+Left keeps the anchor at the end and moves the primary cursor left.
@@ -538,13 +428,7 @@ fn cursor_movement_is_reflected_in_the_payload() {
     let mut field = Field::new("éx");
     field.frame(vec![]);
 
-    let output = field.frame(vec![Event::Key {
-        key: Key::ArrowLeft,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    }]);
+    let output = field.frame(vec![Event::Key { key: Key::ArrowLeft, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
     assert_eq!(field.text, "éx", "moving the cursor does not edit the text");
     let payload = Field::payload(&output);
     assert_eq!(payload.text, "éx");
@@ -557,10 +441,7 @@ fn deletion_only_batch_is_reflected_immediately() {
     let mut field = Field::new("éx");
     field.frame(vec![]);
 
-    let output = field.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes {
-        before_bytes: 1,
-        after_bytes: 0,
-    })]);
+    let output = field.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes { before_bytes: 1, after_bytes: 0 })]);
     assert_eq!(field.text, "é");
     let payload = Field::payload(&output);
     assert_eq!(payload.text, "é");
@@ -574,28 +455,13 @@ fn a_selection_wider_than_the_byte_limit_is_unavailable_but_keeps_identity() {
     let first = field.frame(vec![]);
     assert!(first.context_generation > 0);
 
-    let output = field.frame(vec![Event::Key {
-        key: Key::A,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::COMMAND,
-    }]);
+    let output = field.frame(vec![Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
     assert_eq!(output.owner, field.id);
     assert_eq!(output.context_generation, first.context_generation);
-    assert!(
-        matches!(output.surrounding_text, IMESurroundingText::Unavailable),
-        "a selection wider than the payload limit must not be truncated"
-    );
+    assert!(matches!(output.surrounding_text, IMESurroundingText::Unavailable), "a selection wider than the payload limit must not be truncated");
 
     // Collapsing the selection makes the context available again.
-    let output = field.frame(vec![Event::Key {
-        key: Key::ArrowRight,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    }]);
+    let output = field.frame(vec![Event::Key { key: Key::ArrowRight, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
     let payload = Field::payload(&output);
     assert!(payload.text.len() <= egui::output::MAX_IME_SURROUNDING_TEXT_BYTES);
     assert_eq!(payload.cursor, payload.anchor);
@@ -611,10 +477,7 @@ fn changing_purpose_while_focused_starts_a_new_context_generation() {
     let password = field.frame(vec![]);
     assert!(password.context_generation > generation);
     assert_eq!(password.purpose, egui::IMEPurpose::Password);
-    assert!(matches!(
-        password.surrounding_text,
-        IMESurroundingText::Unavailable
-    ));
+    assert!(matches!(password.surrounding_text, IMESurroundingText::Unavailable));
 }
 
 #[test]
@@ -626,27 +489,13 @@ fn password_keeps_identity_but_never_reports_text() {
     assert_eq!(output.owner, field.id);
     assert!(output.context_generation > 0);
     assert_eq!(output.purpose, egui::IMEPurpose::Password);
-    assert!(matches!(
-        output.surrounding_text,
-        IMESurroundingText::Unavailable
-    ));
+    assert!(matches!(output.surrounding_text, IMESurroundingText::Unavailable));
     assert!(!format!("{output:?}").contains("secret"));
 }
 
-fn two_field_frame(
-    ctx: &Context,
-    [a, b]: [Id; 2],
-    focus: Id,
-    text_a: &mut String,
-    text_b: &mut String,
-    password_b: bool,
-) -> egui::output::IMEOutput {
-    let mut output = ctx.run_ui(
-        RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0))),
-            ..Default::default()
-        },
-        |ui| {
+fn two_field_frame(ctx: &Context, [a, b]: [Id; 2], focus: Id, text_a: &mut String, text_b: &mut String, password_b: bool) -> egui::output::IMEOutput {
+    let mut output =
+        ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 300.0))), ..Default::default() }, |ui| {
             ui.memory_mut(|mem| mem.request_focus(focus));
             ui.add(TextEdit::singleline(text_a).id(a));
             let mut edit = TextEdit::singleline(text_b).id(b);
@@ -654,13 +503,9 @@ fn two_field_frame(
                 edit = edit.password(true);
             }
             ui.add(edit);
-        },
-    );
+        });
     output.textures_delta.clear();
-    output
-        .platform_output
-        .ime
-        .expect("the focused editable field emits an IME descriptor")
+    output.platform_output.ime.expect("the focused editable field emits an IME descriptor")
 }
 
 #[test]
@@ -678,30 +523,20 @@ fn switching_fields_does_not_keep_a_stale_payload() {
     let second_b = two_field_frame(&ctx, ids, b, &mut text_a, &mut text_b, true);
     assert_eq!(second_b.owner, b);
     assert_eq!(second_b.purpose, egui::IMEPurpose::Password);
-    assert!(
-        matches!(second_b.surrounding_text, IMESurroundingText::Unavailable),
-        "the password field must not inherit the previous field's payload"
-    );
+    assert!(matches!(second_b.surrounding_text, IMESurroundingText::Unavailable), "the password field must not inherit the previous field's payload");
 
     let third_a = two_field_frame(&ctx, ids, a, &mut text_a, &mut text_b, true);
     assert_eq!(third_a.owner, a);
     let payload = third_a.surrounding_text.available().unwrap();
     assert_eq!(payload.text, "hello");
-    assert!(
-        third_a.context_generation > first_a.context_generation,
-        "refocusing the same owner starts a new context generation"
-    );
+    assert!(third_a.context_generation > first_a.context_generation, "refocusing the same owner starts a new context generation");
 }
 
 #[test]
 fn ime_commit_reports_the_input_method_cause() {
     let mut field = Field::new("ab");
     let baseline = field.frame(vec![]);
-    assert_eq!(
-        baseline.change_cause,
-        ImeChangeCause::Other,
-        "the first focused context is a transition"
-    );
+    assert_eq!(baseline.change_cause, ImeChangeCause::Other, "the first focused context is a transition");
 
     let output = field.frame(vec![commit("c")]);
     assert_eq!(field.text, "abc");
@@ -713,24 +548,12 @@ fn ime_delete_and_commit_report_input_method_and_undo_in_one_step() {
     let mut field = Field::new("éx");
     field.frame(vec![]);
 
-    let output = field.frame(vec![
-        Event::Ime(ImeEvent::DeleteSurroundingBytes {
-            before_bytes: 1,
-            after_bytes: 0,
-        }),
-        commit("y"),
-    ]);
+    let output = field.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes { before_bytes: 1, after_bytes: 0 }), commit("y")]);
     assert_eq!(field.text, "éy");
     assert_eq!(output.change_cause, ImeChangeCause::InputMethod);
 
     // The deletion and the commit are one undo transaction.
-    let undo = field.frame(vec![Event::Key {
-        key: Key::Z,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::COMMAND,
-    }]);
+    let undo = field.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
     assert_eq!(field.text, "éx");
     assert_eq!(undo.change_cause, ImeChangeCause::Other);
 }
@@ -780,14 +603,8 @@ fn discarded_pass_retains_the_frames_input_method_cause() {
         |ui| {
             calls += 1;
             ui.memory_mut(|mem| mem.request_focus(field.id));
-            ui.add(
-                TextEdit::singleline(&mut field.text)
-                    .id(field.id)
-                    .cursor_at_end(true),
-            );
-            causes.push(
-                ui.output(|output| output.ime.as_ref().expect("focused editor").change_cause),
-            );
+            ui.add(TextEdit::singleline(&mut field.text).id(field.id).cursor_at_end(true));
+            causes.push(ui.output(|output| output.ime.as_ref().expect("focused editor").change_cause));
             if calls == 1 {
                 ui.ctx().request_discard("exercise a discarded IME pass");
             }
@@ -796,23 +613,9 @@ fn discarded_pass_retains_the_frames_input_method_cause() {
     output.textures_delta.clear();
 
     assert_eq!(calls, 2, "the frame ran two real passes");
-    assert_eq!(
-        field.text, "basex",
-        "raw input is consumed by the first pass"
-    );
-    assert_eq!(
-        causes,
-        [ImeChangeCause::InputMethod, ImeChangeCause::InputMethod],
-        "an unchanged discarded pass keeps the frame's cause"
-    );
-    assert_eq!(
-        output
-            .platform_output
-            .ime
-            .expect("final descriptor")
-            .change_cause,
-        ImeChangeCause::InputMethod
-    );
+    assert_eq!(field.text, "basex", "raw input is consumed by the first pass");
+    assert_eq!(causes, [ImeChangeCause::InputMethod, ImeChangeCause::InputMethod], "an unchanged discarded pass keeps the frame's cause");
+    assert_eq!(output.platform_output.ime.expect("final descriptor").change_cause, ImeChangeCause::InputMethod);
 }
 
 #[test]
@@ -835,17 +638,10 @@ fn application_mutation_in_a_discarded_pass_dominates_the_frame() {
                 field.text.push('y');
             }
             ui.memory_mut(|mem| mem.request_focus(field.id));
-            ui.add(
-                TextEdit::singleline(&mut field.text)
-                    .id(field.id)
-                    .cursor_at_end(true),
-            );
-            causes.push(
-                ui.output(|output| output.ime.as_ref().expect("focused editor").change_cause),
-            );
+            ui.add(TextEdit::singleline(&mut field.text).id(field.id).cursor_at_end(true));
+            causes.push(ui.output(|output| output.ime.as_ref().expect("focused editor").change_cause));
             if calls == 1 {
-                ui.ctx()
-                    .request_discard("exercise a mixed application/IME frame");
+                ui.ctx().request_discard("exercise a mixed application/IME frame");
             }
         },
     );
@@ -853,11 +649,7 @@ fn application_mutation_in_a_discarded_pass_dominates_the_frame() {
 
     assert_eq!(calls, 2);
     assert_eq!(field.text, "basexy");
-    assert_eq!(
-        causes,
-        [ImeChangeCause::InputMethod, ImeChangeCause::Other],
-        "an application change anywhere in the frame dominates"
-    );
+    assert_eq!(causes, [ImeChangeCause::InputMethod, ImeChangeCause::Other], "an application change anywhere in the frame dominates");
 }
 
 #[test]
@@ -913,10 +705,7 @@ fn noop_ime_events_do_not_earn_input_method() {
     assert_eq!(field.text, "clean");
     assert_eq!(empty_commit.change_cause, ImeChangeCause::Other);
 
-    let zero_delete = field.frame(vec![Event::Ime(ImeEvent::DeleteSurrounding {
-        before_chars: 0,
-        after_chars: 0,
-    })]);
+    let zero_delete = field.frame(vec![Event::Ime(ImeEvent::DeleteSurrounding { before_chars: 0, after_chars: 0 })]);
     assert_eq!(field.text, "clean");
     assert_eq!(zero_delete.change_cause, ImeChangeCause::Other);
 
@@ -928,10 +717,7 @@ fn noop_ime_events_do_not_earn_input_method() {
     // A byte count that ends inside a scalar deletes nothing and is not an accepted mutation.
     let mut scalar = Field::new("ab👧");
     scalar.frame(vec![]);
-    let inside_scalar = scalar.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes {
-        before_bytes: 3,
-        after_bytes: 0,
-    })]);
+    let inside_scalar = scalar.frame(vec![Event::Ime(ImeEvent::DeleteSurroundingBytes { before_bytes: 3, after_bytes: 0 })]);
     assert_eq!(scalar.text, "ab👧");
     assert_eq!(inside_scalar.change_cause, ImeChangeCause::Other);
 }
@@ -955,10 +741,7 @@ fn password_ime_commit_is_never_input_method() {
     let output = field.frame(vec![commit("x")]);
     assert_eq!(field.text, "secretx");
     assert_eq!(output.change_cause, ImeChangeCause::Other);
-    assert!(matches!(
-        output.surrounding_text,
-        IMESurroundingText::Unavailable
-    ));
+    assert!(matches!(output.surrounding_text, IMESurroundingText::Unavailable));
 }
 
 #[test]
@@ -969,52 +752,23 @@ fn reset_completion_is_control_only_for_stock_text_edit_composition_and_undo() {
         let request_id = field.ctx.request_ime_reset(ViewportId::ROOT).unwrap();
         let marker = Event::ImeResetCompleted { request_id };
         let unchanged = field.frame(vec![marker.clone()]);
-        assert_eq!(
-            field.text, "éx",
-            "completion itself must not edit the buffer"
-        );
+        assert_eq!(field.text, "éx", "completion itself must not edit the buffer");
         assert_eq!(Field::payload(&unchanged).cursor, "éx".len());
         assert_eq!(unchanged.reset_request, Some(request_id));
 
         let deletion = if bytes {
-            ImeEvent::DeleteSurroundingBytes {
-                before_bytes: 1,
-                after_bytes: 0,
-            }
+            ImeEvent::DeleteSurroundingBytes { before_bytes: 1, after_bytes: 0 }
         } else {
-            ImeEvent::DeleteSurrounding {
-                before_chars: 1,
-                after_chars: 0,
-            }
+            ImeEvent::DeleteSurrounding { before_chars: 1, after_chars: 0 }
         };
-        let changed = field.frame(vec![
-            Event::Ime(deletion),
-            marker.clone(),
-            commit("y"),
-            marker,
-        ]);
-        assert_eq!(
-            field.text, "éy",
-            "a valid delete→commit remains one mutation chain"
-        );
+        let changed = field.frame(vec![Event::Ime(deletion), marker.clone(), commit("y"), marker]);
+        assert_eq!(field.text, "éy", "a valid delete→commit remains one mutation chain");
         assert_eq!(changed.change_cause, ImeChangeCause::InputMethod);
-        let undo = field.frame(vec![Event::Key {
-            key: Key::Z,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::COMMAND,
-        }]);
-        assert_eq!(
-            field.text, "éx",
-            "the interspersed marker creates no extra undo step"
-        );
+        let undo = field.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
+        assert_eq!(field.text, "éx", "the interspersed marker creates no extra undo step");
         assert_eq!(undo.change_cause, ImeChangeCause::Other);
         field.frame(vec![commit("!")]);
-        assert_eq!(
-            field.text, "éx!",
-            "direct commit without old composition stays valid"
-        );
+        assert_eq!(field.text, "éx!", "direct commit without old composition stays valid");
     }
 }
 
@@ -1028,26 +782,12 @@ fn reset_completion_does_not_end_stock_preedit_or_move_its_selection() {
     let b = baseline.frame(vec![preedit("かな")]);
     assert_eq!(with_control.text, baseline.text);
     assert_eq!(Field::payload(&a), Field::payload(&b));
-    let request_id = with_control
-        .ctx
-        .request_ime_reset(ViewportId::ROOT)
-        .unwrap();
+    let request_id = with_control.ctx.request_ime_reset(ViewportId::ROOT).unwrap();
     let a = with_control.frame(vec![Event::ImeResetCompleted { request_id }]);
     let b = baseline.frame(vec![]);
-    assert_eq!(
-        with_control.text, baseline.text,
-        "control is ignored by ordinary TextEdit"
-    );
-    assert_eq!(
-        Field::payload(&a),
-        Field::payload(&b),
-        "committed snapshot and caret remain identical"
-    );
-    let a = with_control.frame(vec![
-        preedit(""),
-        Event::ImeResetCompleted { request_id },
-        commit("語"),
-    ]);
+    assert_eq!(with_control.text, baseline.text, "control is ignored by ordinary TextEdit");
+    assert_eq!(Field::payload(&a), Field::payload(&b), "committed snapshot and caret remain identical");
+    let a = with_control.frame(vec![preedit(""), Event::ImeResetCompleted { request_id }, commit("語")]);
     let b = baseline.frame(vec![preedit(""), commit("語")]);
     assert_eq!(with_control.text, "prefix語");
     assert_eq!(with_control.text, baseline.text);

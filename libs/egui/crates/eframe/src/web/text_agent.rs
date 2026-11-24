@@ -8,9 +8,7 @@ use std::rc::{Rc, Weak};
 
 use wasm_bindgen::prelude::*;
 
-use crate::web_caret_position::{
-    CanvasMetrics, CaretGeometry, CaretPositionKey, CaretPositionTracker,
-};
+use crate::web_caret_position::{CanvasMetrics, CaretGeometry, CaretPositionKey, CaretPositionTracker};
 
 use super::{AppRunner, NeedRepaint, PanicHandler, WebRunner};
 
@@ -30,8 +28,7 @@ pub(super) struct TextAgentContext {
 extern "C" {
     fn egui_text_agent_session() -> JsValue;
     fn egui_text_agent_activate(session: &JsValue, active: bool);
-    fn egui_text_agent_listener(session: &JsValue, callback: &js_sys::Function)
-    -> js_sys::Function;
+    fn egui_text_agent_listener(session: &JsValue, callback: &js_sys::Function) -> js_sys::Function;
 }
 
 struct Session {
@@ -48,11 +45,7 @@ pub(super) struct ForwardedKey {
 
 impl Default for Session {
     fn default() -> Self {
-        Self {
-            active: Cell::new(false),
-            gate: egui_text_agent_session(),
-            forwarded_keys: Default::default(),
-        }
+        Self { active: Cell::new(false), gate: egui_text_agent_session(), forwarded_keys: Default::default() }
     }
 }
 
@@ -72,12 +65,7 @@ struct Listener {
 }
 
 impl Listener {
-    fn new<E: JsCast>(
-        target: &web_sys::EventTarget,
-        name: &'static str,
-        session: Weak<Session>,
-        mut callback: impl FnMut(E) + 'static,
-    ) -> Self {
+    fn new<E: JsCast>(target: &web_sys::EventTarget, name: &'static str, session: Weak<Session>, mut callback: impl FnMut(E) + 'static) -> Self {
         let callback_session = Weak::clone(&session);
         let closure = Closure::wrap(Box::new(move |event: web_sys::Event| {
             let Some(session) = session.upgrade() else {
@@ -95,29 +83,15 @@ impl Listener {
             let gate = egui_text_agent_session();
             egui_text_agent_listener(&gate, closure.as_ref().unchecked_ref())
         };
-        Self {
-            target: target.clone(),
-            name,
-            callback,
-            _closure: closure,
-            capture: false,
-        }
+        Self { target: target.clone(), name, callback, _closure: closure, capture: false }
     }
 
     fn subscribe(&self) -> Result<(), JsValue> {
-        self.target.add_event_listener_with_callback_and_bool(
-            self.name,
-            &self.callback,
-            self.capture,
-        )
+        self.target.add_event_listener_with_callback_and_bool(self.name, &self.callback, self.capture)
     }
 
     fn unsubscribe(&self) -> Result<(), JsValue> {
-        self.target.remove_event_listener_with_callback_and_bool(
-            self.name,
-            &self.callback,
-            self.capture,
-        )
+        self.target.remove_event_listener_with_callback_and_bool(self.name, &self.callback, self.capture)
     }
 }
 
@@ -153,9 +127,7 @@ struct FocusState {
 
 impl FocusState {
     fn owns_dom_focus(&self) -> bool {
-        if !super::has_focus(&self.canvas)
-            && !self.input.borrow().as_ref().is_some_and(super::has_focus)
-        {
+        if !super::has_focus(&self.canvas) && !self.input.borrow().as_ref().is_some_and(super::has_focus) {
             return false;
         }
         let mut root = self.canvas.get_root_node();
@@ -178,10 +150,7 @@ impl FocusState {
         loop {
             if super::focused_element(&root)
                 .as_ref()
-                .is_some_and(|element| {
-                    !matches!(element.tag_name().as_str(), "BODY" | "HTML")
-                        && Some(element) != allowed_host.as_ref()
-                })
+                .is_some_and(|element| !matches!(element.tag_name().as_str(), "BODY" | "HTML") && Some(element) != allowed_host.as_ref())
             {
                 return false;
             }
@@ -209,22 +178,20 @@ impl FocusState {
 
     fn capture(&self, ime: &egui::output::IMEOutput) {
         let context = FocusContext::from(ime);
-        let keep_pending = self.pending.borrow().as_ref().is_some_and(|intent| {
-            intent.context == context && intent.outside_epoch == self.outside_epoch.get()
-        });
+        let keep_pending =
+            self.pending.borrow().as_ref().is_some_and(|intent| intent.context == context && intent.outside_epoch == self.outside_epoch.get());
         let owns = self.owns_dom_focus(); // deliberately independent of document.hidden()
         *self.pending.borrow_mut() =
-            (!self.exhausted.get() && (owns || keep_pending)).then_some(FocusIntent {
-                context,
-                outside_epoch: self.outside_epoch.get(),
-            });
+            (!self.exhausted.get() && (owns || keep_pending)).then_some(FocusIntent { context, outside_epoch: self.outside_epoch.get() });
     }
 
     fn update_context(&self, ime: Option<&egui::output::IMEOutput>) {
-        if self.pending.borrow().as_ref().is_some_and(|intent| {
-            Some(intent.context) != ime.map(FocusContext::from)
-                || intent.outside_epoch != self.outside_epoch.get()
-        }) {
+        if self
+            .pending
+            .borrow()
+            .as_ref()
+            .is_some_and(|intent| Some(intent.context) != ime.map(FocusContext::from) || intent.outside_epoch != self.outside_epoch.get())
+        {
             self.pending.borrow_mut().take();
         }
     }
@@ -243,10 +210,7 @@ impl FocusWatch {
         self.handles.retain(|handle| match handle.unsubscribe() {
             Ok(()) => false,
             Err(err) => {
-                log::warn!(
-                    "failed to remove retired focus observer: {}",
-                    super::string_from_js_value(&err)
-                );
+                log::warn!("failed to remove retired focus observer: {}", super::string_from_js_value(&err));
                 true
             }
         });
@@ -266,18 +230,10 @@ pub(super) struct TextAgentListeners {
 impl TextAgentListeners {
     #[cfg(test)]
     pub(super) fn test_listener_counts(&self) -> (usize, usize) {
-        (
-            self.group.as_ref().map_or(0, |group| group.handles.len()),
-            self.focus_watch
-                .as_ref()
-                .map_or(0, |watch| watch.handles.len()),
-        )
+        (self.group.as_ref().map_or(0, |group| group.handles.len()), self.focus_watch.as_ref().map_or(0, |watch| watch.handles.len()))
     }
 
-    fn focus_state(
-        &mut self,
-        canvas: &web_sys::HtmlCanvasElement,
-    ) -> Result<Rc<FocusState>, JsValue> {
+    fn focus_state(&mut self, canvas: &web_sys::HtmlCanvasElement) -> Result<Rc<FocusState>, JsValue> {
         if let Some(watch) = &mut self.focus_watch {
             if watch.state.canvas == *canvas && watch.session.active.get() {
                 return Ok(Rc::clone(&watch.state));
@@ -302,19 +258,10 @@ impl TextAgentListeners {
         if root != document.unchecked_into::<web_sys::Node>() {
             targets.push(root.unchecked_into::<web_sys::EventTarget>());
         }
-        let mut watch = FocusWatch {
-            state: Rc::clone(&state),
-            session,
-            handles: Vec::new(),
-        };
+        let mut watch = FocusWatch { state: Rc::clone(&state), session, handles: Vec::new() };
         for target in targets {
             let state = Rc::clone(&state);
-            let mut handle = Listener::new(
-                &target,
-                "focusin",
-                Rc::downgrade(&watch.session),
-                move |_: web_sys::FocusEvent| state.observe_focus(),
-            );
+            let mut handle = Listener::new(&target, "focusin", Rc::downgrade(&watch.session), move |_: web_sys::FocusEvent| state.observe_focus());
             handle.capture = true;
             watch.handles.push(handle);
             if let Err(err) = watch.handles.last().unwrap().subscribe() {
@@ -350,10 +297,7 @@ impl TextAgentListeners {
         group.handles.retain(|handle| match handle.unsubscribe() {
             Ok(()) => false,
             Err(err) => {
-                log::warn!(
-                    "failed to remove retired text agent listener: {}",
-                    super::string_from_js_value(&err)
-                );
+                log::warn!("failed to remove retired text agent listener: {}", super::string_from_js_value(&err));
                 true
             }
         });
@@ -387,10 +331,7 @@ pub struct TextAgent {
 
 impl TextAgent {
     /// Attach the initial agent, preserving startup focus without page scrolling.
-    pub fn attach(
-        runner_ref: &WebRunner,
-        canvas: &web_sys::HtmlCanvasElement,
-    ) -> Result<Self, JsValue> {
+    pub fn attach(runner_ref: &WebRunner, canvas: &web_sys::HtmlCanvasElement) -> Result<Self, JsValue> {
         let agent = Self::attach_unfocused(runner_ref.text_agent_context(), canvas, false)?;
         agent.focus.input.replace(Some(agent.input.clone()));
         agent.session.set_active(true);
@@ -398,21 +339,13 @@ impl TextAgent {
         Ok(agent)
     }
 
-    fn attach_unfocused(
-        context: TextAgentContext,
-        canvas: &web_sys::HtmlCanvasElement,
-        replacement: bool,
-    ) -> Result<Self, JsValue> {
+    fn attach_unfocused(context: TextAgentContext, canvas: &web_sys::HtmlCanvasElement, replacement: bool) -> Result<Self, JsValue> {
         if context.listeners.borrow().group.is_some() {
-            return Err(JsValue::from_str(
-                "previous text-agent listeners could not be removed",
-            ));
+            return Err(JsValue::from_str("previous text-agent listeners could not be removed"));
         }
         let focus = context.listeners.borrow_mut().focus_state(canvas)?;
         let document = web_sys::window().unwrap().document().unwrap();
-        let input = document
-            .create_element("input")?
-            .dyn_into::<web_sys::HtmlInputElement>()?;
+        let input = document.create_element("input")?.dyn_into::<web_sys::HtmlInputElement>()?;
         input.set_type("text");
         input.set_attribute("autocapitalize", "off")?;
         // Keep a sibling of the canvas, including inside shadow DOM. No focus during setup.
@@ -436,23 +369,11 @@ impl TextAgent {
         style.set_property("left", &format!("{}px", canvas.offset_left()))?;
         let input_state = Rc::new(RefCell::new(InputState::new(input.clone())));
         if replacement {
-            input_state.borrow_mut().composition =
-                crate::web_ime_reset::CompositionSession::replacement();
+            input_state.borrow_mut().composition = crate::web_ime_reset::CompositionSession::replacement();
         }
         let session = Rc::new(Session::default());
-        context.listeners.borrow_mut().group = Some(ListenerGroup {
-            session: Rc::clone(&session),
-            input: input.clone(),
-            handles: Vec::new(),
-        });
-        let agent = Self {
-            input,
-            input_state,
-            session,
-            context,
-            focus,
-            lang: RefCell::new(None),
-        };
+        context.listeners.borrow_mut().group = Some(ListenerGroup { session: Rc::clone(&session), input: input.clone(), handles: Vec::new() });
+        let agent = Self { input, input_state, session, context, focus, lang: RefCell::new(None) };
         let setup = (|| {
             if let Some(parent) = canvas.parent_node() {
                 parent.insert_before(&agent.input, canvas.next_sibling().as_ref())?;
@@ -472,20 +393,13 @@ impl TextAgent {
             agent.listen("input", {
                 let state = Rc::clone(&agent.input_state);
                 move |event: web_sys::InputEvent, runner| {
-                    state.borrow_mut().handle_input_event(
-                        &event,
-                        &mut runner.input.raw.events,
-                        &runner.needs_repaint,
-                    );
+                    state.borrow_mut().handle_input_event(&event, &mut runner.input.raw.events, &runner.needs_repaint);
                 }
             })?;
             agent.listen("compositionend", {
                 let state = Rc::clone(&agent.input_state);
                 move |_: web_sys::CompositionEvent, runner| {
-                    state.borrow_mut().handle_composition_end_event(
-                        &mut runner.input.raw.events,
-                        &runner.needs_repaint,
-                    );
+                    state.borrow_mut().handle_composition_end_event(&mut runner.input.raw.events, &runner.needs_repaint);
                 }
             })?;
             agent.listen("keydown", {
@@ -495,10 +409,7 @@ impl TextAgent {
                     if !InputState::handle_keydown_event(&state, &event) {
                         let start = runner.input.raw.events.len();
                         super::events::on_keydown(event.clone(), runner);
-                        if runner.input.raw.events[start..]
-                            .iter()
-                            .any(|event| matches!(event, egui::Event::Key { pressed: true, .. }))
-                        {
+                        if runner.input.raw.events[start..].iter().any(|event| matches!(event, egui::Event::Key { pressed: true, .. })) {
                             let mut keys = session.forwarded_keys.borrow_mut();
                             keys.retain(|old| !same_key(&old.event, &event));
                             if let Some(press) = runner.input.keys.press_id(&event) {
@@ -513,10 +424,7 @@ impl TextAgent {
                 let session = Rc::clone(&agent.session);
                 move |event: web_sys::KeyboardEvent, runner| {
                     if !InputState::handle_keyup_event(&state, &event) {
-                        session
-                            .forwarded_keys
-                            .borrow_mut()
-                            .retain(|old| !same_key(&old.event, &event));
+                        session.forwarded_keys.borrow_mut().retain(|old| !same_key(&old.event, &event));
                         super::events::on_keyup(event, runner);
                     }
                 }
@@ -530,11 +438,7 @@ impl TextAgent {
         Ok(agent)
     }
 
-    fn listen<E: JsCast>(
-        &self,
-        name: &'static str,
-        mut callback: impl FnMut(E, &mut AppRunner) + 'static,
-    ) -> Result<(), JsValue> {
+    fn listen<E: JsCast>(&self, name: &'static str, mut callback: impl FnMut(E, &mut AppRunner) + 'static) -> Result<(), JsValue> {
         let runner = Weak::clone(&self.context.runner);
         let panic_handler = self.context.panic_handler.clone();
         let session = Rc::downgrade(&self.session);
@@ -553,10 +457,7 @@ impl TextAgent {
         });
         // Retain even if registration throws, until removal has safely succeeded.
         let mut listeners = self.context.listeners.borrow_mut();
-        let group = listeners
-            .group
-            .as_mut()
-            .ok_or_else(|| JsValue::from_str("text agent retired during setup"))?;
+        let group = listeners.group.as_mut().ok_or_else(|| JsValue::from_str("text agent retired during setup"))?;
         group.handles.push(handle);
         group.handles.last().unwrap().subscribe()
     }
@@ -564,15 +465,7 @@ impl TextAgent {
     fn retire(&self) -> bool {
         self.session.set_active(false);
         let mut listeners = self.context.listeners.borrow_mut();
-        if listeners
-            .group
-            .as_ref()
-            .is_some_and(|group| Rc::ptr_eq(&group.session, &self.session))
-        {
-            listeners.retire()
-        } else {
-            true
-        }
+        if listeners.group.as_ref().is_some_and(|group| Rc::ptr_eq(&group.session, &self.session)) { listeners.retire() } else { true }
     }
 
     /// Release only keys this old source actually forwarded. A discarded old-node keyup then
@@ -592,13 +485,7 @@ impl TextAgent {
         events: &mut Vec<egui::Event>,
         repaint: &NeedRepaint,
     ) -> bool {
-        if !self
-            .context
-            .listeners
-            .borrow_mut()
-            .requests
-            .complete(request, ime, events)
-        {
+        if !self.context.listeners.borrow_mut().requests.complete(request, ime, events) {
             return false;
         }
         // Queuing control alone does not schedule a subsequent raw batch, especially hidden.
@@ -623,13 +510,7 @@ impl TextAgent {
         }
         let valid = self.focus.pending.borrow().as_ref().is_some_and(|intent| {
             intent.outside_epoch == self.focus.outside_epoch.get()
-                && self
-                    .input_state
-                    .borrow()
-                    .ime_output
-                    .as_ref()
-                    .map(FocusContext::from)
-                    == Some(intent.context)
+                && self.input_state.borrow().ime_output.as_ref().map(FocusContext::from) == Some(intent.context)
         });
         if !valid {
             self.focus.pending.borrow_mut().take();
@@ -659,17 +540,12 @@ impl TextAgent {
         self.focus.replacing.set(true);
         let result = (|| {
             if !self.retire() {
-                return Err(JsValue::from_str(
-                    "retired text-agent listener removal failed",
-                ));
+                return Err(JsValue::from_str("retired text-agent listener removal failed"));
             }
             let replacement = Self::attach_unfocused(self.context.clone(), canvas, true)?;
             replacement.try_set_lang(lang)?;
             replacement.update(Some(ime), canvas, zoom_factor)?;
-            replacement
-                .focus
-                .input
-                .replace(Some(replacement.input.clone()));
+            replacement.focus.input.replace(Some(replacement.input.clone()));
             replacement.session.set_active(true);
             *self = replacement;
             Ok(())
@@ -681,16 +557,9 @@ impl TextAgent {
         result
     }
 
-    pub fn update(
-        &self,
-        ime: Option<egui::output::IMEOutput>,
-        canvas: &web_sys::HtmlCanvasElement,
-        zoom_factor: f32,
-    ) -> Result<(), JsValue> {
+    pub fn update(&self, ime: Option<egui::output::IMEOutput>, canvas: &web_sys::HtmlCanvasElement, zoom_factor: f32) -> Result<(), JsValue> {
         self.focus.update_context(ime.as_ref());
-        self.input_state
-            .borrow_mut()
-            .update(ime, canvas, zoom_factor)
+        self.input_state.borrow_mut().update(ime, canvas, zoom_factor)
     }
 
     fn try_set_lang(&self, lang: Option<&str>) -> Result<(), JsValue> {
@@ -708,27 +577,13 @@ impl TextAgent {
 
     pub fn set_lang(&self, lang: Option<&str>) {
         if let Err(err) = self.try_set_lang(lang) {
-            log::error!(
-                "failed to set text agent lang: {}",
-                super::string_from_js_value(&err)
-            );
+            log::error!("failed to set text agent lang: {}", super::string_from_js_value(&err));
         }
     }
 
     #[cfg(test)]
     pub(super) fn test_keyup_callback(&self) -> js_sys::Function {
-        self.context
-            .listeners
-            .borrow()
-            .group
-            .as_ref()
-            .unwrap()
-            .handles
-            .iter()
-            .find(|handle| handle.name == "keyup")
-            .unwrap()
-            .callback
-            .clone()
+        self.context.listeners.borrow().group.as_ref().unwrap().handles.iter().find(|handle| handle.name == "keyup").unwrap().callback.clone()
     }
 
     #[cfg(test)]
@@ -767,10 +622,7 @@ impl TextAgent {
             return;
         }
         if let Err(err) = self.input.blur() {
-            log::error!(
-                "failed to remove focus: {}",
-                super::string_from_js_value(&err)
-            );
+            log::error!("failed to remove focus: {}", super::string_from_js_value(&err));
         }
         self.input_state.borrow_mut().clear();
     }
@@ -787,11 +639,7 @@ impl Drop for TextAgent {
 }
 
 fn same_key(a: &web_sys::KeyboardEvent, b: &web_sys::KeyboardEvent) -> bool {
-    if a.code().is_empty() || b.code().is_empty() {
-        a.key() == b.key()
-    } else {
-        a.code() == b.code()
-    }
+    if a.code().is_empty() || b.code().is_empty() { a.key() == b.key() } else { a.code() == b.code() }
 }
 
 struct InputState {
@@ -846,12 +694,7 @@ impl InputState {
         }
     }
 
-    fn update(
-        &mut self,
-        ime: Option<egui::output::IMEOutput>,
-        canvas: &web_sys::HtmlCanvasElement,
-        zoom_factor: f32,
-    ) -> Result<(), JsValue> {
+    fn update(&mut self, ime: Option<egui::output::IMEOutput>, canvas: &web_sys::HtmlCanvasElement, zoom_factor: f32) -> Result<(), JsValue> {
         let native_ppp = super::native_pixels_per_point();
         let canvas_metrics = CanvasMetrics {
             width: canvas.width(),
@@ -860,12 +703,8 @@ impl InputState {
             offset_top: canvas.offset_top(),
             native_pixels_per_point: native_ppp,
         };
-        let geometry = ime
-            .as_ref()
-            .map(|ime| CaretGeometry::from_ime(ime, canvas_metrics, zoom_factor));
-        let position_to_write = self
-            .caret_position
-            .update(geometry.map(CaretPositionKey::new));
+        let geometry = ime.as_ref().map(|ime| CaretGeometry::from_ime(ime, canvas_metrics, zoom_factor));
+        let position_to_write = self.caret_position.update(geometry.map(CaretPositionKey::new));
 
         // Keep the complete descriptor for IME lifecycle decisions, independently of whether
         // this pass needs to move the hidden input. A text/selection/owner change alone does
@@ -902,14 +741,8 @@ impl InputState {
         let clamped_y = visible_y.clamp(0.0, logical_canvas_height);
 
         // This is where the IME input will point to:
-        style.set_property(
-            "left",
-            &format!("{}px", canvas.offset_left() as f32 + clamped_x),
-        )?;
-        style.set_property(
-            "top",
-            &format!("{}px", canvas.offset_top() as f32 + clamped_y),
-        )?;
+        style.set_property("left", &format!("{}px", canvas.offset_left() as f32 + clamped_x))?;
+        style.set_property("top", &format!("{}px", canvas.offset_top() as f32 + clamped_y))?;
 
         Ok(())
     }
@@ -920,23 +753,14 @@ impl InputState {
         self.composition.clear();
     }
 
-    fn handle_input_event(
-        &mut self,
-        event: &web_sys::InputEvent,
-        events: &mut Vec<egui::Event>,
-        repaint: &NeedRepaint,
-    ) {
+    fn handle_input_event(&mut self, event: &web_sys::InputEvent, events: &mut Vec<egui::Event>, repaint: &NeedRepaint) {
         // A replacement agent must observe its own compositionstart. Scrub the rejected DOM
         // value as well as the diff baseline, including before the password early branch.
         if !self.composition.input(event.is_composing()) {
             self.clear();
             return;
         }
-        if self
-            .ime_output
-            .as_ref()
-            .is_some_and(|ime| ime.purpose == egui::IMEPurpose::Password)
-        {
+        if self.ime_output.as_ref().is_some_and(|ime| ime.purpose == egui::IMEPurpose::Password) {
             self.handle_input_event_password(event, events);
             return;
         }
@@ -961,10 +785,7 @@ impl InputState {
         let prefix_len = longest_common_prefix_length(&text, &self.last_text);
         let last_text_len = self.last_text.chars().count();
         if prefix_len < last_text_len {
-            let out_event = egui::Event::Ime(egui::ImeEvent::DeleteSurrounding {
-                before_chars: last_text_len - prefix_len,
-                after_chars: 0,
-            });
+            let out_event = egui::Event::Ime(egui::ImeEvent::DeleteSurrounding { before_chars: last_text_len - prefix_len, after_chars: 0 });
             events.push(out_event);
         }
 
@@ -974,10 +795,7 @@ impl InputState {
             // `compositionupdate` event because the selection range
             // has not yet been updated when `compositionupdate` fires.
             let active_range_chars = self.active_range_chars(&text, prefix_len);
-            egui::Event::Ime(egui::ImeEvent::Preedit {
-                text: preedit_text,
-                active_range_chars,
-            })
+            egui::Event::Ime(egui::ImeEvent::Preedit { text: preedit_text, active_range_chars })
         } else {
             egui::Event::Text(preedit_text)
         };
@@ -992,11 +810,7 @@ impl InputState {
         repaint.repaint_asap();
     }
 
-    fn handle_input_event_password(
-        &mut self,
-        event: &web_sys::InputEvent,
-        events: &mut Vec<egui::Event>,
-    ) {
+    fn handle_input_event_password(&mut self, event: &web_sys::InputEvent, events: &mut Vec<egui::Event>) {
         let input_type = event.input_type();
 
         if input_type != "insertText" {
@@ -1017,11 +831,7 @@ impl InputState {
     /// of the preedit). `selectionStart`/`selectionEnd` are UTF-16 offsets
     /// within the full `input.value()`, so they are adjusted to be relative
     /// to the preedit text.
-    fn active_range_chars(
-        &self,
-        text: &str,
-        prefix_len_chars: usize,
-    ) -> Option<core::ops::Range<usize>> {
+    fn active_range_chars(&self, text: &str, prefix_len_chars: usize) -> Option<core::ops::Range<usize>> {
         let selection_start = self.input.selection_start().unwrap_or(None)? as usize;
         let selection_end = self.input.selection_end().unwrap_or(None)? as usize;
 
@@ -1033,8 +843,7 @@ impl InputState {
         }
 
         let text_before_selection = String::from_utf16_lossy(&text_utf16[..selection_start]);
-        let text_in_selection =
-            String::from_utf16_lossy(&text_utf16[selection_start..selection_end]);
+        let text_in_selection = String::from_utf16_lossy(&text_utf16[selection_start..selection_end]);
         let count_before_selection = text_before_selection.chars().count();
         let count_in_selection = text_in_selection.chars().count();
 
@@ -1044,11 +853,7 @@ impl InputState {
         Some(start..end)
     }
 
-    fn handle_composition_end_event(
-        &mut self,
-        events: &mut Vec<egui::Event>,
-        repaint: &NeedRepaint,
-    ) {
+    fn handle_composition_end_event(&mut self, events: &mut Vec<egui::Event>, repaint: &NeedRepaint) {
         if !self.composition.end() {
             self.clear();
             return;
@@ -1084,11 +889,7 @@ impl InputState {
         if event.is_composing() || !matches!(special_case, KeydownSpecialCase::None) {
             true
         } else {
-            if crate::web_keys::is_named_key(&event.key())
-                || event.ctrl_key()
-                || event.alt_key()
-                || event.meta_key()
-            {
+            if crate::web_keys::is_named_key(&event.key()) || event.ctrl_key() || event.alt_key() || event.meta_key() {
                 input_state.borrow_mut().clear();
             }
             false
@@ -1107,9 +908,7 @@ impl InputState {
 }
 
 fn longest_common_prefix_length(a: &str, b: &str) -> usize {
-    core::iter::zip(a.chars(), b.chars())
-        .take_while(|(a, b)| a == b)
-        .count()
+    core::iter::zip(a.chars(), b.chars()).take_while(|(a, b)| a == b).count()
 }
 
 #[cfg(test)]
@@ -1138,23 +937,14 @@ mod browser_tests {
     impl Fixture {
         fn new(password: bool) -> Self {
             let document = web_sys::window().unwrap().document().unwrap();
-            let input = document
-                .create_element("input")
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
+            let input = document.create_element("input").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
             document.body().unwrap().append_child(&input).unwrap();
             let state = Rc::new(RefCell::new(InputState::new(input.clone())));
-            state.borrow_mut().composition =
-                crate::web_ime_reset::CompositionSession::replacement();
+            state.borrow_mut().composition = crate::web_ime_reset::CompositionSession::replacement();
             state.borrow_mut().ime_output = Some(egui::output::IMEOutput::new(
                 egui::Id::unique("DOM test"),
                 1,
-                if password {
-                    egui::IMEPurpose::Password
-                } else {
-                    egui::IMEPurpose::Normal
-                },
+                if password { egui::IMEPurpose::Password } else { egui::IMEPurpose::Normal },
                 egui::Rect::ZERO,
                 egui::Rect::ZERO,
             ));
@@ -1162,72 +952,41 @@ mod browser_tests {
             let events = Rc::new(RefCell::new(Vec::new()));
             let repaint = Rc::new(NeedRepaint::new(None));
             let mut handles = Vec::new();
-            handles.push(Listener::new(
-                &input,
-                "compositionstart",
-                Rc::downgrade(&session),
-                {
-                    let state = Rc::clone(&state);
-                    move |_: web_sys::CompositionEvent| state.borrow_mut().composition.start()
-                },
-            ));
+            handles.push(Listener::new(&input, "compositionstart", Rc::downgrade(&session), {
+                let state = Rc::clone(&state);
+                move |_: web_sys::CompositionEvent| state.borrow_mut().composition.start()
+            }));
             handles.push(Listener::new(&input, "input", Rc::downgrade(&session), {
-                let (state, events, repaint) =
-                    (Rc::clone(&state), Rc::clone(&events), Rc::clone(&repaint));
+                let (state, events, repaint) = (Rc::clone(&state), Rc::clone(&events), Rc::clone(&repaint));
                 move |event: web_sys::InputEvent| {
-                    state.borrow_mut().handle_input_event(
-                        &event,
-                        &mut events.borrow_mut(),
-                        &repaint,
-                    );
+                    state.borrow_mut().handle_input_event(&event, &mut events.borrow_mut(), &repaint);
                 }
             }));
-            handles.push(Listener::new(
-                &input,
-                "compositionend",
-                Rc::downgrade(&session),
-                {
-                    let (state, events, repaint) =
-                        (Rc::clone(&state), Rc::clone(&events), Rc::clone(&repaint));
-                    move |_: web_sys::CompositionEvent| {
-                        state
-                            .borrow_mut()
-                            .handle_composition_end_event(&mut events.borrow_mut(), &repaint);
-                    }
-                },
-            ));
+            handles.push(Listener::new(&input, "compositionend", Rc::downgrade(&session), {
+                let (state, events, repaint) = (Rc::clone(&state), Rc::clone(&events), Rc::clone(&repaint));
+                move |_: web_sys::CompositionEvent| {
+                    state.borrow_mut().handle_composition_end_event(&mut events.borrow_mut(), &repaint);
+                }
+            }));
             for handle in &handles {
                 handle.subscribe().unwrap();
             }
             session.set_active(true);
             let owner = TextAgentListeners {
-                group: Some(ListenerGroup {
-                    session,
-                    input: input.clone(),
-                    handles,
-                }),
+                group: Some(ListenerGroup { session, input: input.clone(), handles }),
                 focus_watch: None,
                 requests: Default::default(),
             };
-            Self {
-                input,
-                state,
-                events,
-                owner,
-            }
+            Self { input, state, events, owner }
         }
 
         fn input(&self, text: &str, composing: bool, kind: &str) {
             self.input.set_value(text);
-            self.input
-                .dispatch_event(&egui_probe_input(kind, composing))
-                .unwrap();
+            self.input.dispatch_event(&egui_probe_input(kind, composing)).unwrap();
         }
 
         fn composition(&self, name: &str) {
-            self.input
-                .dispatch_event(&web_sys::CompositionEvent::new(name).unwrap())
-                .unwrap();
+            self.input.dispatch_event(&web_sys::CompositionEvent::new(name).unwrap()).unwrap();
         }
     }
 
@@ -1249,10 +1008,7 @@ mod browser_tests {
             fixture.composition("compositionstart");
             fixture.input("😀語", true, "insertCompositionText");
             fixture.input.set_selection_range(2, 3).unwrap();
-            fixture
-                .input
-                .dispatch_event(&egui_probe_input("insertCompositionText", true))
-                .unwrap();
+            fixture.input.dispatch_event(&egui_probe_input("insertCompositionText", true)).unwrap();
             if !password {
                 assert!(fixture.events.borrow().iter().any(|event| matches!(event, egui::Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars: Some(range) }) if text == "😀語" && *range == (1..2))));
             }
@@ -1262,11 +1018,7 @@ mod browser_tests {
                 .borrow()
                 .iter()
                 .filter_map(|event| match event {
-                    egui::Event::Ime(egui::ImeEvent::Commit(text)) | egui::Event::Text(text)
-                        if !text.is_empty() =>
-                    {
-                        Some(text.clone())
-                    }
+                    egui::Event::Ime(egui::ImeEvent::Commit(text)) | egui::Event::Text(text) if !text.is_empty() => Some(text.clone()),
                     _ => None,
                 })
                 .collect::<Vec<_>>();
@@ -1280,9 +1032,7 @@ mod browser_tests {
             let mut fixture = Fixture::new(false);
             fixture.input("accepted", false, "insertText");
             let before = fixture.events.borrow().clone();
-            let callback = fixture.owner.group.as_ref().unwrap().handles[1]
-                .callback
-                .clone();
+            let callback = fixture.owner.group.as_ref().unwrap().handles[1].callback.clone();
             let input = fixture.input.clone();
             let events = Rc::clone(&fixture.events);
             if fail {
@@ -1290,28 +1040,13 @@ mod browser_tests {
             }
             assert_eq!(fixture.owner.retire(), !fail);
             if fail {
-                assert_eq!(
-                    fixture.owner.group.as_ref().unwrap().handles.len(),
-                    1,
-                    "retain exactly the failed handle"
-                );
+                assert_eq!(fixture.owner.group.as_ref().unwrap().handles.len(), 1, "retain exactly the failed handle");
             }
             drop(fixture); // Releases the actual Rust Closure, including on removal failure.
             input.set_value("late");
-            callback
-                .call1(
-                    &JsValue::NULL,
-                    egui_probe_input("insertText", false).as_ref(),
-                )
-                .unwrap();
-            input
-                .dispatch_event(&egui_probe_input("insertText", false))
-                .unwrap();
-            assert_eq!(
-                &*events.borrow(),
-                &before,
-                "retired wrappers never enter a released Rust callback"
-            );
+            callback.call1(&JsValue::NULL, egui_probe_input("insertText", false).as_ref()).unwrap();
+            input.dispatch_event(&egui_probe_input("insertText", false)).unwrap();
+            assert_eq!(&*events.borrow(), &before, "retired wrappers never enter a released Rust callback");
             egui_probe_remove_failure(&input, None);
         }
     }
@@ -1320,17 +1055,14 @@ mod browser_tests {
     fn direct_replacement_and_mobile_delete_correction_remain_valid_on_fresh_source() {
         let fixture = Fixture::new(false);
         fixture.input("tex", false, "insertText");
-        for special in [
-            KeydownSpecialCase::AndroidKeycode229,
-            KeydownSpecialCase::IosKeycode0,
-        ] {
+        for special in [KeydownSpecialCase::AndroidKeycode229, KeydownSpecialCase::IosKeycode0] {
             fixture.state.borrow_mut().keydown_special_case = special;
             fixture.input("", false, "deleteContentBackward");
             fixture.input("Texas", false, "insertReplacementText");
-            assert!(fixture.events.borrow().iter().any(|event| matches!(event, egui::Event::Ime(egui::ImeEvent::DeleteSurrounding { before_chars, after_chars: 0 }) if *before_chars > 0)));
-            assert!(
-                matches!(fixture.events.borrow().last(), Some(egui::Event::Text(text)) if text == "Texas")
-            );
+            assert!(fixture.events.borrow().iter().any(
+                |event| matches!(event, egui::Event::Ime(egui::ImeEvent::DeleteSurrounding { before_chars, after_chars: 0 }) if *before_chars > 0)
+            ));
+            assert!(matches!(fixture.events.borrow().last(), Some(egui::Event::Text(text)) if text == "Texas"));
             fixture.events.borrow_mut().clear();
         }
     }
@@ -1338,18 +1070,10 @@ mod browser_tests {
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn partial_registration_rolls_back_and_real_replacements_keep_one_group() {
         let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document
-            .create_element("canvas")
-            .unwrap()
-            .dyn_into::<web_sys::HtmlCanvasElement>()
-            .unwrap();
+        let canvas = document.create_element("canvas").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
         document.body().unwrap().append_child(&canvas).unwrap();
         let listeners = Rc::new(RefCell::new(TextAgentListeners::default()));
-        let context = TextAgentContext {
-            runner: Weak::new(),
-            panic_handler: PanicHandler::install(),
-            listeners: Rc::clone(&listeners),
-        };
+        let context = TextAgentContext { runner: Weak::new(), panic_handler: PanicHandler::install(), listeners: Rc::clone(&listeners) };
         for nth in 1..=5 {
             egui_probe_add_failure(nth);
             let result = TextAgent::attach_unfocused(context.clone(), &canvas, true);
@@ -1361,32 +1085,11 @@ mod browser_tests {
         let ctx = egui::Context::default();
         let mut events = Vec::new();
         let repaint = NeedRepaint::new(None);
-        for name in [
-            "compositionstart",
-            "input",
-            "compositionend",
-            "keydown",
-            "keyup",
-        ] {
+        for name in ["compositionstart", "input", "compositionend", "keydown", "keyup"] {
             let old = agent.input.clone();
-            let callback = listeners
-                .borrow()
-                .group
-                .as_ref()
-                .unwrap()
-                .handles
-                .iter()
-                .find(|handle| handle.name == name)
-                .unwrap()
-                .callback
-                .clone();
-            let mut ime = egui::output::IMEOutput::new(
-                egui::Id::unique("failure editor"),
-                1,
-                egui::IMEPurpose::Normal,
-                egui::Rect::ZERO,
-                egui::Rect::ZERO,
-            );
+            let callback = listeners.borrow().group.as_ref().unwrap().handles.iter().find(|handle| handle.name == name).unwrap().callback.clone();
+            let mut ime =
+                egui::output::IMEOutput::new(egui::Id::unique("failure editor"), 1, egui::IMEPurpose::Normal, egui::Rect::ZERO, egui::Rect::ZERO);
             let request = ctx.request_ime_reset(egui::ViewportId::ROOT).unwrap();
             ime.reset_request = Some(request);
             assert_eq!(agent.admit_reset(Some(&ime)), Some(request));
@@ -1394,77 +1097,39 @@ mod browser_tests {
             let result = agent.replace_for_reset(ime.clone(), &canvas, 1.0, Some("ja"));
             assert!(result.is_err());
             assert_eq!(listeners.borrow().group.as_ref().unwrap().handles.len(), 1);
-            assert!(
-                TextAgent::attach_unfocused(context.clone(), &canvas, true).is_err(),
-                "failed removal blocks a second group"
-            );
+            assert!(TextAgent::attach_unfocused(context.clone(), &canvas, true).is_err(), "failed removal blocks a second group");
             agent.fail_reset(); // same failure branch as AppRunner
             assert!(!agent.complete_reset(request, &ime, &mut events, &repaint));
             assert!(events.is_empty());
             egui_probe_remove_failure(&old, None);
             assert!(listeners.borrow_mut().retire());
-            callback
-                .call1(&JsValue::NULL, web_sys::Event::new(name).unwrap().as_ref())
-                .unwrap();
-            agent
-                .replace_for_reset(ime, &canvas, 1.0, Some("ja"))
-                .unwrap();
+            callback.call1(&JsValue::NULL, web_sys::Event::new(name).unwrap().as_ref()).unwrap();
+            agent.replace_for_reset(ime, &canvas, 1.0, Some("ja")).unwrap();
         }
         for _ in 0..100 {
             let old = agent.input.clone();
-            let callback = listeners.borrow().group.as_ref().unwrap().handles[1]
-                .callback
-                .clone();
-            let mut ime = egui::output::IMEOutput::new(
-                egui::Id::unique("DOM editor"),
-                1,
-                egui::IMEPurpose::Password,
-                egui::Rect::ZERO,
-                egui::Rect::ZERO,
-            );
+            let callback = listeners.borrow().group.as_ref().unwrap().handles[1].callback.clone();
+            let mut ime =
+                egui::output::IMEOutput::new(egui::Id::unique("DOM editor"), 1, egui::IMEPurpose::Password, egui::Rect::ZERO, egui::Rect::ZERO);
             let request = ctx.request_ime_reset(egui::ViewportId::ROOT).unwrap();
             ime.reset_request = Some(request);
             assert_eq!(agent.admit_reset(Some(&ime)), Some(request));
-            agent
-                .replace_for_reset(ime.clone(), &canvas, 1.0, Some("ja"))
-                .unwrap();
+            agent.replace_for_reset(ime.clone(), &canvas, 1.0, Some("ja")).unwrap();
             repaint.clear();
             assert!(agent.complete_reset(request, &ime, &mut events, &repaint));
-            assert_eq!(
-                repaint.when_to_repaint(),
-                f64::NEG_INFINITY,
-                "even no-composition reset explicitly wakes the host"
-            );
+            assert_eq!(repaint.when_to_repaint(), f64::NEG_INFINITY, "even no-composition reset explicitly wakes the host");
             repaint.clear();
             assert!(!agent.complete_reset(request, &ime, &mut events, &repaint));
             assert_eq!(repaint.when_to_repaint(), f64::INFINITY);
             assert_eq!(agent.input.get_attribute("lang").as_deref(), Some("ja"));
             assert_eq!(agent.input.type_(), "text");
-            assert_eq!(
-                agent
-                    .input_state
-                    .borrow()
-                    .ime_output
-                    .as_ref()
-                    .unwrap()
-                    .purpose,
-                egui::IMEPurpose::Password
-            );
+            assert_eq!(agent.input_state.borrow().ime_output.as_ref().unwrap().purpose, egui::IMEPurpose::Password);
             assert!(old.parent_node().is_none());
             assert_eq!(listeners.borrow().group.as_ref().unwrap().handles.len(), 5);
-            callback
-                .call1(
-                    &JsValue::NULL,
-                    egui_probe_input("insertText", false).as_ref(),
-                )
-                .unwrap();
+            callback.call1(&JsValue::NULL, egui_probe_input("insertText", false).as_ref()).unwrap();
         }
         assert_eq!(events.len(), 100);
-        assert!(
-            events
-                .iter()
-                .all(|event| matches!(event, egui::Event::ImeResetCompleted { .. }))
-        );
+        assert!(events.iter().all(|event| matches!(event, egui::Event::ImeResetCompleted { .. })));
         drop(agent);
         assert!(listeners.borrow().group.is_none());
         canvas.remove();
@@ -1489,11 +1154,7 @@ mod browser_tests {
                 .borrow()
                 .iter()
                 .filter_map(|event| match event {
-                    egui::Event::Text(text) | egui::Event::Ime(egui::ImeEvent::Commit(text))
-                        if !text.is_empty() =>
-                    {
-                        Some(text.clone())
-                    }
+                    egui::Event::Text(text) | egui::Event::Ime(egui::ImeEvent::Commit(text)) if !text.is_empty() => Some(text.clone()),
                     _ => None,
                 })
                 .collect::<Vec<_>>();
@@ -1505,41 +1166,20 @@ mod browser_tests {
     fn focus_observer_retirement_preserves_safe_captured_js_callback_on_remove_failure() {
         for fail in [false, true] {
             let document = web_sys::window().unwrap().document().unwrap();
-            let canvas = document
-                .create_element("canvas")
-                .unwrap()
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .unwrap();
+            let canvas = document.create_element("canvas").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
             document.body().unwrap().append_child(&canvas).unwrap();
             let listeners = Rc::new(RefCell::new(TextAgentListeners::default()));
-            let context = TextAgentContext {
-                runner: Weak::new(),
-                panic_handler: PanicHandler::install(),
-                listeners: Rc::clone(&listeners),
-            };
+            let context = TextAgentContext { runner: Weak::new(), panic_handler: PanicHandler::install(), listeners: Rc::clone(&listeners) };
             let agent = TextAgent::attach_unfocused(context.clone(), &canvas, true).unwrap();
-            let callback = listeners.borrow().focus_watch.as_ref().unwrap().handles[0]
-                .callback
-                .clone();
-            let target = listeners.borrow().focus_watch.as_ref().unwrap().handles[0]
-                .target
-                .clone();
+            let callback = listeners.borrow().focus_watch.as_ref().unwrap().handles[0].callback.clone();
+            let target = listeners.borrow().focus_watch.as_ref().unwrap().handles[0].target.clone();
             if fail {
                 egui_probe_remove_failure(&target, Some("focusin"));
             }
             listeners.borrow_mut().shutdown();
             assert!(!agent.test_has_restore_intent());
             if fail {
-                assert_eq!(
-                    listeners
-                        .borrow()
-                        .focus_watch
-                        .as_ref()
-                        .unwrap()
-                        .handles
-                        .len(),
-                    1
-                );
+                assert_eq!(listeners.borrow().focus_watch.as_ref().unwrap().handles.len(), 1);
                 assert!(TextAgent::attach_unfocused(context.clone(), &canvas, true).is_err());
             } else {
                 assert!(listeners.borrow().focus_watch.is_none());
@@ -1547,16 +1187,9 @@ mod browser_tests {
             drop(agent);
             drop(context);
             drop(listeners); // Actual Rust Closure release, including failed final JS removal.
-            callback
-                .call1(
-                    &JsValue::NULL,
-                    web_sys::Event::new("focusin").unwrap().as_ref(),
-                )
-                .unwrap();
+            callback.call1(&JsValue::NULL, web_sys::Event::new("focusin").unwrap().as_ref()).unwrap();
             egui_probe_remove_failure(&target, None);
-            target
-                .remove_event_listener_with_callback_and_bool("focusin", &callback, true)
-                .unwrap();
+            target.remove_event_listener_with_callback_and_bool("focusin", &callback, true).unwrap();
             canvas.remove();
         }
     }

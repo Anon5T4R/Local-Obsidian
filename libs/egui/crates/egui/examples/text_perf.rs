@@ -30,11 +30,9 @@ use std::{
 };
 
 use egui::{
-    CentralPanel, Color32, Context, FontFamily, FontId, Grid, MenuBar, Mesh, Panel, Pos2, RawInput,
-    Rect, Shape, Slider, TextEdit, Vec2, ViewportId, Visuals,
-    epaint::{
-        Primitive, tessellator::Tessellator, text::Fonts, text::LayoutJob, text::TextOptions,
-    },
+    CentralPanel, Color32, Context, FontFamily, FontId, Grid, MenuBar, Mesh, Panel, Pos2, RawInput, Rect, Shape, Slider, TextEdit, Vec2, ViewportId,
+    Visuals,
+    epaint::{Primitive, tessellator::Tessellator, text::Fonts, text::LayoutJob, text::TextOptions},
 };
 
 const DEFAULT_WARMUPS: usize = 10;
@@ -124,9 +122,7 @@ fn parse_args() -> Result<Option<Args>, String> {
             "--font" => args.font = Some(PathBuf::from(value("--font")?)),
             "--warmups" => args.warmups = parse_usize("--warmups", &value("--warmups")?)?,
             "--steady" => args.steady = parse_usize("--steady", &value("--steady")?)?,
-            "--cold-starts" => {
-                args.cold_starts = parse_usize("--cold-starts", &value("--cold-starts")?)?
-            }
+            "--cold-starts" => args.cold_starts = parse_usize("--cold-starts", &value("--cold-starts")?)?,
             "--frames" => args.frames = parse_usize("--frames", &value("--frames")?)?,
             "--chars" => args.ascii_chars = parse_usize("--chars", &value("--chars")?)?,
             "--dpi" => {
@@ -190,11 +186,7 @@ fn summarize(values: &[u64]) -> Stats {
         .sum::<f64>()
         / n as f64;
     let stddev = var.sqrt();
-    let median = if n % 2 == 1 {
-        v[n / 2] as f64
-    } else {
-        (v[n / 2 - 1] as f64 + v[n / 2] as f64) * 0.5
-    };
+    let median = if n % 2 == 1 { v[n / 2] as f64 } else { (v[n / 2 - 1] as f64 + v[n / 2] as f64) * 0.5 };
     let percentile = |p: f64| -> f64 {
         let rank = ((p / 100.0) * n as f64).ceil() as usize;
         v[rank.clamp(1, n) - 1] as f64
@@ -208,11 +200,7 @@ fn summarize(values: &[u64]) -> Stats {
         p95_ns: percentile(95.0),
         p99_ns: percentile(99.0),
         stddev_ns: stddev,
-        cv_pct: if mean > 0.0 {
-            stddev / mean * 100.0
-        } else {
-            0.0
-        },
+        cv_pct: if mean > 0.0 { stddev / mean * 100.0 } else { 0.0 },
     }
 }
 
@@ -301,11 +289,7 @@ fn mesh_info(mesh: &Mesh) -> MeshInfo {
     let mut h = Fnv64::new();
     h.write(b"mesh");
     hash_mesh(&mut h, mesh);
-    MeshInfo {
-        vertices: mesh.vertices.len(),
-        indices: mesh.indices.len(),
-        identity: h.finish(),
-    }
+    MeshInfo { vertices: mesh.vertices.len(), indices: mesh.indices.len(), identity: h.finish() }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -344,13 +328,7 @@ fn primitives_info(prims: &[egui::epaint::ClippedPrimitive]) -> PrimitivesInfo {
             }
         }
     }
-    PrimitivesInfo {
-        meshes,
-        callbacks,
-        vertices,
-        indices,
-        identity: h.finish(),
-    }
+    PrimitivesInfo { meshes, callbacks, vertices, indices, identity: h.finish() }
 }
 
 fn hash_mesh(h: &mut Fnv64, mesh: &Mesh) {
@@ -426,10 +404,7 @@ fn unique_miss_texts(base: &str, count: usize) -> Result<Vec<String>, String> {
     // rotations repeat (for example when `--chars` is a multiple of 97).
     let width = count.saturating_sub(1).to_string().len().max(1);
     if base.len() < width {
-        return Err(format!(
-            "--chars {} is too short for {count} unique same-length miss fixtures (need at least {width})",
-            base.len()
-        ));
+        return Err(format!("--chars {} is too short for {count} unique same-length miss fixtures (need at least {width})", base.len()));
     }
     if !base.is_ascii() {
         return Err("miss fixture base must be ASCII".to_owned());
@@ -446,19 +421,12 @@ fn unique_miss_texts(base: &str, count: usize) -> Result<Vec<String>, String> {
         let start = bytes.len() - width;
         bytes[start..].fill(b'0');
         bytes[start + width - suffix.len()..].copy_from_slice(suffix.as_bytes());
-        let text = String::from_utf8(bytes)
-            .map_err(|_| format!("--chars {} produced a non-UTF-8 miss fixture", base.len()))?;
+        let text = String::from_utf8(bytes).map_err(|_| format!("--chars {} produced a non-UTF-8 miss fixture", base.len()))?;
         if text.len() != base.len() || !text.is_ascii() {
-            return Err(format!(
-                "--chars {} cannot provide same-length ASCII miss fixtures",
-                base.len()
-            ));
+            return Err(format!("--chars {} cannot provide same-length ASCII miss fixtures", base.len()));
         }
         if !seen.insert(text.clone()) {
-            return Err(format!(
-                "--chars {} produced a duplicate miss fixture at variant {variant}",
-                base.len()
-            ));
+            return Err(format!("--chars {} produced a duplicate miss fixture at variant {variant}", base.len()));
         }
         texts.push(text);
     }
@@ -493,12 +461,7 @@ fn font_data_identity(definitions: &egui::FontDefinitions) -> (String, Vec<FontD
         combined.usize(bytes.len());
         combined.u32(data.index);
         combined.write(bytes);
-        entries.push(FontDataEntry {
-            name: name.clone(),
-            bytes: bytes.len(),
-            index: data.index,
-            fnv64: format!("{:016x}", one.finish()),
-        });
+        entries.push(FontDataEntry { name: name.clone(), bytes: bytes.len(), index: data.index, fnv64: format!("{:016x}", one.finish()) });
     }
     (format!("{:016x}", combined.finish()), entries)
 }
@@ -509,8 +472,7 @@ fn load_font_definitions(font_path: Option<&Path>) -> Result<FontSetup, String> 
     let mut resolved_path = None;
 
     if let Some(path) = font_path {
-        let bytes =
-            fs::read(path).map_err(|e| format!("failed to read font {}: {e}", path.display()))?;
+        let bytes = fs::read(path).map_err(|e| format!("failed to read font {}: {e}", path.display()))?;
         if bytes.is_empty() {
             return Err(format!("font {} is empty", path.display()));
         }
@@ -532,32 +494,17 @@ fn load_font_definitions(font_path: Option<&Path>) -> Result<FontSetup, String> 
     }
 
     if definitions.font_data.is_empty() {
-        return Err(
-            "no fonts are installed: run with `--features default_fonts` or pass `--font PATH`"
-                .to_owned(),
-        );
+        return Err("no fonts are installed: run with `--features default_fonts` or pass `--font PATH`".to_owned());
     }
 
     let (font_data_fnv64, font_data_entries) = font_data_identity(&definitions);
-    Ok(FontSetup {
-        definitions,
-        mode,
-        resolved_path,
-        font_data_fnv64,
-        font_data_entries,
-    })
+    Ok(FontSetup { definitions, mode, resolved_path, font_data_fnv64, font_data_entries })
 }
 
-fn proportional_glyph_coverage(
-    definitions: &egui::FontDefinitions,
-    unique_chars: &BTreeSet<char>,
-) -> Result<(bool, String), String> {
+fn proportional_glyph_coverage(definitions: &egui::FontDefinitions, unique_chars: &BTreeSet<char>) -> Result<(bool, String), String> {
     // Inspect only the fonts actually listed for the proportional family used by
     // the fixture. Unrelated emoji/fallback families must not abort an ASCII run.
-    let names = definitions
-        .families
-        .get(&FontFamily::Proportional)
-        .ok_or_else(|| "font definitions have no Proportional family".to_owned())?;
+    let names = definitions.families.get(&FontFamily::Proportional).ok_or_else(|| "font definitions have no Proportional family".to_owned())?;
     if names.is_empty() {
         return Err("Proportional family has no font names".to_owned());
     }
@@ -583,11 +530,7 @@ fn proportional_glyph_coverage(
     }
 
     let missing: String = unique_chars.difference(&supported).copied().collect();
-    let detail = format!(
-        "missing_chars={}, unparseable_family_fonts={}",
-        missing.chars().count(),
-        unparseable.join("|")
-    );
+    let detail = format!("missing_chars={}, unparseable_family_fonts={}", missing.chars().count(), unparseable.join("|"));
     Ok((missing.is_empty(), detail))
 }
 
@@ -603,12 +546,7 @@ struct BenchState {
 
 impl Default for BenchState {
     fn default() -> Self {
-        Self {
-            text_edit: "Single-line text edit with stable ASCII content.".to_owned(),
-            multiline: ascii_text(420),
-            checked: true,
-            value: 42.0,
-        }
+        Self { text_edit: "Single-line text edit with stable ASCII content.".to_owned(), multiline: ascii_text(420), checked: true, value: 42.0 }
     }
 }
 
@@ -629,18 +567,15 @@ fn build_ui(ui: &mut egui::Ui, state: &mut BenchState, text: &str) {
         });
     });
 
-    Panel::left("perf_side")
-        .resizable(false)
-        .default_size(230.0)
-        .show(ui, |ui| {
-            ui.heading("Inspector");
-            ui.checkbox(&mut state.checked, "Enable feature");
-            ui.add(Slider::new(&mut state.value, 0.0..=100.0).text("Value"));
-            ui.separator();
-            for row in 0..10 {
-                ui.label(format!("Row {row}: stable ASCII label"));
-            }
-        });
+    Panel::left("perf_side").resizable(false).default_size(230.0).show(ui, |ui| {
+        ui.heading("Inspector");
+        ui.checkbox(&mut state.checked, "Enable feature");
+        ui.add(Slider::new(&mut state.value, 0.0..=100.0).text("Value"));
+        ui.separator();
+        for row in 0..10 {
+            ui.label(format!("Row {row}: stable ASCII label"));
+        }
+    });
 
     CentralPanel::default().show(ui, |ui| {
         ui.heading("Text layout and tessellation");
@@ -650,35 +585,23 @@ fn build_ui(ui: &mut egui::Ui, state: &mut BenchState, text: &str) {
             let _ = ui.button("Three");
         });
         ui.add(TextEdit::singleline(&mut state.text_edit).desired_width(f32::INFINITY));
-        ui.add(
-            TextEdit::multiline(&mut state.multiline)
-                .desired_rows(4)
-                .desired_width(f32::INFINITY),
-        );
+        ui.add(TextEdit::multiline(&mut state.multiline).desired_rows(4).desired_width(f32::INFINITY));
         ui.separator();
         ui.label(text);
         ui.separator();
-        Grid::new("perf_grid")
-            .num_columns(2)
-            .spacing([8.0, 4.0])
-            .show(ui, |ui| {
-                ui.label("Mode");
-                ui.label("CPU headless");
-                ui.end_row();
-                ui.label("Font size");
-                ui.label(format!("{FONT_SIZE} pt"));
-                ui.end_row();
-            });
+        Grid::new("perf_grid").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+            ui.label("Mode");
+            ui.label("CPU headless");
+            ui.end_row();
+            ui.label("Font size");
+            ui.label(format!("{FONT_SIZE} pt"));
+            ui.end_row();
+        });
     });
 }
 
 fn base_input(viewport: Rect) -> RawInput {
-    RawInput {
-        screen_rect: Some(viewport),
-        time: Some(0.0),
-        focused: true,
-        ..Default::default()
-    }
+    RawInput { screen_rect: Some(viewport), time: Some(0.0), focused: true, ..Default::default() }
 }
 
 fn new_context(definitions: &egui::FontDefinitions, dpi: f32) -> Context {
@@ -718,9 +641,7 @@ struct Checks {
 
 impl Checks {
     fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-        }
+        Self { entries: Vec::new() }
     }
 
     fn check(&mut self, name: &str, ok: bool, detail: impl Into<String>) {
@@ -732,20 +653,11 @@ impl Checks {
     }
 
     fn push(&mut self, kind: CheckKind, name: &str, ok: bool, detail: impl Into<String>) {
-        self.entries.push(CheckEntry {
-            name: name.to_owned(),
-            ok,
-            detail: detail.into(),
-            kind,
-        });
+        self.entries.push(CheckEntry { name: name.to_owned(), ok, detail: detail.into(), kind });
     }
 
     fn failed(&self, kind: CheckKind) -> Vec<&str> {
-        self.entries
-            .iter()
-            .filter(|entry| entry.kind == kind && !entry.ok)
-            .map(|entry| entry.name.as_str())
-            .collect()
+        self.entries.iter().filter(|entry| entry.kind == kind && !entry.ok).map(|entry| entry.name.as_str()).collect()
     }
 
     fn passed(&self, kind: CheckKind) -> bool {
@@ -760,13 +672,7 @@ impl Checks {
                 out.push(',');
             }
             first = false;
-            let _ = write!(
-                out,
-                "{{\"name\":{},\"ok\":{},\"detail\":{}}}",
-                json_string(&entry.name),
-                entry.ok,
-                json_string(&entry.detail)
-            );
+            let _ = write!(out, "{{\"name\":{},\"ok\":{},\"detail\":{}}}", json_string(&entry.name), entry.ok, json_string(&entry.detail));
         }
         out.push(']');
     }
@@ -832,9 +738,7 @@ fn take_textures(out: &mut egui::FullOutput) -> TextureUploads {
         for delta in deltas {
             uploads.deltas += 1;
             let [width, height] = delta.image.size();
-            uploads.bytes = uploads
-                .bytes
-                .saturating_add(width * height * delta.image.bytes_per_pixel());
+            uploads.bytes = uploads.bytes.saturating_add(width * height * delta.image.bytes_per_pixel());
         }
     }
     out.textures_delta.clear();
@@ -843,12 +747,10 @@ fn take_textures(out: &mut egui::FullOutput) -> TextureUploads {
 
 fn read_linux_value(path: &str, key: &str) -> Option<String> {
     let text = fs::read_to_string(path).ok()?;
-    text.lines()
-        .find_map(|line| line.strip_prefix(key))
-        .map(|value| {
-            let value = value.trim();
-            value.strip_prefix(':').unwrap_or(value).trim().to_owned()
-        })
+    text.lines().find_map(|line| line.strip_prefix(key)).map(|value| {
+        let value = value.trim();
+        value.strip_prefix(':').unwrap_or(value).trim().to_owned()
+    })
 }
 
 fn cpu_model() -> Option<String> {
@@ -856,17 +758,11 @@ fn cpu_model() -> Option<String> {
 }
 
 fn kernel_release() -> Option<String> {
-    fs::read_to_string("/proc/sys/kernel/osrelease")
-        .ok()
-        .map(|value| value.trim().to_owned())
+    fs::read_to_string("/proc/sys/kernel/osrelease").ok().map(|value| value.trim().to_owned())
 }
 
 fn peak_rss_kib() -> Option<u64> {
-    read_linux_value("/proc/self/status", "VmHWM:")?
-        .split_whitespace()
-        .next()?
-        .parse()
-        .ok()
+    read_linux_value("/proc/self/status", "VmHWM:")?.split_whitespace().next()?.parse().ok()
 }
 
 fn push_optional_f64(out: &mut String, value: Option<f64>) {
@@ -896,8 +792,7 @@ fn run() -> Result<bool, String> {
         return Ok(true);
     };
 
-    fs::create_dir_all(&args.out)
-        .map_err(|e| format!("failed to create output dir {}: {e}", args.out.display()))?;
+    fs::create_dir_all(&args.out).map_err(|e| format!("failed to create output dir {}: {e}", args.out.display()))?;
     let out_dir = fs::canonicalize(&args.out).unwrap_or(args.out.clone());
 
     let font = load_font_definitions(args.font.as_deref())?;
@@ -906,10 +801,7 @@ fn run() -> Result<bool, String> {
     let text_fnv64 = fnv64_hex(text.as_bytes());
     let frame_text_fnv64 = fnv64_hex(frame_text.as_bytes());
     let font_id = FontId::proportional(FONT_SIZE);
-    let viewport = Rect::from_min_size(
-        Pos2::ZERO,
-        Vec2::new(DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT),
-    );
+    let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT));
     let input = base_input(viewport);
 
     let mut checks = Checks::new();
@@ -922,9 +814,7 @@ fn run() -> Result<bool, String> {
 
     // Warm the cached layout path before any measured call.
     for _ in 0..args.warmups {
-        let galley = fonts_cached
-            .with_pixels_per_point(args.dpi)
-            .layout_job(base_job.clone());
+        let galley = fonts_cached.with_pixels_per_point(args.dpi).layout_job(base_job.clone());
         black_box(&galley);
     }
     let cache_after_cached_warmup = fonts_cached.num_galleys_in_cache();
@@ -947,9 +837,7 @@ fn run() -> Result<bool, String> {
     checks.check(
         "cached_layout_does_not_grow_cache",
         cache_after_cached_steady == cache_after_cached_warmup,
-        format!(
-            "num_galleys after warmup={cache_after_cached_warmup}, after steady={cache_after_cached_steady}"
-        ),
+        format!("num_galleys after warmup={cache_after_cached_warmup}, after steady={cache_after_cached_steady}"),
     );
 
     // Forced cache misses: unique, same-length, same-alphabet job keys.
@@ -959,17 +847,10 @@ fn run() -> Result<bool, String> {
         miss_texts.len() == args.warmups + args.steady
             && miss_texts.iter().all(|text| text.len() == args.ascii_chars)
             && miss_texts.iter().collect::<BTreeSet<_>>().len() == miss_texts.len(),
-        format!(
-            "count={}, chars={}, unique={}",
-            miss_texts.len(),
-            args.ascii_chars,
-            miss_texts.iter().collect::<BTreeSet<_>>().len()
-        ),
+        format!("count={}, chars={}, unique={}", miss_texts.len(), args.ascii_chars, miss_texts.iter().collect::<BTreeSet<_>>().len()),
     );
-    let mut miss_jobs: Vec<LayoutJob> = miss_texts
-        .iter()
-        .map(|s| LayoutJob::simple(s.clone(), font_id.clone(), Color32::WHITE, WRAP_WIDTH))
-        .collect();
+    let mut miss_jobs: Vec<LayoutJob> =
+        miss_texts.iter().map(|s| LayoutJob::simple(s.clone(), font_id.clone(), Color32::WHITE, WRAP_WIDTH)).collect();
     for job in miss_jobs.drain(..args.warmups) {
         let galley = fonts_miss.with_pixels_per_point(args.dpi).layout_job(job);
         black_box(&galley);
@@ -993,89 +874,60 @@ fn run() -> Result<bool, String> {
     checks.check(
         "miss_path_populates_cache",
         cache_after_miss_steady == cache_after_miss_warmup + args.steady,
-        format!(
-            "num_galleys after miss warmup={cache_after_miss_warmup}, after steady={cache_after_miss_steady}, expected_growth={}",
-            args.steady
-        ),
+        format!("num_galleys after miss warmup={cache_after_miss_warmup}, after steady={cache_after_miss_steady}, expected_growth={}", args.steady),
     );
     let cache_hit_median = summarize(&layout_cache_hit).median_ns;
     let forced_miss_median = summarize(&layout_miss).median_ns;
     checks.check(
         "forced_miss_slower_than_cache_hit",
         forced_miss_median > cache_hit_median,
-        format!(
-            "cache_hit_median_ns={cache_hit_median:.3}, forced_miss_median_ns={forced_miss_median:.3}"
-        ),
+        format!("cache_hit_median_ns={cache_hit_median:.3}, forced_miss_median_ns={forced_miss_median:.3}"),
     );
 
     // Same job, fresh Fonts: first layout is a miss and must produce the same
     // geometry as the cached result (apart from cache identity).
     let mut fonts_fresh = Fonts::new(text_options, font.definitions.clone());
-    let fresh_galley = fonts_fresh
-        .with_pixels_per_point(args.dpi)
-        .layout_job(base_job.clone());
+    let fresh_galley = fonts_fresh.with_pixels_per_point(args.dpi).layout_job(base_job.clone());
     let fresh_galley_info = galley_info(&fresh_galley);
     checks.check(
         "cached_and_fresh_galley_geometry_identical",
         cached_galley_info.identity == fresh_galley_info.identity,
-        format!(
-            "cached={:016x}, fresh={:016x}",
-            cached_galley_info.identity, fresh_galley_info.identity
-        ),
+        format!("cached={:016x}, fresh={:016x}", cached_galley_info.identity, fresh_galley_info.identity),
     );
 
     // Fixture coverage: inspect only the proportional family actually used by
     // the fixture. The cmap oracle is version-independent and outside timing.
     let unique_chars: BTreeSet<char> = text.chars().collect();
-    let (glyph_coverage, coverage_detail) =
-        proportional_glyph_coverage(&font.definitions, &unique_chars)?;
+    let (glyph_coverage, coverage_detail) = proportional_glyph_coverage(&font.definitions, &unique_chars)?;
     checks.check(
         "fixture_glyphs_available",
         glyph_coverage || args.allow_missing_glyphs,
         format!("cmap_coverage={glyph_coverage}, {coverage_detail}"),
     );
-    checks.check(
-        "ascii_fixture_is_ascii",
-        text.is_ascii(),
-        format!(
-            "non_ascii_chars={}",
-            text.chars().filter(|c| !c.is_ascii()).count()
-        ),
-    );
+    checks.check("ascii_fixture_is_ascii", text.is_ascii(), format!("non_ascii_chars={}", text.chars().filter(|c| !c.is_ascii()).count()));
 
     let expected_glyphs = text.chars().count();
     checks.check(
         "galley_glyph_count_matches_text",
         cached_galley_info.glyphs == expected_glyphs,
-        format!(
-            "galley_glyphs={}, expected={expected_glyphs}",
-            cached_galley_info.glyphs
-        ),
+        format!("galley_glyphs={}, expected={expected_glyphs}", cached_galley_info.glyphs),
     );
     checks.check(
         "galley_pixels_per_point_matches",
         (cached_galley_info.pixels_per_point - args.dpi).abs() < 1e-6,
-        format!(
-            "galley_ppp={}, requested={}",
-            cached_galley_info.pixels_per_point, args.dpi
-        ),
+        format!("galley_ppp={}, requested={}", cached_galley_info.pixels_per_point, args.dpi),
     );
 
     // Shaped ligatures retain zero-advance continuation entries without atlas UVs.
     let mut invalid_uv = 0usize;
     for row in &cached_galley.rows {
         for glyph in &row.glyphs {
-            if !glyph.chr.is_whitespace() && glyph.advance_width > 0.0 && glyph.uv_rect.is_nothing()
-            {
+            if !glyph.chr.is_whitespace() && glyph.advance_width > 0.0 && glyph.uv_rect.is_nothing() {
                 invalid_uv += 1;
             }
         }
     }
-    checks.check(
-        "visible_glyphs_have_atlas_uv",
-        invalid_uv == 0,
-        format!("invalid_uv_visible_glyphs={invalid_uv}"),
-    );
+    checks.check("visible_glyphs_have_atlas_uv", invalid_uv == 0, format!("invalid_uv_visible_glyphs={invalid_uv}"));
 
     // Job-clone cost is reported separately so cached/miss layout numbers are
     // not silently dominated by fixture copying.
@@ -1129,18 +981,12 @@ fn run() -> Result<bool, String> {
     checks.check(
         "tessellation_vertices_match_galley",
         tess_info.vertices == cached_galley.num_vertices,
-        format!(
-            "mesh_vertices={}, galley_vertices={}",
-            tess_info.vertices, cached_galley.num_vertices
-        ),
+        format!("mesh_vertices={}, galley_vertices={}", tess_info.vertices, cached_galley.num_vertices),
     );
     checks.check(
         "tessellation_indices_match_galley",
         tess_info.indices == cached_galley.num_indices,
-        format!(
-            "mesh_indices={}, galley_indices={}",
-            tess_info.indices, cached_galley.num_indices
-        ),
+        format!("mesh_indices={}, galley_indices={}", tess_info.indices, cached_galley.num_indices),
     );
     // Tessellate once more and require identical output.
     let mut second_mesh = Mesh::default();
@@ -1149,10 +995,7 @@ fn run() -> Result<bool, String> {
     checks.check(
         "tessellation_geometry_deterministic",
         tess_info.identity == second_mesh_info.identity,
-        format!(
-            "first={:016x}, second={:016x}",
-            tess_info.identity, second_mesh_info.identity
-        ),
+        format!("first={:016x}, second={:016x}", tess_info.identity, second_mesh_info.identity),
     );
 
     // Representative UI frame.
@@ -1247,46 +1090,23 @@ fn run() -> Result<bool, String> {
         frame_total.push(ui_ns + tess_ns);
     }
 
-    checks.check(
-        "frame_pixels_per_point_matches",
-        (frame_ppp - args.dpi).abs() < 1e-6,
-        format!("frame_ppp={frame_ppp}, requested={}", args.dpi),
-    );
-    checks.check(
-        "frame_has_no_paint_callbacks",
-        frame_last.callbacks == 0,
-        format!("callbacks={}", frame_last.callbacks),
-    );
+    checks.check("frame_pixels_per_point_matches", (frame_ppp - args.dpi).abs() < 1e-6, format!("frame_ppp={frame_ppp}, requested={}", args.dpi));
+    checks.check("frame_has_no_paint_callbacks", frame_last.callbacks == 0, format!("callbacks={}", frame_last.callbacks));
     let max_frame_passes = frame_pass_counts.iter().copied().max().unwrap_or(0);
     checks.check(
         "measured_frames_single_pass",
         frame_pass_counts.iter().all(|&passes| passes == 1),
-        format!(
-            "max_completed_passes={max_frame_passes}, multi_pass_frames={}",
-            frame_pass_counts
-                .iter()
-                .filter(|&&passes| passes > 1)
-                .count()
-        ),
+        format!("max_completed_passes={max_frame_passes}, multi_pass_frames={}", frame_pass_counts.iter().filter(|&&passes| passes > 1).count()),
     );
-    let frame_identity_distinct = frame_identities
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>()
-        .len();
+    let frame_identity_distinct = frame_identities.iter().copied().collect::<BTreeSet<_>>().len();
     checks.check(
         "frame_identity_stable_across_measured_frames",
         frame_identity_distinct == 1,
-        format!(
-            "first={:016x}, last={:016x}, distinct_hashes={frame_identity_distinct}",
-            frame_first.identity, frame_last.identity,
-        ),
+        format!("first={:016x}, last={:016x}, distinct_hashes={frame_identity_distinct}", frame_first.identity, frame_last.identity,),
     );
     checks.check(
         "measured_frame_shape_count_stable",
-        frame_shape_counts
-            .iter()
-            .all(|&count| count == shapes_template.len()),
+        frame_shape_counts.iter().all(|&count| count == shapes_template.len()),
         format!(
             "template_shapes={}, measured_min={}, measured_max={}",
             shapes_template.len(),
@@ -1302,19 +1122,13 @@ fn run() -> Result<bool, String> {
     checks.check(
         "frame_mesh_work_is_nonzero",
         frame_last.meshes > 0 && frame_last.vertices > 0 && frame_last.indices > 0,
-        format!(
-            "meshes={}, vertices={}, indices={}",
-            frame_last.meshes, frame_last.vertices, frame_last.indices
-        ),
+        format!("meshes={}, vertices={}, indices={}", frame_last.meshes, frame_last.vertices, frame_last.indices),
     );
     if let Some(warm_identity) = warm_frame_identity {
         checks.check(
             "warmup_and_measured_frame_identity",
             warm_identity == frame_first.identity,
-            format!(
-                "warm={:016x}, measured_first={:016x}",
-                warm_identity, frame_first.identity
-            ),
+            format!("warm={:016x}, measured_first={:016x}", warm_identity, frame_first.identity),
         );
     }
 
@@ -1353,16 +1167,8 @@ fn run() -> Result<bool, String> {
         cold_total.push(context_ns + ui_ns + tess_ns);
     }
     let cold_first = cold_identities.first().copied().unwrap_or_default();
-    let cold_distinct = cold_identities
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>()
-        .len();
-    checks.check(
-        "cold_start_identity_stable",
-        cold_distinct == 1,
-        format!("distinct_hashes={cold_distinct}"),
-    );
+    let cold_distinct = cold_identities.iter().copied().collect::<BTreeSet<_>>().len();
+    checks.check("cold_start_identity_stable", cold_distinct == 1, format!("distinct_hashes={cold_distinct}"));
     let cold_pass_min = cold_pass_counts.iter().copied().min().unwrap_or(0);
     let cold_pass_max = cold_pass_counts.iter().copied().max().unwrap_or(0);
     checks.check(
@@ -1373,43 +1179,18 @@ fn run() -> Result<bool, String> {
     checks.check(
         "cold_start_matches_measured_frame_identity",
         cold_first == frame_last.identity,
-        format!(
-            "cold_first={:016x}, measured_last={:016x}",
-            cold_first, frame_last.identity
-        ),
+        format!("cold_first={:016x}, measured_last={:016x}", cold_first, frame_last.identity),
     );
 
     // Sample-shape eligibility is separate from correctness. A reduced run can
     // still produce valid correctness evidence, but it is not acceptance-ready.
-    checks.acceptance(
-        "frame_sample_count_for_p99",
-        args.frames >= 1_000,
-        format!("frames={}, required>=1000", args.frames),
-    );
-    checks.acceptance(
-        "micro_sample_counts",
-        args.warmups >= 10 && args.steady >= 50,
-        format!("warmups={}, steady={}", args.warmups, args.steady),
-    );
-    checks.acceptance(
-        "cold_start_count",
-        args.cold_starts >= 20,
-        format!("cold_starts={}", args.cold_starts),
-    );
-    checks.acceptance(
-        "paired_font_pinned",
-        args.font.is_some(),
-        format!(
-            "font_mode={}, pass --font for paired comparisons",
-            font.mode
-        ),
-    );
+    checks.acceptance("frame_sample_count_for_p99", args.frames >= 1_000, format!("frames={}, required>=1000", args.frames));
+    checks.acceptance("micro_sample_counts", args.warmups >= 10 && args.steady >= 50, format!("warmups={}, steady={}", args.warmups, args.steady));
+    checks.acceptance("cold_start_count", args.cold_starts >= 20, format!("cold_starts={}", args.cold_starts));
+    checks.acceptance("paired_font_pinned", args.font.is_some(), format!("font_mode={}, pass --font for paired comparisons", font.mode));
 
     let mut cases: Vec<(String, Stats)> = vec![
-        (
-            "layout_cache_hit_hash_and_lookup".to_owned(),
-            summarize(&layout_cache_hit),
-        ),
+        ("layout_cache_hit_hash_and_lookup".to_owned(), summarize(&layout_cache_hit)),
         ("layout_forced_miss".to_owned(), summarize(&layout_miss)),
         ("layout_job_clone".to_owned(), summarize(&job_clone)),
         ("tessellation".to_owned(), summarize(&tessellation)),
@@ -1426,41 +1207,11 @@ fn run() -> Result<bool, String> {
             let _ = writeln!(csv, "{case},{phase},{i},{value},{units}");
         }
     };
-    push_series(
-        &mut csv,
-        "layout_cache_hit_hash_and_lookup",
-        "steady",
-        &layout_cache_hit,
-        args.ascii_chars,
-    );
-    push_series(
-        &mut csv,
-        "layout_forced_miss",
-        "steady",
-        &layout_miss,
-        args.ascii_chars,
-    );
-    push_series(
-        &mut csv,
-        "layout_job_clone",
-        "steady",
-        &job_clone,
-        args.ascii_chars,
-    );
-    push_series(
-        &mut csv,
-        "tessellation",
-        "steady",
-        &tessellation,
-        cached_galley_info.glyphs,
-    );
-    push_series(
-        &mut csv,
-        "frame_shapes_clone",
-        "steady",
-        &shapes_clone,
-        shapes_template.len(),
-    );
+    push_series(&mut csv, "layout_cache_hit_hash_and_lookup", "steady", &layout_cache_hit, args.ascii_chars);
+    push_series(&mut csv, "layout_forced_miss", "steady", &layout_miss, args.ascii_chars);
+    push_series(&mut csv, "layout_job_clone", "steady", &job_clone, args.ascii_chars);
+    push_series(&mut csv, "tessellation", "steady", &tessellation, cached_galley_info.glyphs);
+    push_series(&mut csv, "frame_shapes_clone", "steady", &shapes_clone, shapes_template.len());
     push_series(&mut csv, "frame", "ui", &frame_ui, frame_shapes);
     push_series(&mut csv, "frame", "tessellate", &frame_tess, frame_shapes);
     push_series(&mut csv, "frame", "total", &frame_total, frame_shapes);
@@ -1477,25 +1228,15 @@ fn run() -> Result<bool, String> {
     // Summary JSON.
     let mut summary = String::new();
     summary.push('{');
-    let _ = write!(
-        summary,
-        "\"schema\":\"egui-text-perf-v1\",\"label\":{},\"tool\":\"crates/egui/examples/text_perf.rs\",",
-        json_string(&args.label)
-    );
+    let _ =
+        write!(summary, "\"schema\":\"egui-text-perf-v1\",\"label\":{},\"tool\":\"crates/egui/examples/text_perf.rs\",", json_string(&args.label));
 
-    let parallelism = std::thread::available_parallelism()
-        .ok()
-        .map(|n| n.get().to_string())
-        .unwrap_or_else(|| "null".to_owned());
+    let parallelism = std::thread::available_parallelism().ok().map(|n| n.get().to_string()).unwrap_or_else(|| "null".to_owned());
     let _ = write!(
         summary,
         "\"build\":{{\"egui_version\":{},\"profile\":{},\"debug_assertions\":{},\"panic_abort\":{},\"target_os\":{},\"target_arch\":{},\"target_family\":{},\"default_fonts_feature\":{},\"rayon_feature\":{},\"available_parallelism\":{}}},",
         json_string(env!("CARGO_PKG_VERSION")),
-        json_string(if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        }),
+        json_string(if cfg!(debug_assertions) { "debug" } else { "release" }),
         cfg!(debug_assertions),
         cfg!(panic = "abort"),
         json_string(std::env::consts::OS),
@@ -1526,8 +1267,7 @@ fn run() -> Result<bool, String> {
         json_string(&frame_text_fnv64),
     );
 
-    let counts_acceptance_shaped =
-        args.warmups >= 10 && args.steady >= 50 && args.cold_starts >= 20 && args.frames >= 1_000;
+    let counts_acceptance_shaped = args.warmups >= 10 && args.steady >= 50 && args.cold_starts >= 20 && args.frames >= 1_000;
     let _ = write!(
         summary,
         "\"workload\":{{\"kind\":\"cpu_headless_ascii\",\"miss_strategy\":\"unique_rotated_same_length_same_alphabet\",\"frame_workload\":\"panels+menu_bar+text_edit+labels+grid\",\"ascii_chars\":{},\"frame_text_chars\":{},\"viewport_points\":[{},{}],\"pixels_per_point\":{},\"font_size_points\":{},\"wrap_width_points\":{},\"warmups\":{},\"steady_samples\":{},\"cold_starts\":{},\"frame_samples\":{},\"frame_p99_eligible\":{},\"sample_counts_acceptance_shaped\":{},\"allow_missing_glyphs\":{},\"theme\":\"dark\"}},",
@@ -1558,10 +1298,7 @@ fn run() -> Result<bool, String> {
         args.cold_starts * 3,
     );
 
-    let resolved_path = font
-        .resolved_path
-        .as_ref()
-        .map(|path| path.display().to_string());
+    let resolved_path = font.resolved_path.as_ref().map(|path| path.display().to_string());
     let _ = write!(
         summary,
         "\"fonts\":{{\"mode\":{},\"resolved_path\":{},\"font_data_fnv64\":{},\"font_data\":[",
@@ -1619,20 +1356,12 @@ fn run() -> Result<bool, String> {
     let _ = write!(
         summary,
         "\"galley_fresh_miss\":{{\"rows\":{},\"glyphs\":{},\"vertices\":{},\"indices\":{},\"identity\":\"{:016x}\"}},",
-        fresh_galley_info.rows,
-        fresh_galley_info.glyphs,
-        fresh_galley_info.vertices,
-        fresh_galley_info.indices,
-        fresh_galley_info.identity,
+        fresh_galley_info.rows, fresh_galley_info.glyphs, fresh_galley_info.vertices, fresh_galley_info.indices, fresh_galley_info.identity,
     );
     let _ = write!(
         summary,
         "\"galley_forced_miss_last\":{{\"rows\":{},\"glyphs\":{},\"vertices\":{},\"indices\":{},\"identity\":\"{:016x}\"}},",
-        miss_galley_info.rows,
-        miss_galley_info.glyphs,
-        miss_galley_info.vertices,
-        miss_galley_info.indices,
-        miss_galley_info.identity,
+        miss_galley_info.rows, miss_galley_info.glyphs, miss_galley_info.vertices, miss_galley_info.indices, miss_galley_info.identity,
     );
     let _ = write!(
         summary,
@@ -1654,29 +1383,16 @@ fn run() -> Result<bool, String> {
     let _ = write!(
         summary,
         "\"cache_counts\":{{\"after_cache_hit_warmup\":{},\"after_cache_hit_steady\":{},\"after_miss_warmup\":{},\"after_miss_steady\":{}}},",
-        cache_after_cached_warmup,
-        cache_after_cached_steady,
-        cache_after_miss_warmup,
-        cache_after_miss_steady,
+        cache_after_cached_warmup, cache_after_cached_steady, cache_after_miss_warmup, cache_after_miss_steady,
     );
 
     let frame_passes_total: usize = frame_pass_counts.iter().sum();
     let warmup_passes_total: usize = warmup_pass_counts.iter().sum();
-    let warmup_multi_pass_frames = warmup_pass_counts
-        .iter()
-        .filter(|&&passes| passes > 1)
-        .count();
+    let warmup_multi_pass_frames = warmup_pass_counts.iter().filter(|&&passes| passes > 1).count();
     let warmup_pass_max = warmup_pass_counts.iter().copied().max().unwrap_or(0);
-    let frame_multi_pass_frames = frame_pass_counts
-        .iter()
-        .filter(|&&passes| passes > 1)
-        .count();
+    let frame_multi_pass_frames = frame_pass_counts.iter().filter(|&&passes| passes > 1).count();
     let cold_passes_total: usize = cold_pass_counts.iter().sum();
-    let cold_pass_distinct = cold_pass_counts
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>()
-        .len();
+    let cold_pass_distinct = cold_pass_counts.iter().copied().collect::<BTreeSet<_>>().len();
     let _ = write!(
         summary,
         "\"pass_counts\":{{\"warmup_frame_passes_total\":{},\"warmup_frames_multi_pass\":{},\"warmup_frame_passes_max\":{},\"measured_frame_passes_total\":{},\"measured_frames_multi_pass\":{},\"measured_frame_passes_max\":{},\"cold_start_passes_total\":{},\"cold_start_passes_min\":{},\"cold_start_passes_max\":{},\"cold_start_pass_values_distinct\":{}}},",
@@ -1691,20 +1407,11 @@ fn run() -> Result<bool, String> {
         cold_pass_max,
         cold_pass_distinct,
     );
-    let _ = write!(
-        summary,
-        "\"atlas\":{{\"size\":[{},{}],\"fill_ratio\":{:.6}}},",
-        atlas_size[0], atlas_size[1], atlas_fill_ratio,
-    );
+    let _ = write!(summary, "\"atlas\":{{\"size\":[{},{}],\"fill_ratio\":{:.6}}},", atlas_size[0], atlas_size[1], atlas_fill_ratio,);
     let _ = write!(
         summary,
         "\"texture_uploads\":{{\"warmup_frames\":{{\"deltas\":{},\"bytes\":{}}},\"measured_frames\":{{\"deltas\":{},\"bytes\":{}}},\"cold_starts\":{{\"deltas\":{},\"bytes\":{}}}}},",
-        warmup_uploads.deltas,
-        warmup_uploads.bytes,
-        frame_uploads.deltas,
-        frame_uploads.bytes,
-        cold_uploads.deltas,
-        cold_uploads.bytes,
+        warmup_uploads.deltas, warmup_uploads.bytes, frame_uploads.deltas, frame_uploads.bytes, cold_uploads.deltas, cold_uploads.bytes,
     );
     summary.push_str("\"repaint\":{\"measured_frames_with_pending_repaint\":");
     let _ = write!(summary, "{repaint_frames}");
@@ -1714,9 +1421,7 @@ fn run() -> Result<bool, String> {
     push_optional_f64(&mut summary, repaint_min_ms);
     summary.push_str("},");
 
-    let rss = peak_rss_kib()
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "null".to_owned());
+    let rss = peak_rss_kib().map(|value| value.to_string()).unwrap_or_else(|| "null".to_owned());
     let _ = write!(summary, "\"process\":{{\"peak_rss_kib\":{rss}}},");
 
     summary.push_str("\"cases\":{");
@@ -1798,10 +1503,8 @@ fn run() -> Result<bool, String> {
 
     let csv_path = out_dir.join("samples.csv");
     let summary_path = out_dir.join("summary.json");
-    fs::write(&csv_path, &csv)
-        .map_err(|e| format!("failed to write {}: {e}", csv_path.display()))?;
-    fs::write(&summary_path, &summary)
-        .map_err(|e| format!("failed to write {}: {e}", summary_path.display()))?;
+    fs::write(&csv_path, &csv).map_err(|e| format!("failed to write {}: {e}", csv_path.display()))?;
+    fs::write(&summary_path, &summary).map_err(|e| format!("failed to write {}: {e}", summary_path.display()))?;
 
     eprintln!(
         "text_perf: {} (summary={}, samples={}, correctness_failed={}, acceptance_ready={})",

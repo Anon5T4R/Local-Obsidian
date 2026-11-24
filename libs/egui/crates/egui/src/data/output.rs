@@ -44,13 +44,7 @@ impl FullOutput {
     pub fn append(&mut self, newer: Self) {
         use alloc::collections::btree_map::Entry;
 
-        let Self {
-            platform_output,
-            textures_delta,
-            shapes,
-            pixels_per_point,
-            viewport_output,
-        } = newer;
+        let Self { platform_output, textures_delta, shapes, pixels_per_point, viewport_output } = newer;
 
         self.platform_output.append(platform_output);
         self.textures_delta.append(textures_delta);
@@ -155,26 +149,14 @@ impl IMESurroundingText {
     /// At most [`MAX_IME_SURROUNDING_TEXT_BYTES`] bytes of committed text are copied. Only the
     /// selected window is cloned; this does not clone the full document. If the selection itself
     /// is wider than the limit, the result is [`Self::Unavailable`].
-    pub fn from_text(
-        text: &str,
-        cursor: usize,
-        anchor: usize,
-        preedit: Option<Range<usize>>,
-    ) -> Self {
-        if cursor > text.len()
-            || anchor > text.len()
-            || !text.is_char_boundary(cursor)
-            || !text.is_char_boundary(anchor)
-        {
+    pub fn from_text(text: &str, cursor: usize, anchor: usize, preedit: Option<Range<usize>>) -> Self {
+        if cursor > text.len() || anchor > text.len() || !text.is_char_boundary(cursor) || !text.is_char_boundary(anchor) {
             return Self::Unavailable;
         }
 
         let preedit = match preedit {
             Some(range)
-                if range.start <= range.end
-                    && range.end <= text.len()
-                    && text.is_char_boundary(range.start)
-                    && text.is_char_boundary(range.end) =>
+                if range.start <= range.end && range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end) =>
             {
                 Some(range)
             }
@@ -268,21 +250,10 @@ impl IMESurroundingText {
             None => window_text.push_str(&text[original_start..original_end]),
         }
 
-        debug_assert!(
-            window_text.len() <= MAX_IME_SURROUNDING_TEXT_BYTES,
-            "surrounding text must fit the protocol byte limit"
-        );
-        debug_assert_eq!(
-            window_text.len(),
-            window_end - window_start,
-            "removing preedit must preserve the selected logical window length"
-        );
+        debug_assert!(window_text.len() <= MAX_IME_SURROUNDING_TEXT_BYTES, "surrounding text must fit the protocol byte limit");
+        debug_assert_eq!(window_text.len(), window_end - window_start, "removing preedit must preserve the selected logical window length");
 
-        Self::Available(IMESurroundingTextPayload {
-            text: window_text,
-            cursor: cursor - window_start,
-            anchor: anchor - window_start,
-        })
+        Self::Available(IMESurroundingTextPayload { text: window_text, cursor: cursor - window_start, anchor: anchor - window_start })
     }
 
     /// The available payload, if any.
@@ -383,10 +354,7 @@ impl core::fmt::Debug for IMEOutput {
             .field("purpose", &self.purpose)
             .field("rect", &self.rect)
             .field("cursor_rect", &self.cursor_rect)
-            .field(
-                "should_interrupt_composition",
-                &self.should_interrupt_composition,
-            )
+            .field("should_interrupt_composition", &self.should_interrupt_composition)
             .field("reset_request", &self.reset_request)
             .field("change_cause", &self.change_cause)
             .field("surrounding_text", &self.surrounding_text)
@@ -424,13 +392,7 @@ impl IMEOutput {
     /// ime.surrounding_text = IMESurroundingText::from_text("hello", 5, 5, None);
     /// assert!(ime.surrounding_text.available().is_some());
     /// ```
-    pub fn new(
-        owner: crate::Id,
-        context_generation: u64,
-        purpose: crate::IMEPurpose,
-        rect: crate::Rect,
-        cursor_rect: crate::Rect,
-    ) -> Self {
+    pub fn new(owner: crate::Id, context_generation: u64, purpose: crate::IMEPurpose, rect: crate::Rect, cursor_rect: crate::Rect) -> Self {
         Self {
             owner,
             context_generation,
@@ -592,9 +554,7 @@ impl PlatformOutput {
         let previous_reset = self.ime.as_ref().and_then(|previous| {
             ime.as_ref()
                 .filter(|next| {
-                    previous.owner == next.owner
-                        && previous.context_generation == next.context_generation
-                        && previous.purpose == next.purpose
+                    previous.owner == next.owner && previous.context_generation == next.context_generation && previous.purpose == next.purpose
                 })
                 .and(previous.reset_request)
         });
@@ -608,8 +568,7 @@ impl PlatformOutput {
         }
         self.ime = ime;
         self.num_completed_passes += num_completed_passes;
-        self.request_discard_reasons
-            .append(&mut request_discard_reasons);
+        self.request_discard_reasons.append(&mut request_discard_reasons);
 
         // egui produces a complete AccessKit tree for each frame, so overwrite rather than append:
         self.accesskit_update = accesskit_update;
@@ -647,18 +606,12 @@ pub struct OpenUrl {
 impl OpenUrl {
     #[expect(clippy::needless_pass_by_value)]
     pub fn same_tab(url: impl ToString) -> Self {
-        Self {
-            url: url.to_string(),
-            new_tab: false,
-        }
+        Self { url: url.to_string(), new_tab: false }
     }
 
     #[expect(clippy::needless_pass_by_value)]
     pub fn new_tab(url: impl ToString) -> Self {
-        Self {
-            url: url.to_string(),
-            new_tab: true,
-        }
+        Self { url: url.to_string(), new_tab: true }
     }
 }
 
@@ -705,11 +658,7 @@ pub struct CustomCursorImage {
 
 impl core::fmt::Debug for CustomCursorImage {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("CustomCursorImage")
-            .field("size", &self.size)
-            .field("hotspot", &self.hotspot)
-            .field("rgba_len", &self.rgba.len())
-            .finish()
+        f.debug_struct("CustomCursorImage").field("size", &self.size).field("hotspot", &self.hotspot).field("rgba_len", &self.rgba.len()).finish()
     }
 }
 
@@ -969,17 +918,7 @@ pub struct WidgetInfo {
 
 impl core::fmt::Debug for WidgetInfo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self {
-            role,
-            enabled,
-            label,
-            current_text_value: text_value,
-            prev_text_value,
-            selected,
-            value,
-            text_selection,
-            hint_text,
-        } = self;
+        let Self { role, enabled, label, current_text_value: text_value, prev_text_value, selected, value, text_selection, hint_text } = self;
 
         let mut s = f.debug_struct("WidgetInfo");
 
@@ -1059,94 +998,43 @@ impl WidgetInfo {
 
     #[expect(clippy::needless_pass_by_value)]
     pub fn labeled(role: Role, enabled: bool, label: impl ToString) -> Self {
-        Self {
-            enabled,
-            label: Some(label.to_string()),
-            ..Self::new(role)
-        }
+        Self { enabled, label: Some(label.to_string()), ..Self::new(role) }
     }
 
     /// checkboxes, radio-buttons etc
     #[expect(clippy::needless_pass_by_value)]
     pub fn selected(role: Role, enabled: bool, selected: bool, label: impl ToString) -> Self {
-        Self {
-            enabled,
-            label: Some(label.to_string()),
-            selected: Some(selected),
-            ..Self::new(role)
-        }
+        Self { enabled, label: Some(label.to_string()), selected: Some(selected), ..Self::new(role) }
     }
 
     pub fn drag_value(enabled: bool, value: f64) -> Self {
-        Self {
-            enabled,
-            value: Some(value),
-            ..Self::new(Role::SpinButton)
-        }
+        Self { enabled, value: Some(value), ..Self::new(Role::SpinButton) }
     }
 
     #[expect(clippy::needless_pass_by_value)]
     pub fn slider(enabled: bool, value: f64, label: impl ToString) -> Self {
         let label = label.to_string();
-        Self {
-            enabled,
-            label: if label.is_empty() { None } else { Some(label) },
-            value: Some(value),
-            ..Self::new(Role::Slider)
-        }
+        Self { enabled, label: if label.is_empty() { None } else { Some(label) }, value: Some(value), ..Self::new(Role::Slider) }
     }
 
     #[expect(clippy::needless_pass_by_value)]
-    pub fn text_edit(
-        enabled: bool,
-        prev_text_value: impl ToString,
-        text_value: impl ToString,
-        hint_text: impl ToString,
-    ) -> Self {
+    pub fn text_edit(enabled: bool, prev_text_value: impl ToString, text_value: impl ToString, hint_text: impl ToString) -> Self {
         let text_value = text_value.to_string();
         let prev_text_value = prev_text_value.to_string();
         let hint_text = hint_text.to_string();
-        let prev_text_value = if text_value == prev_text_value {
-            None
-        } else {
-            Some(prev_text_value)
-        };
-        Self {
-            enabled,
-            current_text_value: Some(text_value),
-            prev_text_value,
-            hint_text: Some(hint_text),
-            ..Self::new(Role::TextInput)
-        }
+        let prev_text_value = if text_value == prev_text_value { None } else { Some(prev_text_value) };
+        Self { enabled, current_text_value: Some(text_value), prev_text_value, hint_text: Some(hint_text), ..Self::new(Role::TextInput) }
     }
 
     #[expect(clippy::needless_pass_by_value)]
-    pub fn text_selection_changed(
-        enabled: bool,
-        text_selection: Range<CharIndex>,
-        current_text_value: impl ToString,
-    ) -> Self {
-        Self {
-            enabled,
-            text_selection: Some(text_selection),
-            current_text_value: Some(current_text_value.to_string()),
-            ..Self::new(Role::TextInput)
-        }
+    pub fn text_selection_changed(enabled: bool, text_selection: Range<CharIndex>, current_text_value: impl ToString) -> Self {
+        Self { enabled, text_selection: Some(text_selection), current_text_value: Some(current_text_value.to_string()), ..Self::new(Role::TextInput) }
     }
 
     /// This can be used by a text-to-speech system to describe the widget.
     pub fn description(&self) -> String {
-        let Self {
-            role,
-            enabled,
-            label,
-            current_text_value: text_value,
-            prev_text_value: _,
-            selected,
-            value,
-            text_selection: _,
-            hint_text: _,
-        } = self;
+        let Self { role, enabled, label, current_text_value: text_value, prev_text_value: _, selected, value, text_selection: _, hint_text: _ } =
+            self;
 
         let mut description = role_description(*role);
 
@@ -1165,11 +1053,7 @@ impl WidgetInfo {
 
         if role == &Role::TextInput {
             let text = if let Some(text_value) = text_value {
-                if text_value.is_empty() {
-                    "blank".into()
-                } else {
-                    text_value.clone()
-                }
+                if text_value.is_empty() { "blank".into() } else { text_value.clone() }
             } else {
                 "blank".into()
             };
@@ -1247,26 +1131,11 @@ mod tests {
 
     #[test]
     fn invalid_or_non_boundary_offsets_are_unavailable() {
-        assert!(matches!(
-            IMESurroundingText::from_text("é", 1, 0, None),
-            IMESurroundingText::Unavailable
-        ));
-        assert!(matches!(
-            IMESurroundingText::from_text("é", 3, 0, None),
-            IMESurroundingText::Unavailable
-        ));
-        assert!(matches!(
-            IMESurroundingText::from_text("é", 0, 1, None),
-            IMESurroundingText::Unavailable
-        ));
-        assert!(matches!(
-            IMESurroundingText::from_text("é", 0, 0, Some(1..2)),
-            IMESurroundingText::Unavailable
-        ));
-        assert!(matches!(
-            IMESurroundingText::from_text("é", 0, 0, Some(0..3)),
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(IMESurroundingText::from_text("é", 1, 0, None), IMESurroundingText::Unavailable));
+        assert!(matches!(IMESurroundingText::from_text("é", 3, 0, None), IMESurroundingText::Unavailable));
+        assert!(matches!(IMESurroundingText::from_text("é", 0, 1, None), IMESurroundingText::Unavailable));
+        assert!(matches!(IMESurroundingText::from_text("é", 0, 0, Some(1..2)), IMESurroundingText::Unavailable));
+        assert!(matches!(IMESurroundingText::from_text("é", 0, 0, Some(0..3)), IMESurroundingText::Unavailable));
     }
 
     #[test]
@@ -1274,41 +1143,22 @@ mod tests {
         let text = "abにほcd";
         let preedit_start = "ab".len();
         let preedit_end = preedit_start + "にほ".len();
-        let payload = IMESurroundingText::from_text(
-            text,
-            preedit_end,
-            preedit_end,
-            Some(preedit_start..preedit_end),
-        );
+        let payload = IMESurroundingText::from_text(text, preedit_end, preedit_end, Some(preedit_start..preedit_end));
         let payload = payload.available().unwrap();
         assert_eq!(payload.text, "abcd");
-        assert_eq!(
-            (payload.cursor, payload.anchor),
-            (preedit_start, preedit_start)
-        );
+        assert_eq!((payload.cursor, payload.anchor), (preedit_start, preedit_start));
 
         // A cursor inside the pre-edit is mapped to where the composition began.
-        let payload = IMESurroundingText::from_text(
-            text,
-            preedit_start + "に".len(),
-            preedit_start,
-            Some(preedit_start..preedit_end),
-        );
+        let payload = IMESurroundingText::from_text(text, preedit_start + "に".len(), preedit_start, Some(preedit_start..preedit_end));
         let payload = payload.available().unwrap();
         assert_eq!(payload.text, "abcd");
-        assert_eq!(
-            (payload.cursor, payload.anchor),
-            (preedit_start, preedit_start)
-        );
+        assert_eq!((payload.cursor, payload.anchor), (preedit_start, preedit_start));
     }
 
     #[test]
     fn too_wide_selection_is_unavailable_but_exact_limit_is_available() {
         let text = "a".repeat(MAX_IME_SURROUNDING_TEXT_BYTES + 1);
-        assert!(matches!(
-            IMESurroundingText::from_text(&text, 0, text.len(), None),
-            IMESurroundingText::Unavailable
-        ));
+        assert!(matches!(IMESurroundingText::from_text(&text, 0, text.len(), None), IMESurroundingText::Unavailable));
 
         let text = "a".repeat(MAX_IME_SURROUNDING_TEXT_BYTES);
         let payload = IMESurroundingText::from_text(&text, 0, text.len(), None);
@@ -1341,12 +1191,7 @@ mod tests {
         let text = format!("{}に{}", "a".repeat(5000), "b".repeat(5000));
         let preedit_start = 5000;
         let preedit_end = preedit_start + "に".len();
-        let payload = IMESurroundingText::from_text(
-            &text,
-            preedit_end,
-            preedit_start - 1,
-            Some(preedit_start..preedit_end),
-        );
+        let payload = IMESurroundingText::from_text(&text, preedit_end, preedit_start - 1, Some(preedit_start..preedit_end));
         let payload = payload.available().unwrap();
         assert!(payload.text.len() <= MAX_IME_SURROUNDING_TEXT_BYTES);
         assert!(!payload.text.contains('に'));
@@ -1372,11 +1217,7 @@ mod tests {
 
     #[test]
     fn ime_output_defaults_to_other_cause_and_debug_reports_it() {
-        let output = ime(
-            Id::unique(11),
-            2,
-            IMESurroundingText::from_text("text", 4, 4, None),
-        );
+        let output = ime(Id::unique(11), 2, IMESurroundingText::from_text("text", 4, 4, None));
         assert_eq!(output.change_cause, ImeChangeCause::Other);
         let debug = format!("{output:?}");
         assert!(debug.contains("change_cause"));
@@ -1388,30 +1229,13 @@ mod tests {
     #[test]
     fn append_uses_the_latest_ime_descriptor_even_when_none() {
         let owner = Id::unique(1);
-        let mut platform_output = PlatformOutput {
-            ime: Some(ime(
-                owner,
-                1,
-                IMESurroundingText::from_text("old", 3, 3, None),
-            )),
-            ..Default::default()
-        };
+        let mut platform_output = PlatformOutput { ime: Some(ime(owner, 1, IMESurroundingText::from_text("old", 3, 3, None))), ..Default::default() };
 
         let newer = PlatformOutput::default();
         platform_output.append(newer);
-        assert!(
-            platform_output.ime.is_none(),
-            "latest None is authoritative"
-        );
+        assert!(platform_output.ime.is_none(), "latest None is authoritative");
 
-        let newer = PlatformOutput {
-            ime: Some(ime(
-                owner,
-                2,
-                IMESurroundingText::from_text("new", 3, 3, None),
-            )),
-            ..Default::default()
-        };
+        let newer = PlatformOutput { ime: Some(ime(owner, 2, IMESurroundingText::from_text("new", 3, 3, None))), ..Default::default() };
         platform_output.append(newer);
         let output = platform_output.ime.as_ref().unwrap();
         assert_eq!(output.context_generation, 2);
@@ -1421,18 +1245,11 @@ mod tests {
     #[cfg(feature = "persistence")]
     #[test]
     fn serialization_never_persists_surrounding_text() {
-        let original = ime(
-            Id::unique("private editor"),
-            7,
-            IMESurroundingText::from_text("private contents", 7, 0, None),
-        );
+        let original = ime(Id::unique("private editor"), 7, IMESurroundingText::from_text("private contents", 7, 0, None));
         let serialized = ron::to_string(&original).expect("serialize IME geometry");
         assert!(!serialized.contains("private contents"));
         assert!(!serialized.contains("surrounding_text"));
-        assert!(
-            serialized.contains("Other"),
-            "the default cause is explicit"
-        );
+        assert!(serialized.contains("Other"), "the default cause is explicit");
         let restored: IMEOutput = ron::from_str(&serialized).expect("deserialize IME geometry");
         assert_eq!(restored.owner, original.owner);
         assert_eq!(restored.context_generation, original.context_generation);

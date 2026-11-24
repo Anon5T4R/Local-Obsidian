@@ -22,40 +22,20 @@ impl ResetRequests {
     pub fn admit(&mut self, ime: Option<&IMEOutput>) -> Option<ImeResetId> {
         self.pending = None;
         let request = ime?.reset_request?;
-        if request.viewport_id() != ViewportId::ROOT
-            || self
-                .latest
-                .is_some_and(|latest| latest.as_u64() >= request.as_u64())
-        {
+        if request.viewport_id() != ViewportId::ROOT || self.latest.is_some_and(|latest| latest.as_u64() >= request.as_u64()) {
             return None;
         }
         self.latest = Some(request);
         let ime = ime?;
-        self.pending = Some((
-            request,
-            ContextKey(ime.owner, ime.context_generation, ime.purpose),
-        ));
+        self.pending = Some((request, ContextKey(ime.owner, ime.context_generation, ime.purpose)));
         Some(request)
     }
     /// Completion is permitted only for the exact descriptor whose fresh source was configured.
-    pub fn complete(
-        &mut self,
-        request: ImeResetId,
-        ime: &IMEOutput,
-        events: &mut Vec<egui::Event>,
-    ) -> bool {
-        if self.pending.take()
-            != Some((
-                request,
-                ContextKey(ime.owner, ime.context_generation, ime.purpose),
-            ))
-            || ime.reset_request != Some(request)
-        {
+    pub fn complete(&mut self, request: ImeResetId, ime: &IMEOutput, events: &mut Vec<egui::Event>) -> bool {
+        if self.pending.take() != Some((request, ContextKey(ime.owner, ime.context_generation, ime.purpose))) || ime.reset_request != Some(request) {
             return false;
         }
-        events.push(egui::Event::ImeResetCompleted {
-            request_id: request,
-        });
+        events.push(egui::Event::ImeResetCompleted { request_id: request });
         true
     }
 }
@@ -70,10 +50,7 @@ pub(crate) struct CompositionSession {
 
 impl CompositionSession {
     pub fn replacement() -> Self {
-        Self {
-            require_start: true,
-            started: false,
-        }
+        Self { require_start: true, started: false }
     }
 
     pub fn start(&mut self) {
@@ -107,11 +84,7 @@ pub(crate) struct HeldPresses {
 
 impl HeldPresses {
     fn identity(key: &str, code: &str) -> String {
-        if code.is_empty() {
-            format!("key:{key}")
-        } else {
-            format!("code:{code}")
-        }
+        if code.is_empty() { format!("key:{key}") } else { format!("code:{code}") }
     }
 
     pub fn press(&mut self, key: &str, code: &str, logical: Option<egui::Key>) {
@@ -156,13 +129,7 @@ mod tests {
     use egui::{Context, Rect};
 
     fn request(ctx: &Context, viewport: ViewportId) -> IMEOutput {
-        let mut ime = IMEOutput::new(
-            Id::unique("browser editor"),
-            1,
-            IMEPurpose::Normal,
-            Rect::ZERO,
-            Rect::ZERO,
-        );
+        let mut ime = IMEOutput::new(Id::unique("browser editor"), 1, IMEPurpose::Normal, Rect::ZERO, Rect::ZERO);
         ime.reset_request = ctx.request_ime_reset(viewport);
         assert!(ime.reset_request.is_some());
         ime
@@ -181,10 +148,7 @@ mod tests {
         requests.invalidate(); // destroy, then start uses the same external admission owner
         assert_eq!(requests.admit(Some(&next)), None);
         assert_eq!(requests.admit(None), None);
-        assert_eq!(
-            requests.admit(Some(&request(&ctx, ViewportId::from_hash_of("foreign")))),
-            None
-        );
+        assert_eq!(requests.admit(Some(&request(&ctx, ViewportId::from_hash_of("foreign")))), None);
         let fresh = request(&Context::default(), ViewportId::ROOT);
         assert_eq!(requests.admit(Some(&fresh)), fresh.reset_request);
     }
@@ -210,16 +174,10 @@ mod tests {
         let mut session = CompositionSession::replacement();
         assert!(!session.input(true));
         assert!(!session.end());
-        assert!(
-            session.input(false),
-            "insertText/replacement/correction remain direct input"
-        );
+        assert!(session.input(false), "insertText/replacement/correction remain direct input");
         session.start();
         assert!(session.input(true));
-        assert!(
-            session.input(false),
-            "terminal input before compositionend remains accepted"
-        );
+        assert!(session.input(false), "terminal input before compositionend remains accepted");
         assert!(session.end());
         assert!(!session.end());
         assert!(!session.input(true));
@@ -247,9 +205,7 @@ mod tests {
         let mut queued = egui::RawInput::default();
         // The real host appends unconsumed hidden input before handling settled output.
         let mut hidden = egui::RawInput::default();
-        hidden
-            .events
-            .push(egui::Event::Ime(egui::ImeEvent::Commit("old".into())));
+        hidden.events.push(egui::Event::Ime(egui::ImeEvent::Commit("old".into())));
         queued.append(hidden);
         assert_eq!(requests.admit(Some(&ime)), Some(id));
         assert!(requests.complete(id, &ime, &mut queued.events));
@@ -257,12 +213,7 @@ mod tests {
         // No visible pass consumed these events; take/append mirrors WebInput's host boundary.
         let next_hidden = queued.take();
         queued.append(next_hidden);
-        queued
-            .events
-            .push(egui::Event::Ime(egui::ImeEvent::Preedit {
-                text: "新".into(),
-                active_range_chars: Some(0..1),
-            }));
+        queued.events.push(egui::Event::Ime(egui::ImeEvent::Preedit { text: "新".into(), active_range_chars: Some(0..1) }));
         assert!(
             matches!(&queued.events[..], [egui::Event::Ime(egui::ImeEvent::Commit(old)), egui::Event::ImeResetCompleted { request_id }, egui::Event::Ime(egui::ImeEvent::Preedit { text, .. })] if old == "old" && *request_id == id && text == "新")
         );

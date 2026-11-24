@@ -50,16 +50,12 @@ impl Fixture {
             press_selection: None,
             force_discard: false,
         };
-        this.ctx
-            .options_mut(|options| options.input_options.surrender_focus_on = policy);
+        this.ctx.options_mut(|options| options.input_options.surrender_focus_on = policy);
         this.frame(vec![]);
-        this.ctx
-            .memory_mut(|memory| memory.request_focus(this.field));
+        this.ctx.memory_mut(|memory| memory.request_focus(this.field));
         this.frame(vec![]);
         let mut state = TextEdit::load_state(&this.ctx, this.field).expect("registered text field");
-        state
-            .cursor
-            .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(5))));
+        state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(5))));
         state.store(&this.ctx, this.field);
         this.frame(vec![]);
         this
@@ -70,29 +66,16 @@ impl Fixture {
     }
 
     fn pointer_at(pos: egui::Pos2, button: PointerButton, pressed: bool) -> Vec<Event> {
-        vec![
-            Event::PointerMoved(pos),
-            Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                modifiers: Default::default(),
-            },
-        ]
+        vec![Event::PointerMoved(pos), Event::PointerButton { pos, button, pressed, modifiers: Default::default() }]
     }
 
     fn frame(&mut self, events: Vec<Event>) -> Observed {
         let mut observed = Observed::default();
         let mut output = self.ctx.run_ui(
-            RawInput {
-                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))),
-                events,
-                ..Default::default()
-            },
+            RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))), events, ..Default::default() },
             |ui| {
                 if self.force_discard && ui.ctx().current_pass_index() == 0 {
-                    ui.ctx()
-                        .request_discard("selection regression: second layout pass");
+                    ui.ctx().request_discard("selection regression: second layout pass");
                 }
                 observed.focus_before_read = ui.memory(|memory| memory.has_focus(self.field));
                 let _ = ui.ctx().read_response(self.field);
@@ -100,31 +83,16 @@ impl Fixture {
                 if !self.button_first {
                     let output = TextEdit::singleline(&mut self.text).id(self.field).show(ui);
                     self.field_rect = output.response.rect;
-                    self.selection_pos = output.galley_pos
-                        + output
-                            .galley
-                            .pos_from_cursor(CCursor::new(2))
-                            .center()
-                            .to_vec2();
+                    self.selection_pos = output.galley_pos + output.galley.pos_from_cursor(CCursor::new(2)).center().to_vec2();
                     ui.add_space(40.0);
                 }
                 let response = ui.button("Use selection");
                 self.button = response.rect;
-                let capture_press = self.capture_press
-                    && response.is_pointer_button_down_on()
-                    && ui.input(|input| input.pointer.any_pressed());
+                let capture_press = self.capture_press && response.is_pointer_button_down_on() && ui.input(|input| input.pointer.any_pressed());
                 if response.clicked() || response.secondary_clicked() || capture_press {
-                    let range = TextEdit::load_state(ui.ctx(), self.field)
-                        .and_then(|state| state.cursor.char_range())
-                        .expect("selection state");
+                    let range = TextEdit::load_state(ui.ctx(), self.field).and_then(|state| state.cursor.char_range()).expect("selection state");
                     let [start, end] = range.sorted_cursors();
-                    observed.selected_action_text = Some(
-                        self.text
-                            .chars()
-                            .skip(start.index.0)
-                            .take(end.index.0 - start.index.0)
-                            .collect(),
-                    );
+                    observed.selected_action_text = Some(self.text.chars().skip(start.index.0).take(end.index.0 - start.index.0).collect());
                 }
                 if capture_press {
                     self.press_selection = observed.selected_action_text.clone();
@@ -146,12 +114,7 @@ impl Fixture {
                     ui.add_space(40.0);
                     let output = TextEdit::singleline(&mut self.text).id(self.field).show(ui);
                     self.field_rect = output.response.rect;
-                    self.selection_pos = output.galley_pos
-                        + output
-                            .galley
-                            .pos_from_cursor(CCursor::new(2))
-                            .center()
-                            .to_vec2();
+                    self.selection_pos = output.galley_pos + output.galley.pos_from_cursor(CCursor::new(2)).center().to_vec2();
                 }
                 // Restore focus after all widgets have applied click-away policy,
                 // regardless of the toolbar/editor layout order.
@@ -173,24 +136,14 @@ impl Fixture {
 
 #[test]
 fn pointer_toolbar_and_secondary_actions_see_the_original_selection() {
-    for policy in [
-        egui::SurrenderFocusOn::Clicks,
-        egui::SurrenderFocusOn::Never,
-    ] {
+    for policy in [egui::SurrenderFocusOn::Clicks, egui::SurrenderFocusOn::Never] {
         for button_first in [false, true] {
             for button in [PointerButton::Primary, PointerButton::Secondary] {
                 let mut fixture = Fixture::with_order(policy, button_first);
                 fixture.frame(fixture.pointer(button, true));
                 let observed = fixture.frame(fixture.pointer(button, false));
-                assert_eq!(
-                    observed.selected_action_text.as_deref(),
-                    Some("alpha"),
-                    "{button:?}, {policy:?}, button_first={button_first}"
-                );
-                assert_eq!(
-                    fixture.ctx.memory(|memory| memory.has_focus(fixture.field)),
-                    policy == egui::SurrenderFocusOn::Never
-                );
+                assert_eq!(observed.selected_action_text.as_deref(), Some("alpha"), "{button:?}, {policy:?}, button_first={button_first}");
+                assert_eq!(fixture.ctx.memory(|memory| memory.has_focus(fixture.field)), policy == egui::SurrenderFocusOn::Never);
             }
         }
     }
@@ -203,10 +156,7 @@ fn delayed_context_menu_command_uses_the_opening_selection() {
     fixture.frame(fixture.pointer(PointerButton::Secondary, false));
     fixture.frame(vec![]);
     fixture.frame(vec![]);
-    assert!(
-        fixture.menu_item.is_positive(),
-        "real context menu must be open"
-    );
+    assert!(fixture.menu_item.is_positive(), "real context menu must be open");
     let pos = fixture.menu_item.center();
     fixture.frame(Fixture::pointer_at(pos, PointerButton::Primary, true));
     let observed = fixture.frame(Fixture::pointer_at(pos, PointerButton::Primary, false));
@@ -215,34 +165,20 @@ fn delayed_context_menu_command_uses_the_opening_selection() {
 
 #[test]
 fn secondary_click_inside_the_field_places_the_caret_and_keeps_focus() {
-    for policy in [
-        egui::SurrenderFocusOn::Presses,
-        egui::SurrenderFocusOn::Clicks,
-    ] {
+    for policy in [egui::SurrenderFocusOn::Presses, egui::SurrenderFocusOn::Clicks] {
         let mut fixture = Fixture::new(policy);
         let pos = fixture.selection_pos;
         fixture.frame(Fixture::pointer_at(pos, PointerButton::Secondary, true));
         fixture.frame(Fixture::pointer_at(pos, PointerButton::Secondary, false));
         assert!(fixture.ctx.memory(|memory| memory.has_focus(fixture.field)));
-        let range = TextEdit::load_state(&fixture.ctx, fixture.field)
-            .unwrap()
-            .cursor
-            .char_range()
-            .unwrap();
-        assert_eq!(
-            range.as_sorted_char_range(),
-            egui::text::CharIndex(2)..egui::text::CharIndex(2)
-        );
+        let range = TextEdit::load_state(&fixture.ctx, fixture.field).unwrap().cursor.char_range().unwrap();
+        assert_eq!(range.as_sorted_char_range(), egui::text::CharIndex(2)..egui::text::CharIndex(2));
     }
 }
 
 #[test]
 fn reading_a_response_preserves_focus_until_the_widget_is_shown() {
-    for policy in [
-        egui::SurrenderFocusOn::Presses,
-        egui::SurrenderFocusOn::Clicks,
-        egui::SurrenderFocusOn::Never,
-    ] {
+    for policy in [egui::SurrenderFocusOn::Presses, egui::SurrenderFocusOn::Clicks, egui::SurrenderFocusOn::Never] {
         let mut fixture = Fixture::new(policy);
         let observed = if policy == egui::SurrenderFocusOn::Presses {
             fixture.frame(fixture.pointer(PointerButton::Primary, true))
@@ -250,18 +186,9 @@ fn reading_a_response_preserves_focus_until_the_widget_is_shown() {
             fixture.frame(fixture.pointer(PointerButton::Primary, true));
             fixture.frame(fixture.pointer(PointerButton::Primary, false))
         };
-        assert!(
-            observed.focus_before_read,
-            "{policy:?}: focused before the read"
-        );
-        assert!(
-            observed.focus_after_read,
-            "{policy:?}: response inspection must not surrender focus"
-        );
-        assert_eq!(
-            fixture.ctx.memory(|memory| memory.has_focus(fixture.field)),
-            policy == egui::SurrenderFocusOn::Never
-        );
+        assert!(observed.focus_before_read, "{policy:?}: focused before the read");
+        assert!(observed.focus_after_read, "{policy:?}: response inspection must not surrender focus");
+        assert_eq!(fixture.ctx.memory(|memory| memory.has_focus(fixture.field)), policy == egui::SurrenderFocusOn::Never);
     }
 }
 
@@ -273,10 +200,7 @@ fn keyboard_copy_keeps_the_selection_and_copies_selected_text() {
     assert!(fixture.ctx.memory(|memory| memory.has_focus(fixture.field)));
     let state = TextEdit::load_state(&fixture.ctx, fixture.field).unwrap();
     let range = state.cursor.char_range().unwrap();
-    assert_eq!(
-        range.as_sorted_char_range(),
-        egui::text::CharIndex(0)..egui::text::CharIndex(5)
-    );
+    assert_eq!(range.as_sorted_char_range(), egui::text::CharIndex(0)..egui::text::CharIndex(5));
 }
 
 #[test]
@@ -290,10 +214,7 @@ fn toolbar_can_restore_editing_after_widgets_in_either_widget_order() {
         fixture.frame(vec![]);
         assert!(fixture.ctx.memory(|memory| memory.has_focus(fixture.field)));
         fixture.frame(vec![Event::Text("B".to_owned())]);
-        assert_eq!(
-            fixture.text, "B beta",
-            "selection survives focus restoration, button_first={button_first}"
-        );
+        assert_eq!(fixture.text, "B beta", "selection survives focus restoration, button_first={button_first}");
     }
 }
 
@@ -303,11 +224,7 @@ fn presses_policy_actions_capture_the_selection_at_press() {
         let mut fixture = Fixture::with_order(egui::SurrenderFocusOn::Presses, button_first);
         fixture.capture_press = true;
         fixture.frame(fixture.pointer(PointerButton::Primary, true));
-        assert_eq!(
-            fixture.press_selection.as_deref(),
-            Some("alpha"),
-            "button_first={button_first}"
-        );
+        assert_eq!(fixture.press_selection.as_deref(), Some("alpha"), "button_first={button_first}");
         // The release-time field state depends on widget order. The saved
         // press-time value is independent of that later unfocused layout.
         fixture.frame(fixture.pointer(PointerButton::Primary, false));

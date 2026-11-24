@@ -12,11 +12,7 @@ struct ContextKey {
 
 impl From<&IMEOutput> for ContextKey {
     fn from(ime: &IMEOutput) -> Self {
-        Self {
-            owner: ime.owner,
-            generation: ime.context_generation,
-            purpose: ime.purpose,
-        }
+        Self { owner: ime.owner, generation: ime.context_generation, purpose: ime.purpose }
     }
 }
 
@@ -36,11 +32,7 @@ pub(crate) struct ResetBridge<W> {
 
 impl<W> Default for ResetBridge<W> {
     fn default() -> Self {
-        Self {
-            window: None,
-            latest: None,
-            pending: None,
-        }
+        Self { window: None, latest: None, pending: None }
     }
 }
 
@@ -52,11 +44,7 @@ impl<W: Copy + Eq> ResetBridge<W> {
 
     /// The command dispatcher changes native purpose without requiring another settled output.
     /// Identical commands retain their context; changed purpose retires the outstanding fence.
-    pub(crate) fn apply_purpose_command(
-        &mut self,
-        old: &mut egui::IMEPurpose,
-        new: egui::IMEPurpose,
-    ) -> bool {
+    pub(crate) fn apply_purpose_command(&mut self, old: &mut egui::IMEPurpose, new: egui::IMEPurpose) -> bool {
         if *old == new {
             return false;
         }
@@ -74,13 +62,7 @@ impl<W: Copy + Eq> ResetBridge<W> {
     }
 
     /// Called only for settled platform output. Returns one actual native call to make.
-    pub(crate) fn prepare(
-        &mut self,
-        window: W,
-        viewport: ViewportId,
-        ime: Option<&IMEOutput>,
-        allowed: bool,
-    ) -> Option<ImeResetId> {
+    pub(crate) fn prepare(&mut self, window: W, viewport: ViewportId, ime: Option<&IMEOutput>, allowed: bool) -> Option<ImeResetId> {
         if self.window != Some(window) {
             self.window = Some(window);
             self.pending = None;
@@ -91,24 +73,15 @@ impl<W: Copy + Eq> ResetBridge<W> {
             return None;
         };
         let context = ContextKey::from(ime);
-        if self
-            .pending
-            .is_some_and(|pending| pending.context != context)
-        {
+        if self.pending.is_some_and(|pending| pending.context != context) {
             self.invalidate();
         }
         if let Some(id) = ime.reset_request
             && id.viewport_id() == viewport
-            && self
-                .latest
-                .is_none_or(|latest| id.as_u64() > latest.as_u64())
+            && self.latest.is_none_or(|latest| id.as_u64() > latest.as_u64())
         {
             self.latest = Some(id);
-            self.pending = Some(Pending {
-                id,
-                context,
-                dispatched: false,
-            });
+            self.pending = Some(Pending { id, context, dispatched: false });
         }
         let pending = self.pending.as_mut()?;
         if allowed && !pending.dispatched {
@@ -121,30 +94,18 @@ impl<W: Copy + Eq> ResetBridge<W> {
 
     /// The real `WindowEvent` is translated exactly here, in the normal raw event stream.
     /// Other/wrong-window/stale/duplicate control events never change the input vector.
-    pub(crate) fn on_event(
-        &mut self,
-        window: W,
-        viewport: ViewportId,
-        event: &WindowEvent,
-        events: &mut Vec<Event>,
-    ) -> bool {
+    pub(crate) fn on_event(&mut self, window: W, viewport: ViewportId, event: &WindowEvent, events: &mut Vec<Event>) -> bool {
         let WindowEvent::ImeResetCompleted { request_id } = event else {
             return false;
         };
         let Some(pending) = self.pending else {
             return false;
         };
-        if self.window != Some(window)
-            || pending.id.viewport_id() != viewport
-            || pending.id.as_u64() != *request_id
-            || !pending.dispatched
-        {
+        if self.window != Some(window) || pending.id.viewport_id() != viewport || pending.id.as_u64() != *request_id || !pending.dispatched {
             return false;
         }
         self.pending = None;
-        events.push(Event::ImeResetCompleted {
-            request_id: pending.id,
-        });
+        events.push(Event::ImeResetCompleted { request_id: pending.id });
         true
     }
 }
@@ -155,13 +116,7 @@ mod tests {
     use egui::{Context, IMEPurpose, Id, Rect};
 
     fn output(ctx: &Context, viewport: ViewportId) -> IMEOutput {
-        let mut ime = IMEOutput::new(
-            Id::unique("editor"),
-            1,
-            IMEPurpose::Normal,
-            Rect::ZERO,
-            Rect::ZERO,
-        );
+        let mut ime = IMEOutput::new(Id::unique("editor"), 1, IMEPurpose::Normal, Rect::ZERO, Rect::ZERO);
         ime.reset_request = ctx.request_ime_reset(viewport);
         assert!(ime.reset_request.is_some());
         ime.should_interrupt_composition = true;
@@ -177,48 +132,16 @@ mod tests {
         let mut bridge = ResetBridge::<u64>::default();
         let mut events = vec![Event::Ime(egui::ImeEvent::Commit("old".into()))];
         assert_eq!(bridge.prepare(11, viewport, Some(&ime), true), Some(id));
-        assert_eq!(
-            events.len(),
-            1,
-            "native call preparation must not fabricate completion"
-        );
-        assert!(!bridge.on_event(
-            12,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
+        assert_eq!(events.len(), 1, "native call preparation must not fabricate completion");
+        assert!(!bridge.on_event(12, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
         assert_eq!(events.len(), 1);
-        assert!(bridge.on_event(
-            11,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
-        events.push(Event::Ime(egui::ImeEvent::Preedit {
-            text: "new".into(),
-            active_range_chars: None,
-        }));
+        assert!(bridge.on_event(11, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
+        events.push(Event::Ime(egui::ImeEvent::Preedit { text: "new".into(), active_range_chars: None }));
         assert!(
             matches!(&events[..], [Event::Ime(egui::ImeEvent::Commit(old)), Event::ImeResetCompleted { request_id }, Event::Ime(egui::ImeEvent::Preedit { text, .. })] if old == "old" && *request_id == id && text == "new")
         );
-        assert!(!bridge.on_event(
-            11,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
-        assert_eq!(
-            bridge.prepare(11, viewport, Some(&ime), true),
-            None,
-            "replayed settled output stays one-shot"
-        );
+        assert!(!bridge.on_event(11, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
+        assert_eq!(bridge.prepare(11, viewport, Some(&ime), true), None, "replayed settled output stays one-shot");
     }
 
     #[test]
@@ -234,22 +157,8 @@ mod tests {
         assert_eq!(bridge.prepare(1, viewport, Some(&first), true), Some(old));
         assert_eq!(bridge.prepare(1, viewport, Some(&newer), true), Some(new));
         assert_eq!(bridge.prepare(1, viewport, Some(&first), true), None);
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: old.as_u64()
-            },
-            &mut events
-        ));
-        assert!(bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: new.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: old.as_u64() }, &mut events));
+        assert!(bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: new.as_u64() }, &mut events));
         assert_eq!(events, vec![Event::ImeResetCompleted { request_id: new }]);
     }
 
@@ -262,25 +171,11 @@ mod tests {
         let mut bridge = ResetBridge::<u64>::default();
         let mut events = Vec::new();
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), false), None);
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
         ime.reset_request = None;
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), Some(id));
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), None);
-        assert!(bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
+        assert!(bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
     }
 
     #[test]
@@ -295,27 +190,14 @@ mod tests {
         for event in [
             WindowEvent::Ime(winit::event::Ime::Disabled),
             WindowEvent::Ime(winit::event::Ime::Enabled),
-            WindowEvent::ImeResetCompleted {
-                request_id: u64::MAX,
-            },
+            WindowEvent::ImeResetCompleted { request_id: u64::MAX },
         ] {
             assert!(!bridge.on_event(1, viewport, &event, &mut events));
         }
         assert!(events.is_empty());
         bridge.invalidate();
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
-        assert_eq!(
-            bridge.prepare(1, viewport, Some(&ime), true),
-            None,
-            "focus/destroy invalidation cannot replay old output"
-        );
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
+        assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), None, "focus/destroy invalidation cannot replay old output");
     }
 
     #[test]
@@ -330,28 +212,14 @@ mod tests {
         assert_eq!(bridge.prepare(1, other, Some(&ime), true), None);
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), Some(id));
         assert_eq!(bridge.prepare(2, viewport, Some(&ime), true), None);
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: id.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: id.as_u64() }, &mut events));
         ime.reset_request = ctx.request_ime_reset(viewport);
         let current = ime.reset_request.unwrap();
         assert_eq!(bridge.prepare(2, viewport, Some(&ime), true), Some(current));
         ime.context_generation += 1;
         ime.reset_request = None;
         bridge.prepare(2, viewport, Some(&ime), true);
-        assert!(!bridge.on_event(
-            2,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: current.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(2, viewport, &WindowEvent::ImeResetCompleted { request_id: current.as_u64() }, &mut events));
         assert!(events.is_empty());
     }
     #[test]
@@ -365,46 +233,19 @@ mod tests {
         let first = ime.reset_request.unwrap();
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), Some(first));
         assert!(!bridge.apply_purpose_command(&mut purpose, IMEPurpose::Normal));
-        assert!(bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: first.as_u64()
-            },
-            &mut events
-        ));
+        assert!(bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: first.as_u64() }, &mut events));
         ime.reset_request = ctx.request_ime_reset(viewport);
         let old = ime.reset_request.unwrap();
         bridge.prepare(1, viewport, Some(&ime), true);
         assert!(bridge.apply_purpose_command(&mut purpose, IMEPurpose::Password));
         assert_eq!(purpose, IMEPurpose::Password);
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: old.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: old.as_u64() }, &mut events));
         ime.purpose = IMEPurpose::Password;
         ime.reset_request = ctx.request_ime_reset(viewport);
         let new = ime.reset_request.unwrap();
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), Some(new));
-        assert!(bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: new.as_u64()
-            },
-            &mut events
-        ));
-        assert_eq!(
-            events,
-            vec![
-                Event::ImeResetCompleted { request_id: first },
-                Event::ImeResetCompleted { request_id: new }
-            ]
-        );
+        assert!(bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: new.as_u64() }, &mut events));
+        assert_eq!(events, vec![Event::ImeResetCompleted { request_id: first }, Event::ImeResetCompleted { request_id: new }]);
     }
 
     #[test]
@@ -417,14 +258,7 @@ mod tests {
         let mut events = Vec::new();
         bridge.prepare(1, viewport, Some(&ime), true);
         bridge.external_allowed(false);
-        assert!(!bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: old.as_u64()
-            },
-            &mut events
-        ));
+        assert!(!bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: old.as_u64() }, &mut events));
         ime.reset_request = ctx.request_ime_reset(viewport);
         let next = ime.reset_request.unwrap();
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), false), None);
@@ -432,13 +266,6 @@ mod tests {
         bridge.external_allowed(true);
         ime.reset_request = None;
         assert_eq!(bridge.prepare(1, viewport, Some(&ime), true), Some(next));
-        assert!(bridge.on_event(
-            1,
-            viewport,
-            &WindowEvent::ImeResetCompleted {
-                request_id: next.as_u64()
-            },
-            &mut events
-        ));
+        assert!(bridge.on_event(1, viewport, &WindowEvent::ImeResetCompleted { request_id: next.as_u64() }, &mut events));
     }
 }

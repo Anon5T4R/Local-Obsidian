@@ -7,7 +7,7 @@
   <project_license>MIT OR Apache-2.0</project_license>
   <name>Local Notebook</name>
   <summary>Notes, wikilinks and attachments in a plain folder</summary>
-  <developer id="com.localobsidian">
+  <developer id="com.localnotebook">
     <name>Local Notebook contributors</name>
   </developer>
   <description>
@@ -46,7 +46,7 @@
     <control>pointing</control>
   </supports>
   <provides>
-    <binary>localobsidian</binary>
+    <binary>localnotebook</binary>
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>

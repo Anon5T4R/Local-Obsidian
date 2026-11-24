@@ -66,14 +66,8 @@ pub struct RawInput {
     /// Dragged files dropped into egui.
     ///
     /// egui never reads the file contents.
-    #[cfg_attr(
-        not(target_arch = "wasm32"),
-        doc = "Call [`crate::DroppedFile::bytes`] to read a dropped file."
-    )]
-    #[cfg_attr(
-        target_arch = "wasm32",
-        doc = "Call [`crate::DroppedFile::bytes_async`] to read a dropped file."
-    )]
+    #[cfg_attr(not(target_arch = "wasm32"), doc = "Call [`crate::DroppedFile::bytes`] to read a dropped file.")]
+    #[cfg_attr(target_arch = "wasm32", doc = "Call [`crate::DroppedFile::bytes_async`] to read a dropped file.")]
     ///
     /// Note: when using `eframe` on Windows, this will always be empty if drag-and-drop support has
     /// been disabled in [`crate::viewport::ViewportBuilder`].
@@ -140,11 +134,7 @@ impl RawInput {
     /// The character `physical_key` types on the user's Latin layout, when it was pressed in this
     /// input and its shortcuts follow that layout. See [`Self::latin_layout_chars`].
     pub fn latin_layout_char(&self, physical_key: Key) -> Option<char> {
-        self.latin_layout_chars
-            .iter()
-            .rev()
-            .find(|(key, _)| *key == physical_key)
-            .map(|&(_, c)| c)
+        self.latin_layout_chars.iter().rev().find(|(key, _)| *key == physical_key).map(|&(_, c)| c)
     }
 
     /// Info about the active viewport
@@ -160,11 +150,7 @@ impl RawInput {
     pub fn take(&mut self) -> Self {
         Self {
             viewport_id: self.viewport_id,
-            viewports: self
-                .viewports
-                .iter_mut()
-                .map(|(id, info)| (*id, info.take()))
-                .collect(),
+            viewports: self.viewports.iter_mut().map(|(id, info)| (*id, info.take())).collect(),
             screen_rect: self.screen_rect.take(),
             safe_area_insets: self.safe_area_insets.take(),
             max_texture_side: self.max_texture_side.take(),
@@ -236,10 +222,7 @@ impl RawInput {
         } = self;
 
         ui.label(format!("Active viewport: {viewport_id:?}"));
-        let ordered_viewports = viewports
-            .iter()
-            .map(|(id, value)| (*id, value))
-            .collect::<OrderedViewportIdMap<_>>();
+        let ordered_viewports = viewports.iter().map(|(id, value)| (*id, value)).collect::<OrderedViewportIdMap<_>>();
         for (id, viewport) in ordered_viewports {
             ui.group(|ui| {
                 ui.label(format!("Viewport {id:?}"));
@@ -261,15 +244,12 @@ impl RawInput {
         ui.label(format!("dropped_files: {}", dropped_files.len()));
         ui.label(format!("focused: {focused}"));
         ui.label(format!("system_theme: {system_theme:?}"));
-        ui.label(format!(
-            "keyboard_layout_is_latin: {keyboard_layout_is_latin:?}"
-        ));
+        ui.label(format!("keyboard_layout_is_latin: {keyboard_layout_is_latin:?}"));
         ui.label(format!("latin_layout_chars: {latin_layout_chars:?}"));
         ui.label(format!("safe_area: {safe_area:?}"));
         ui.scope(|ui| {
             ui.set_min_height(150.0);
-            ui.label(format!("events: {events:#?}"))
-                .on_hover_text("key presses etc");
+            ui.label(format!("events: {events:#?}")).on_hover_text("key presses etc");
         });
     }
 }
@@ -283,37 +263,22 @@ mod tests {
     fn append_preserves_latest_specified_safe_area_insets() {
         let original = SafeAreaInsets(MarginF32::same(1.0));
         let replacement = SafeAreaInsets(MarginF32::same(2.0));
-        let mut input = RawInput {
-            safe_area_insets: Some(original),
-            ..Default::default()
-        };
+        let mut input = RawInput { safe_area_insets: Some(original), ..Default::default() };
 
         input.append(RawInput::default());
         assert_eq!(input.safe_area_insets, Some(original));
 
-        input.append(RawInput {
-            safe_area_insets: Some(replacement),
-            ..Default::default()
-        });
+        input.append(RawInput { safe_area_insets: Some(replacement), ..Default::default() });
         assert_eq!(input.safe_area_insets, Some(replacement));
 
-        input.append(RawInput {
-            safe_area_insets: Some(SafeAreaInsets::default()),
-            ..Default::default()
-        });
+        input.append(RawInput { safe_area_insets: Some(SafeAreaInsets::default()), ..Default::default() });
         assert_eq!(input.safe_area_insets, Some(SafeAreaInsets::default()));
     }
 
     #[test]
     fn latin_layout_chars_belong_to_one_input() {
-        let mut input = RawInput {
-            latin_layout_chars: vec![(Key::Q, 'q')],
-            ..Default::default()
-        };
-        input.append(RawInput {
-            latin_layout_chars: vec![(Key::Q, '\''), (Key::C, 'j')],
-            ..Default::default()
-        });
+        let mut input = RawInput { latin_layout_chars: vec![(Key::Q, 'q')], ..Default::default() };
+        input.append(RawInput { latin_layout_chars: vec![(Key::Q, '\''), (Key::C, 'j')], ..Default::default() });
         assert_eq!(input.latin_layout_char(Key::Q), Some('\''));
         assert_eq!(input.latin_layout_char(Key::C), Some('j'));
         assert_eq!(input.latin_layout_char(Key::V), None);

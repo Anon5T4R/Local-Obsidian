@@ -3,8 +3,8 @@
 use core::cell::Cell;
 
 use crate::{
-    Button, Checkbox, CollapsingHeader, ComboBox, Context, Event, Id, Modifiers, PointerButton,
-    Popup, Pos2, RadioButton, RawInput, Rect, Resize, Ui, Window,
+    Button, Checkbox, CollapsingHeader, ComboBox, Context, Event, Id, Modifiers, PointerButton, Popup, Pos2, RadioButton, RawInput, Rect, Resize, Ui,
+    Window,
     collapsing_header::CollapsingState,
     epaint::{ClippedShape, Shape},
     vec2,
@@ -18,11 +18,7 @@ fn context(right_to_left: bool) -> Context {
 
 /// Runs one frame and returns what it painted.
 fn run(ctx: &Context, events: Vec<Event>, mut add: impl FnMut(&mut Ui)) -> Vec<ClippedShape> {
-    let input = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-        events,
-        ..Default::default()
-    };
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
     let mut output = ctx.run_ui(input, |ui| add(ui));
     output.textures_delta.clear();
     output.shapes
@@ -64,23 +60,14 @@ fn triangles(shapes: &[ClippedShape], rect: Rect) -> Vec<Vec<Pos2>> {
     shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
-            Shape::Path(path)
-                if path.points.len() == 3 && path.points.iter().all(|p| rect.contains(*p)) =>
-            {
-                Some(path.points.clone())
-            }
+            Shape::Path(path) if path.points.len() == 3 && path.points.iter().all(|p| rect.contains(*p)) => Some(path.points.clone()),
             _ => None,
         })
         .collect()
 }
 
 fn click(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton {
-        pos,
-        button: PointerButton::Primary,
-        pressed,
-        modifiers: Modifiers::NONE,
-    }
+    Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
 }
 
 // ----------------------------------------------------------------------------
@@ -96,10 +83,7 @@ fn popup_below_wide_button(right_to_left: bool) -> (Rect, Rect) {
             ui.add_space(200.0);
             let response = ui.add_sized([300.0, 20.0], Button::new("Button"));
             button.set(response.rect);
-            if let Some(inner) = Popup::from_response(&response)
-                .open(true)
-                .show(|ui| ui.label("Popup"))
-            {
+            if let Some(inner) = Popup::from_response(&response).open(true).show(|ui| ui.label("Popup")) {
                 popup.set(inner.response.rect);
             }
         });
@@ -122,10 +106,7 @@ fn popup_aligned_to_the_right_right_to_left() {
     // (real fonts) the right edge can be up to half a pixel off.
     // Painting rounds the frame edges to pixels too, so it still looks aligned.
     let ppp = Context::default().pixels_per_point();
-    assert!(
-        (popup.right() - button.right()).abs() <= 0.5 / ppp,
-        "{button:?} {popup:?}"
-    );
+    assert!((popup.right() - button.right()).abs() <= 0.5 / ppp, "{button:?} {popup:?}");
     assert!(popup.top() >= button.bottom());
 }
 
@@ -164,10 +145,9 @@ fn collapsing_state_header(right_to_left: bool) -> (Rect, Rect) {
     let ctx = context(right_to_left);
     let rects = Cell::new((Rect::NOTHING, Rect::NOTHING));
     run_frames(&ctx, |ui| {
-        let (toggle, header, _) =
-            CollapsingState::load_with_default_open(ui.ctx(), Id::unique("state"), false)
-                .show_header(ui, |ui| ui.label("Header"))
-                .body(|ui| ui.label("Body"));
+        let (toggle, header, _) = CollapsingState::load_with_default_open(ui.ctx(), Id::unique("state"), false)
+            .show_header(ui, |ui| ui.label("Header"))
+            .body(|ui| ui.label("Body"));
         rects.set((toggle.rect, header.inner.rect));
     });
     rects.get()
@@ -219,17 +199,11 @@ fn indent_from_the_right_right_to_left() {
 fn combo_box(right_to_left: bool) -> (Rect, Rect, Rect) {
     let ctx = context(right_to_left);
     let shapes = run_frames(&ctx, |ui| {
-        ComboBox::from_label("Label")
-            .selected_text("Selected")
-            .show_ui(ui, |ui| ui.label("Option"));
+        ComboBox::from_label("Label").selected_text("Selected").show_ui(ui, |ui| ui.label("Option"));
     });
     let arrows = triangles(&shapes, Rect::EVERYTHING);
     assert_eq!(arrows.len(), 1, "{arrows:?}");
-    (
-        Rect::from_points(&arrows[0]),
-        text_rect(&shapes, "Selected"),
-        text_rect(&shapes, "Label"),
-    )
+    (Rect::from_points(&arrows[0]), text_rect(&shapes, "Selected"), text_rect(&shapes, "Label"))
 }
 
 #[test]
@@ -257,13 +231,7 @@ fn check_and_radio(right_to_left: bool) -> [(Rect, Rect); 2] {
         responses.set((checkbox, radio));
     });
     let (checkbox, radio) = responses.get();
-    [
-        (
-            non_text_rect(&shapes, checkbox),
-            text_rect(&shapes, "Check"),
-        ),
-        (non_text_rect(&shapes, radio), text_rect(&shapes, "Radio")),
-    ]
+    [(non_text_rect(&shapes, checkbox), text_rect(&shapes, "Check")), (non_text_rect(&shapes, radio), text_rect(&shapes, "Radio"))]
 }
 
 #[test]
@@ -290,28 +258,18 @@ fn resize_grip(right_to_left: bool) -> (Rect, Rect, Rect) {
     let content = Cell::new(Rect::NOTHING);
     let show = |ui: &mut Ui| {
         ui.add_space(100.0);
-        Resize::default()
-            .id(id)
-            .default_size([200.0, 100.0])
-            .show(ui, |ui| {
-                ui.label("Content");
-                content.set(ui.max_rect());
-            });
+        Resize::default().id(id).default_size([200.0, 100.0]).show(ui, |ui| {
+            ui.label("Content");
+            content.set(ui.max_rect());
+        });
     };
     run_frames(&ctx, show);
-    let grip = ctx
-        .read_response(id.with("__resize_corner"))
-        .expect("No resize grip")
-        .rect;
+    let grip = ctx.read_response(id.with("__resize_corner")).expect("No resize grip").rect;
     let before = content.get();
 
     let from = grip.center();
     let to = from + vec2(if right_to_left { -50.0 } else { 50.0 }, 0.0);
-    run(
-        &ctx,
-        vec![Event::PointerMoved(from), click(from, true)],
-        show,
-    );
+    run(&ctx, vec![Event::PointerMoved(from), click(from, true)], show);
     run(&ctx, vec![Event::PointerMoved(from.lerp(to, 0.5))], show);
     run(&ctx, vec![Event::PointerMoved(to)], show);
     run(&ctx, vec![click(to, false)], show);
@@ -322,31 +280,17 @@ fn resize_grip(right_to_left: bool) -> (Rect, Rect, Rect) {
 #[test]
 fn resize_grip_at_the_bottom_right() {
     let (grip, before, after) = resize_grip(false);
-    assert_eq!(
-        grip.right_bottom(),
-        before.right_bottom(),
-        "{grip:?} {before:?}"
-    );
+    assert_eq!(grip.right_bottom(), before.right_bottom(), "{grip:?} {before:?}");
     assert_eq!(after.left(), before.left());
-    assert!(
-        after.width() > before.width() + 40.0,
-        "{before:?} {after:?}"
-    );
+    assert!(after.width() > before.width() + 40.0, "{before:?} {after:?}");
 }
 
 #[test]
 fn resize_grip_at_the_bottom_left_right_to_left() {
     let (grip, before, after) = resize_grip(true);
-    assert_eq!(
-        grip.left_bottom(),
-        before.left_bottom(),
-        "{grip:?} {before:?}"
-    );
+    assert_eq!(grip.left_bottom(), before.left_bottom(), "{grip:?} {before:?}");
     assert_eq!(after.right(), before.right());
-    assert!(
-        after.width() > before.width() + 40.0,
-        "{before:?} {after:?}"
-    );
+    assert!(after.width() > before.width() + 40.0, "{before:?} {after:?}");
 }
 
 /// Returns how many line segments a resizable window paints near its bottom-left and
@@ -355,10 +299,7 @@ fn window_grip_lines(right_to_left: bool) -> (usize, usize) {
     let ctx = context(right_to_left);
     let window = Cell::new(Rect::NOTHING);
     let shapes = run_frames(&ctx, |ui| {
-        let response = Window::new("Window")
-            .default_pos([200.0, 200.0])
-            .default_size([200.0, 200.0])
-            .show(ui.ctx(), |ui| ui.label("Hello"));
+        let response = Window::new("Window").default_pos([200.0, 200.0]).default_size([200.0, 200.0]).show(ui.ctx(), |ui| ui.label("Hello"));
         window.set(response.expect("window").response.rect);
     });
     let window = window.get();
@@ -372,10 +313,7 @@ fn window_grip_lines(right_to_left: bool) -> (usize, usize) {
             })
             .count()
     };
-    (
-        lines_in(corner(window.left_bottom())),
-        lines_in(corner(window.right_bottom())),
-    )
+    (lines_in(corner(window.left_bottom())), lines_in(corner(window.right_bottom())))
 }
 
 #[test]

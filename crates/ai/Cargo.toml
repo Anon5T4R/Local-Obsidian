@@ -1,5 +1,5 @@
 [package]
-name = "localobsidian-ai"
+name = "localnotebook-ai"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

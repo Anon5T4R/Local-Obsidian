@@ -30,11 +30,11 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
   está frio ou feito, mantém durante iteração ativa); fora dele, `cargo clean` ao terminar. Builds pesados são do CI.
 
 ## Estrutura
-- `apps/localobsidian` — o app: `main.rs` (args, ícone, janela), `app.rs` (barra de menus, botões da suíte —
+- `apps/localnotebook` — o app: `main.rs` (args, ícone, janela), `app.rs` (barra de menus, botões da suíte —
   paleta, tema, engrenagem —, Configurações, About com update, a página; a paleta de comandos fica em
   `app/commands.rs`), `i18n.rs`, `pickers.rs`, `fonts.rs`, `suite_entry.rs` (entrada no catálogo),
   `build.rs` (ícone/VERSIONINFO, catálogos i18n, fontes)
-- `crates/localobsidian-*` — camadas (registradas em `xtask/src/layers.rs` `TABLE`); UI só em L5+
+- `crates/localnotebook-*` — camadas (registradas em `xtask/src/layers.rs` `TABLE`); UI só em L5+
 - `libs/` — forks vendored: `craft-libs` (com `crates/update` espelhado do `local-libs`), `egui` 6d518fc,
   `winit` a517b38, `winprint.rs`, `rustls-rustcrypto`, `local-ai` (o cliente BYOK da suíte, conforme)
 - `assets/` — `app-icon/`, `craft-fonts/` vendored (build input `CRAFT_FONTS_DIR`), `ATTRIBUTION.md`
@@ -61,12 +61,12 @@ packaging/linux/package.sh    # AppImage/deb/rpm/tar (Linux)
 - Fontes fora do que o egui embute vivem no craft-fonts (`assets/craft-fonts`).
 
 ## Agent-native (MCP)
-Todo comando do app é alcançável por um agente. O servidor é `localobsidian mcp` (stdio), sobre o
+Todo comando do app é alcançável por um agente. O servidor é `localnotebook mcp` (stdio), sobre o
 `craft-mcp` da suíte (`libs/craft-libs/crates/mcp`, fonte `local-libs` — espelho, não editar), com
 três ferramentas: `command_list` (o catálogo: id, rótulo, menu, `appOnly` e o schema dos parâmetros),
 `command_run` (um id com `params`) e `command_batch` (passos em ordem, com `"$N.path"` puxando o
-resultado de um passo anterior). Sem cliente MCP: `localobsidian commands [--search TEXT]` imprime o
-catálogo e `localobsidian run --in VAULT --script job.json` roda os mesmos passos. O catálogo é
+resultado de um passo anterior). Sem cliente MCP: `localnotebook commands [--search TEXT]` imprime o
+catálogo e `localnotebook run --in VAULT --script job.json` roda os mesmos passos. O catálogo é
 `src/automation/catalogue.rs`: os comandos da paleta (`src/app/commands.rs`) mais o lado de leitura e
 escrita do mesmo vault — `note.open`, `note.read`, `note.write`, `vault.inspect`, `vault.search` e
 `vault.diagnostics` (o que o editor, a barra lateral, o painel de busca e a janela de diagnóstico
@@ -79,8 +79,8 @@ atômicas, o mesmo índice e o mesmo motor de busca), e a janela usa as mesmas f
 O que precisa da janela (seletores, viewport, sessão de revisão, chat de IA, updater, sair) diz
 `appOnly` e o headless o recusa apontando o modo live.
 
-Modo live: `localobsidian --control PORT` abre o canal JSON em `127.0.0.1` e
-`localobsidian mcp --connect PORT` liga o MCP nele (porta nua = loopback; host que não é loopback é
+Modo live: `localnotebook --control PORT` abre o canal JSON em `127.0.0.1` e
+`localnotebook mcp --connect PORT` liga o MCP nele (porta nua = loopback; host que não é loopback é
 recusado antes de conectar). `--automation-read-root DIR`/`--automation-write-root DIR`
 (repetíveis, `--flag=DIR`) confinam os arquivos que os comandos abrem, leem, escrevem e exportam
 (renomear pede escrita no vault inteiro: pode reescrever qualquer nota); uma espécie sem raiz não

@@ -3,9 +3,8 @@ use alloc::{collections::BTreeMap, sync::Arc};
 use crate::{
     Color32, ColorImage, TextureAtlas,
     text::{
-        FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, Galley,
-        GlyphBitmap, GlyphRasterizer, GlyphRasterizerRequest, LayoutJob, LineBreaker,
-        RasterizedGlyph, SimpleLineBreaker, TextOptions, VariationCoords,
+        FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, Galley, GlyphBitmap, GlyphRasterizer, GlyphRasterizerRequest,
+        LayoutJob, LineBreaker, RasterizedGlyph, SimpleLineBreaker, TextOptions, VariationCoords,
         face_store::{FaceStore, FontFaceKey},
         family::{Family, FamilyKey},
         font_face::{FontFace, GlyphInfo, ShapedCluster, ShapedGlyph},
@@ -92,10 +91,7 @@ impl Fonts {
     ///
     /// This call is expensive, so only create one [`Fonts`] and then reuse it.
     pub fn new(options: TextOptions, definitions: FontDefinitions) -> Self {
-        Self {
-            fonts: FontsImpl::new(options, definitions),
-            galley_caches: Default::default(),
-        }
+        Self { fonts: FontsImpl::new(options, definitions), galley_caches: Default::default() }
     }
 
     /// Also use this glyph rasterizer, e.g. the browser on web, or for custom glyphs.
@@ -218,9 +214,7 @@ impl Fonts {
     /// leaving anything laid out with the old ones.
     #[inline]
     pub fn used_since_begin_pass(&self, viewport_key: ViewportKey) -> bool {
-        self.galley_caches
-            .get(&viewport_key)
-            .is_some_and(|cache| cache.used_since_begin_pass)
+        self.galley_caches.get(&viewport_key).is_some_and(|cache| cache.used_since_begin_pass)
     }
 
     /// Call at the end of each frame (before painting) to get the change to the font texture since last call.
@@ -272,16 +266,12 @@ impl Fonts {
     }
 
     pub fn num_galleys_in_cache(&self) -> usize {
-        self.galley_caches
-            .values()
-            .map(|viewport| viewport.cache.num_galleys_in_cache())
-            .sum()
+        self.galley_caches.values().map(|viewport| viewport.cache.num_galleys_in_cache()).sum()
     }
 
     /// Drop cached layouts belonging to viewports that are no longer alive.
     pub fn retain_galley_caches(&mut self, mut keep: impl FnMut(ViewportKey) -> bool) {
-        self.galley_caches
-            .retain(|&viewport_key, _| keep(viewport_key));
+        self.galley_caches.retain(|&viewport_key, _| keep(viewport_key));
     }
 
     /// How full is the font atlas?
@@ -301,16 +291,8 @@ impl Fonts {
     }
 
     /// Lay out text without caching it in the given viewport's cache.
-    pub fn layout_uncached_for_viewport(
-        &mut self,
-        pixels_per_point: f32,
-        viewport_key: ViewportKey,
-        job: Arc<LayoutJob>,
-    ) -> Galley {
-        self.galley_caches
-            .entry(viewport_key)
-            .or_default()
-            .used_since_begin_pass = true;
+    pub fn layout_uncached_for_viewport(&mut self, pixels_per_point: f32, viewport_key: ViewportKey, job: Arc<LayoutJob>) -> Galley {
+        self.galley_caches.entry(viewport_key).or_default().used_since_begin_pass = true;
         layout(&mut self.fonts, pixels_per_point, job)
     }
 
@@ -324,11 +306,7 @@ impl Fonts {
 
     /// Returns a [`FontsView`] with the given `pixels_per_point` for the specified
     /// viewport that can be used to do text layout with a viewport-specific galley cache.
-    pub fn with_pixels_per_point_for_viewport(
-        &mut self,
-        pixels_per_point: f32,
-        viewport_key: ViewportKey,
-    ) -> FontsView<'_> {
+    pub fn with_pixels_per_point_for_viewport(&mut self, pixels_per_point: f32, viewport_key: ViewportKey) -> FontsView<'_> {
         let viewport_cache = self.galley_caches.entry(viewport_key).or_default();
         FontsView {
             fonts: &mut self.fonts,
@@ -441,12 +419,7 @@ impl FontsView<'_> {
     pub fn layout_job(&mut self, job: LayoutJob) -> Arc<Galley> {
         *self.used_since_begin_pass = true;
         let allow_split_paragraphs = true; // Optimization for editing text with many paragraphs.
-        self.galley_cache.layout(
-            self.fonts,
-            self.pixels_per_point,
-            job,
-            allow_split_paragraphs,
-        )
+        self.galley_cache.layout(self.fonts, self.pixels_per_point, job, allow_split_paragraphs)
     }
 
     pub fn num_galleys_in_cache(&self) -> usize {
@@ -465,13 +438,7 @@ impl FontsView<'_> {
     ///
     /// The implementation uses memoization so repeated calls are cheap.
     #[inline]
-    pub fn layout(
-        &mut self,
-        text: String,
-        font_id: FontId,
-        color: Color32,
-        wrap_width: f32,
-    ) -> Arc<Galley> {
+    pub fn layout(&mut self, text: String, font_id: FontId, color: Color32, wrap_width: f32) -> Arc<Galley> {
         let job = LayoutJob::simple(text, font_id, color, wrap_width);
         self.layout_job(job)
     }
@@ -489,12 +456,7 @@ impl FontsView<'_> {
     ///
     /// The implementation uses memoization so repeated calls are cheap.
     #[inline]
-    pub fn layout_delayed_color(
-        &mut self,
-        text: String,
-        font_id: FontId,
-        wrap_width: f32,
-    ) -> Arc<Galley> {
+    pub fn layout_delayed_color(&mut self, text: String, font_id: FontId, wrap_width: f32) -> Arc<Galley> {
         self.layout(text, font_id, Color32::PLACEHOLDER, wrap_width)
     }
 }
@@ -545,10 +507,9 @@ impl FontsImpl {
             font_providers: Default::default(),
             missing_glyph_policy: Default::default(),
             line_breaker: Arc::new(SimpleLineBreaker),
-            synthetic_tofu: GlyphRasterizer::new(
-                "epaint::synthetic_tofu",
-                |request: &GlyphRasterizerRequest<'_>| Some(synthetic_tofu(request.font_size_px)),
-            ),
+            synthetic_tofu: GlyphRasterizer::new("epaint::synthetic_tofu", |request: &GlyphRasterizerRequest<'_>| {
+                Some(synthetic_tofu(request.font_size_px))
+            }),
         };
         slf.set_font_providers(Vec::new());
         slf
@@ -608,9 +569,7 @@ impl FontsImpl {
     /// Is there any [`GlyphRasterizer`] with this priority?
     #[inline]
     pub fn has_glyph_rasterizer(&self, priority: FontPriority) -> bool {
-        self.glyph_rasterizers
-            .iter()
-            .any(|rasterizer| rasterizer.priority == priority)
+        self.glyph_rasterizers.iter().any(|rasterizer| rasterizer.priority == priority)
     }
 
     pub fn options(&self) -> &TextOptions {
@@ -638,8 +597,7 @@ impl FontsImpl {
             return *key;
         }
         let key = FamilyKey(self.families.len());
-        self.families
-            .push(Family::new(family, &mut self.faces, &self.font_providers));
+        self.families.push(Family::new(family, &mut self.faces, &self.font_providers));
         self.family_keys.insert(family.clone(), key);
         key
     }
@@ -673,12 +631,7 @@ impl FontsImpl {
     /// face, which is correct as long as `c` is in that face. For correct
     /// fallback-face advances, resolve the face first with [`Self::resolve_face`]
     /// and build metrics for that face.
-    pub fn glyph_info(
-        &mut self,
-        family: FamilyKey,
-        c: char,
-        metrics: &StyledMetrics,
-    ) -> (FontFaceKey, GlyphInfo) {
+    pub fn glyph_info(&mut self, family: FamilyKey, c: char, metrics: &StyledMetrics) -> (FontFaceKey, GlyphInfo) {
         let face_key = self.resolve_face(family, c);
         let Some(face) = self.faces.get_mut(face_key) else {
             return (face_key, GlyphInfo::INVISIBLE);
@@ -688,30 +641,17 @@ impl FontsImpl {
         }
 
         // `c` is in no face: render the face's `.notdef` glyph ("tofu") instead.
-        let glyph_info = self
-            .faces
-            .get(face_key)
-            .map(|face| face.notdef_glyph_info(metrics))
-            .unwrap_or(GlyphInfo::INVISIBLE);
+        let glyph_info = self.faces.get(face_key).map(|face| face.notdef_glyph_info(metrics)).unwrap_or(GlyphInfo::INVISIBLE);
         (face_key, glyph_info)
     }
 
     /// Metrics of the primary face of the family,
     /// or [`StyledMetrics::without_font`] if the family has no font.
-    pub fn family_metrics(
-        &self,
-        family: FamilyKey,
-        pixels_per_point: f32,
-        font_size: f32,
-        coords: &VariationCoords,
-    ) -> StyledMetrics {
+    pub fn family_metrics(&self, family: FamilyKey, pixels_per_point: f32, font_size: f32, coords: &VariationCoords) -> StyledMetrics {
         self.family(family)
             .primary()
             .and_then(|key| self.faces.get(key))
-            .map_or_else(
-                || StyledMetrics::without_font(pixels_per_point, font_size),
-                |face| face.styled_metrics(pixels_per_point, font_size, coords),
-            )
+            .map_or_else(|| StyledMetrics::without_font(pixels_per_point, font_size), |face| face.styled_metrics(pixels_per_point, font_size, coords))
     }
 
     /// Width of this character in points, at the font's default variation location.
@@ -737,9 +677,7 @@ impl FontsImpl {
     pub fn has_glyph(&mut self, family: &FontFamily, c: char) -> bool {
         let family = self.family_key(family);
         let face_key = self.resolve_face(family, c);
-        self.faces
-            .get_mut(face_key)
-            .is_some_and(|face| face.glyph_id_resolution(c).is_some())
+        self.faces.get_mut(face_key).is_some_and(|face| face.glyph_id_resolution(c).is_some())
     }
 
     /// Do the installed fonts have all the glyphs in this text?
@@ -766,31 +704,19 @@ impl FontsImpl {
     /// Get or render the glyph of a face, and put it in the atlas.
     ///
     /// See [`GlyphAtlas::allocate_outline`].
-    pub fn allocate_glyph(
-        &mut self,
-        face_key: FontFaceKey,
-        metrics: &StyledMetrics,
-        shaped: &ShapedGlyph,
-    ) -> OutlineGlyph {
+    pub fn allocate_glyph(&mut self, face_key: FontFaceKey, metrics: &StyledMetrics, shaped: &ShapedGlyph) -> OutlineGlyph {
         let Some(face) = self.faces.get_mut(face_key) else {
             return Default::default();
         };
-        self.glyphs
-            .allocate_outline(face_key, face, metrics, shaped)
+        self.glyphs.allocate_outline(face_key, face, metrics, shaped)
     }
 
     /// Get or render several glyphs of a face as one bitmap, and put it in the atlas.
     ///
     /// See [`GlyphAtlas::allocate_cluster`].
-    pub fn allocate_cluster(
-        &mut self,
-        face_key: FontFaceKey,
-        metrics: &StyledMetrics,
-        shaped: &ShapedCluster<'_>,
-    ) -> Option<OutlineGlyph> {
+    pub fn allocate_cluster(&mut self, face_key: FontFaceKey, metrics: &StyledMetrics, shaped: &ShapedCluster<'_>) -> Option<OutlineGlyph> {
         let face = self.faces.get_mut(face_key)?;
-        self.glyphs
-            .allocate_cluster(face_key, face, metrics, shaped)
+        self.glyphs.allocate_cluster(face_key, face, metrics, shaped)
     }
 
     /// Rasterize a grapheme cluster using the [`GlyphRasterizer`]s of the given priority.
@@ -808,14 +734,7 @@ impl FontsImpl {
             return None;
         }
         let family_name = self.families[family.0].name();
-        self.glyphs.allocate_raster(
-            &self.glyph_rasterizers,
-            priority,
-            cluster,
-            family_name,
-            pixels_per_point,
-            font_size,
-        )
+        self.glyphs.allocate_raster(&self.glyph_rasterizers, priority, cluster, family_name, pixels_per_point, font_size)
     }
 
     /// Nothing can draw `cluster`: no font, provider, or rasterizer.
@@ -843,30 +762,14 @@ impl FontsImpl {
             "Install a font that has it, add a `FontProvider` or `GlyphRasterizer` that can draw it, \
              or allow tofu with `MissingGlyphPolicy::Tofu`."
         };
-        panic!(
-            "No glyph for {cluster:?} (U+{:04X}) in {:?}. Installed fonts: {faces:?}. {hint}",
-            chr as u32,
-            family.name(),
-        );
+        panic!("No glyph for {cluster:?} (U+{:04X}) in {:?}. Installed fonts: {faces:?}. {hint}", chr as u32, family.name(),);
     }
 
     /// The glyph for `cluster` in a family that has no font at all.
     ///
     /// From a fallback [`GlyphRasterizer`] if one handles it, else a synthetic tofu box.
-    pub fn fontless_cluster(
-        &mut self,
-        family: FamilyKey,
-        cluster: &str,
-        pixels_per_point: f32,
-        font_size: f32,
-    ) -> RasterGlyphAllocation {
-        if let Some(raster) = self.rasterize_cluster(
-            FontPriority::Lowest,
-            family,
-            cluster,
-            pixels_per_point,
-            font_size,
-        ) {
+    pub fn fontless_cluster(&mut self, family: FamilyKey, cluster: &str, pixels_per_point: f32, font_size: f32) -> RasterGlyphAllocation {
+        if let Some(raster) = self.rasterize_cluster(FontPriority::Lowest, family, cluster, pixels_per_point, font_size) {
             return raster;
         }
 
@@ -884,10 +787,7 @@ impl FontsImpl {
             )
             .unwrap_or_else(|| {
                 // Only if the atlas cannot hold a tiny box: advance, but draw nothing.
-                RasterGlyphAllocation {
-                    allocation: GlyphAllocation::default(),
-                    advance_px: 0.0,
-                }
+                RasterGlyphAllocation { allocation: GlyphAllocation::default(), advance_px: 0.0 }
             })
     }
 }
@@ -941,9 +841,8 @@ mod tests {
         let font_id = FontId::proportional(14.0);
 
         fonts.begin_pass(TextOptions::default(), root);
-        let root_galley = fonts
-            .with_pixels_per_point_for_viewport(1.0, root)
-            .layout_no_wrap("root viewport".to_owned(), font_id.clone(), Color32::WHITE);
+        let root_galley =
+            fonts.with_pixels_per_point_for_viewport(1.0, root).layout_no_wrap("root viewport".to_owned(), font_id.clone(), Color32::WHITE);
         assert!(fonts.used_since_begin_pass(root));
 
         // A shared GalleyCache would advance its generation here. When the root
@@ -952,17 +851,14 @@ mod tests {
         fonts.begin_pass(TextOptions::default(), child);
         assert!(fonts.used_since_begin_pass(root));
         assert!(!fonts.used_since_begin_pass(child));
-        fonts
-            .with_pixels_per_point_for_viewport(1.0, child)
-            .layout_no_wrap("child viewport".to_owned(), font_id.clone(), Color32::WHITE);
+        fonts.with_pixels_per_point_for_viewport(1.0, child).layout_no_wrap("child viewport".to_owned(), font_id.clone(), Color32::WHITE);
         assert!(fonts.used_since_begin_pass(child));
 
         fonts.begin_pass(TextOptions::default(), root);
         assert!(!fonts.used_since_begin_pass(root));
         assert!(fonts.used_since_begin_pass(child));
-        let root_galley_next_pass = fonts
-            .with_pixels_per_point_for_viewport(1.0, root)
-            .layout_no_wrap("root viewport".to_owned(), font_id, Color32::WHITE);
+        let root_galley_next_pass =
+            fonts.with_pixels_per_point_for_viewport(1.0, root).layout_no_wrap("root viewport".to_owned(), font_id, Color32::WHITE);
 
         assert!(Arc::ptr_eq(&root_galley, &root_galley_next_pass));
     }

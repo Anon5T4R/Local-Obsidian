@@ -7,12 +7,12 @@ pages, with `.md` drawn as paths. The Android app uses the same drawing (`androi
 
 | File | What it is |
 |---|---|
-| `localobsidian.svg` | the master: the full-bleed 512 px tile (corner radius 100) Windows and Linux use as is |
-| `localobsidian-small.svg` | the small-size variant; used for 16, 20, 24 and 32 px only |
-| `localobsidian-1024.png` | the master at 1024 px, for stores, README and the issue tracker |
+| `localnotebook.svg` | the master: the full-bleed 512 px tile (corner radius 100) Windows and Linux use as is |
+| `localnotebook-small.svg` | the small-size variant; used for 16, 20, 24 and 32 px only |
+| `localnotebook-1024.png` | the master at 1024 px, for stores, README and the issue tracker |
 | `hicolor/<size>x<size>/apps/com.localobsidian.app.png` | the freedesktop icon theme tree (16 to 512 px) and the runtime window icon (256 px) |
 | `hicolor/scalable/apps/com.localobsidian.app.svg` | the scalable theme entry (a copy of the master) |
-| `localobsidian.ico` | the Windows icon: 16, 20, 24, 32, 40, 48, 64, 128 and 256 px, packed by `cargo xtask ico` |
+| `localnotebook.ico` | the Windows icon: 16, 20, 24, 32, 40, 48, 64, 128 and 256 px, packed by `cargo xtask ico` |
 
 Every one of them is generated from the two SVGs by `packaging/icons.sh`; the outputs are
 committed, so building and packaging never need `resvg`.
@@ -30,7 +30,7 @@ white glyph at ~70% of the tile and the "Taylor" signature at the bottom. What i
   so the tile's gradient shows inside the page. `#` is the app's own metadata language (tags,
   headings), not a generic document mark; the `#` box is centred in the page (y 186–326 of 96–416).
 - **A second master for the small sizes.** At 16 px the master's strokes fall under one pixel and
-  the page reads as "a page with lines of text" — which is Local Word's mark. `localobsidian-small.svg`
+  the page reads as "a page with lines of text" — which is Local Word's mark. `localnotebook-small.svg`
   draws the `#` ~40% heavier and wider, so 16–32 px keep a glyph that cannot be mistaken for the
   Word icon. 40 px and up use the master.
 
@@ -41,8 +41,8 @@ packaging/icons.sh              # Linux/macOS (needs resvg; uses segoesc.ttf whe
 ```
 
 On Windows the same steps are `resvg -w N -h N --use-font-file C:\Windows\Fonts\segoesc.ttf
-<src> <out.png>` per size (16/20/24/32 from `localobsidian-small.svg`, the rest from
-`localobsidian.svg`) and then `cargo xtask ico assets/app-icon/localobsidian.ico <the 9 PNGs>`.
+<src> <out.png>` per size (16/20/24/32 from `localnotebook-small.svg`, the rest from
+`localnotebook.svg`) and then `cargo xtask ico assets/app-icon/localnotebook.ico <the 9 PNGs>`.
 
 The signature is Segoe Script: without `--use-font-file` (or with fontdb unable to find the family)
 resvg falls back to another face and the icon stops being deterministic.

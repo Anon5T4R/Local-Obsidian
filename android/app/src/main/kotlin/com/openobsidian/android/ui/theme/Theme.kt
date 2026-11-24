@@ -42,7 +42,7 @@ private val DarkColors = darkColorScheme(
  * - Opts into Material You dynamic color on Android 12+ when [useDynamic] = true.
  */
 @Composable
-fun OpenObsidianTheme(
+fun LocalNotebookTheme(
     darkTheme:  Boolean = isSystemInDarkTheme(),
     useDynamic: Boolean = false,
     content: @Composable () -> Unit,

@@ -27,20 +27,12 @@ impl CCursorRange {
     /// The empty range.
     #[inline]
     pub fn one(ccursor: CCursor) -> Self {
-        Self {
-            primary: ccursor,
-            secondary: ccursor,
-            h_pos: None,
-        }
+        Self { primary: ccursor, secondary: ccursor, h_pos: None }
     }
 
     #[inline]
     pub fn two(min: impl Into<CCursor>, max: impl Into<CCursor>) -> Self {
-        Self {
-            primary: max.into(),
-            secondary: min.into(),
-            h_pos: None,
-        }
+        Self { primary: max.into(), secondary: min.into(), h_pos: None }
     }
 
     /// Select all the text in a galley
@@ -57,10 +49,7 @@ impl CCursorRange {
     /// The range of selected character indices.
     pub fn as_sorted_char_range(&self) -> core::ops::Range<CharIndex> {
         let [start, end] = self.sorted_cursors();
-        core::ops::Range {
-            start: start.index,
-            end: end.index,
-        }
+        core::ops::Range { start: start.index, end: end.index }
     }
 
     /// True if the selected range contains no characters.
@@ -79,11 +68,7 @@ impl CCursorRange {
     /// If there is a selection, None is returned.
     /// If the two ends are the same, that is returned.
     pub fn single(&self) -> Option<CCursor> {
-        if self.is_empty() {
-            Some(self.primary)
-        } else {
-            None
-        }
+        if self.is_empty() { Some(self.primary) } else { None }
     }
 
     #[inline]
@@ -96,11 +81,7 @@ impl CCursorRange {
     /// returns the two ends ordered
     #[inline]
     pub fn sorted_cursors(&self) -> [CCursor; 2] {
-        if self.is_sorted() {
-            [self.primary, self.secondary]
-        } else {
-            [self.secondary, self.primary]
-        }
+        if self.is_sorted() { [self.primary, self.secondary] } else { [self.secondary, self.primary] }
     }
 
     /// The two ends, the one on the left on screen first.
@@ -114,10 +95,7 @@ impl CCursorRange {
         let swap = if min_row == max_row {
             galley.pos_from_cursor(max).min.x < galley.pos_from_cursor(min).min.x
         } else {
-            galley
-                .rows
-                .get(galley.layout_from_cursor(self.primary).row)
-                .is_some_and(|row| row.rtl_paragraph)
+            galley.rows.get(galley.layout_from_cursor(self.primary).row).is_some_and(|row| row.rtl_paragraph)
         };
         if swap { [max, min] } else { [min, max] }
     }
@@ -130,13 +108,7 @@ impl CCursorRange {
     /// Check for key presses that are moving the cursor.
     ///
     /// Returns `true` if we did mutate `self`.
-    pub fn on_key_press(
-        &mut self,
-        os: OperatingSystem,
-        galley: &Galley,
-        modifiers: &Modifiers,
-        key: Key,
-    ) -> bool {
+    pub fn on_key_press(&mut self, os: OperatingSystem, galley: &Galley, modifiers: &Modifiers, key: Key) -> bool {
         match key {
             Key::A if modifiers.command => {
                 *self = Self::select_all(galley);
@@ -149,37 +121,16 @@ impl CCursorRange {
                 true
             }
 
-            Key::ArrowLeft
-            | Key::ArrowRight
-            | Key::ArrowUp
-            | Key::ArrowDown
-            | Key::Home
-            | Key::End => {
-                move_single_cursor(
-                    os,
-                    &mut self.primary,
-                    &mut self.h_pos,
-                    galley,
-                    key,
-                    modifiers,
-                );
+            Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
+                move_single_cursor(os, &mut self.primary, &mut self.h_pos, galley, key, modifiers);
                 if !modifiers.shift {
                     self.secondary = self.primary;
                 }
                 true
             }
 
-            Key::P | Key::N | Key::B | Key::F | Key::A | Key::E
-                if os == OperatingSystem::Mac && modifiers.ctrl && !modifiers.shift =>
-            {
-                move_single_cursor(
-                    os,
-                    &mut self.primary,
-                    &mut self.h_pos,
-                    galley,
-                    key,
-                    modifiers,
-                );
+            Key::P | Key::N | Key::B | Key::F | Key::A | Key::E if os == OperatingSystem::Mac && modifiers.ctrl && !modifiers.shift => {
+                move_single_cursor(os, &mut self.primary, &mut self.h_pos, galley, key, modifiers);
                 self.secondary = self.primary;
                 true
             }
@@ -191,20 +142,9 @@ impl CCursorRange {
     /// Check for events that modify the cursor range.
     ///
     /// Returns `true` if such an event was found and handled.
-    pub fn on_event(
-        &mut self,
-        os: OperatingSystem,
-        event: &Event,
-        galley: &Galley,
-        _widget_id: Id,
-    ) -> bool {
+    pub fn on_event(&mut self, os: OperatingSystem, event: &Event, galley: &Galley, _widget_id: Id) -> bool {
         match event {
-            Event::Key {
-                modifiers,
-                key,
-                pressed: true,
-                ..
-            } => self.on_key_press(os, galley, modifiers, *key),
+            Event::Key { modifiers, key, pressed: true, .. } => self.on_key_press(os, galley, modifiers, *key),
 
             Event::AccessKitActionRequest(accesskit::ActionRequest {
                 action: accesskit::Action::SetTextSelection,
@@ -212,19 +152,11 @@ impl CCursorRange {
                 target_tree,
                 data: Some(accesskit::ActionData::SetTextSelection(selection)),
             }) => {
-                if _widget_id.accesskit_id() == *target_node
-                    && *target_tree == accesskit::TreeId::ROOT
-                {
-                    let primary =
-                        ccursor_from_accesskit_text_position(_widget_id, galley, &selection.focus);
-                    let secondary =
-                        ccursor_from_accesskit_text_position(_widget_id, galley, &selection.anchor);
+                if _widget_id.accesskit_id() == *target_node && *target_tree == accesskit::TreeId::ROOT {
+                    let primary = ccursor_from_accesskit_text_position(_widget_id, galley, &selection.focus);
+                    let secondary = ccursor_from_accesskit_text_position(_widget_id, galley, &selection.anchor);
                     if let (Some(primary), Some(secondary)) = (primary, secondary) {
-                        *self = Self {
-                            primary,
-                            secondary,
-                            h_pos: None,
-                        };
+                        *self = Self { primary, secondary, h_pos: None };
                         return true;
                     }
                 }
@@ -238,11 +170,7 @@ impl CCursorRange {
 
 // ----------------------------------------------------------------------------
 
-pub(super) fn ccursor_from_accesskit_text_position(
-    id: Id,
-    galley: &Galley,
-    position: &accesskit::TextPosition,
-) -> Option<CCursor> {
+pub(super) fn ccursor_from_accesskit_text_position(id: Id, galley: &Galley, position: &accesskit::TextPosition) -> Option<CCursor> {
     use super::accesskit_text::row_text_runs;
 
     let mut total_length = 0usize;
@@ -255,15 +183,10 @@ pub(super) fn ccursor_from_accesskit_text_position(
             let run_id = id.with(i).with(run_index);
             if run_id.accesskit_id() == position.node {
                 let column = run.start + position.character_index;
-                let at_wrap = column == row.glyphs.len()
-                    && !row.ends_with_newline
-                    && (i + 1) < galley.rows.len();
+                let at_wrap = column == row.glyphs.len() && !row.ends_with_newline && (i + 1) < galley.rows.len();
                 // The end of a run that another run follows on this row sticks to the char before it:
                 let at_run_end = column == run.end && run_index + 1 < num_runs;
-                return Some(CCursor {
-                    index: CharIndex(total_length + column),
-                    prefer_next_row: !(at_wrap || at_run_end),
-                });
+                return Some(CCursor { index: CharIndex(total_length + column), prefer_next_row: !(at_wrap || at_run_end) });
             }
         }
 
@@ -275,86 +198,78 @@ pub(super) fn ccursor_from_accesskit_text_position(
 // ----------------------------------------------------------------------------
 
 /// Move a text cursor based on keyboard
-fn move_single_cursor(
-    os: OperatingSystem,
-    cursor: &mut CCursor,
-    h_pos: &mut Option<f32>,
-    galley: &Galley,
-    key: Key,
-    modifiers: &Modifiers,
-) {
-    let (new_cursor, new_h_pos) =
-        if os == OperatingSystem::Mac && modifiers.ctrl && !modifiers.shift {
-            match key {
-                Key::A => (galley.cursor_begin_of_row(cursor), None),
-                Key::E => (galley.cursor_end_of_row(cursor), None),
-                Key::P => galley.cursor_up_one_row(cursor, *h_pos),
-                Key::N => galley.cursor_down_one_row(cursor, *h_pos),
-                // Backward and forward in logical order, as in Cocoa's `moveBackward:` and `moveForward:`:
-                Key::B => (galley.cursor_left_one_character(cursor), None),
-                Key::F => (galley.cursor_right_one_character(cursor), None),
-                _ => return,
+fn move_single_cursor(os: OperatingSystem, cursor: &mut CCursor, h_pos: &mut Option<f32>, galley: &Galley, key: Key, modifiers: &Modifiers) {
+    let (new_cursor, new_h_pos) = if os == OperatingSystem::Mac && modifiers.ctrl && !modifiers.shift {
+        match key {
+            Key::A => (galley.cursor_begin_of_row(cursor), None),
+            Key::E => (galley.cursor_end_of_row(cursor), None),
+            Key::P => galley.cursor_up_one_row(cursor, *h_pos),
+            Key::N => galley.cursor_down_one_row(cursor, *h_pos),
+            // Backward and forward in logical order, as in Cocoa's `moveBackward:` and `moveForward:`:
+            Key::B => (galley.cursor_left_one_character(cursor), None),
+            Key::F => (galley.cursor_right_one_character(cursor), None),
+            _ => return,
+        }
+    } else {
+        match key {
+            // Left and right move on screen, also in right-to-left text:
+            Key::ArrowLeft => {
+                if modifiers.alt || modifiers.ctrl {
+                    // alt on mac, ctrl on windows
+                    (galley.cursor_word_left_visually(cursor), None)
+                } else if modifiers.mac_cmd {
+                    (galley.cursor_left_end_of_row(cursor), None)
+                } else {
+                    (galley.cursor_left_visually(cursor), None)
+                }
             }
-        } else {
-            match key {
-                // Left and right move on screen, also in right-to-left text:
-                Key::ArrowLeft => {
-                    if modifiers.alt || modifiers.ctrl {
-                        // alt on mac, ctrl on windows
-                        (galley.cursor_word_left_visually(cursor), None)
-                    } else if modifiers.mac_cmd {
-                        (galley.cursor_left_end_of_row(cursor), None)
-                    } else {
-                        (galley.cursor_left_visually(cursor), None)
-                    }
+            Key::ArrowRight => {
+                if modifiers.alt || modifiers.ctrl {
+                    // alt on mac, ctrl on windows
+                    (galley.cursor_word_right_visually(cursor), None)
+                } else if modifiers.mac_cmd {
+                    (galley.cursor_right_end_of_row(cursor), None)
+                } else {
+                    (galley.cursor_right_visually(cursor), None)
                 }
-                Key::ArrowRight => {
-                    if modifiers.alt || modifiers.ctrl {
-                        // alt on mac, ctrl on windows
-                        (galley.cursor_word_right_visually(cursor), None)
-                    } else if modifiers.mac_cmd {
-                        (galley.cursor_right_end_of_row(cursor), None)
-                    } else {
-                        (galley.cursor_right_visually(cursor), None)
-                    }
-                }
-                Key::ArrowUp => {
-                    if modifiers.command {
-                        // mac and windows behavior
-                        (galley.begin(), None)
-                    } else {
-                        galley.cursor_up_one_row(cursor, *h_pos)
-                    }
-                }
-                Key::ArrowDown => {
-                    if modifiers.command {
-                        // mac and windows behavior
-                        (galley.end(), None)
-                    } else {
-                        galley.cursor_down_one_row(cursor, *h_pos)
-                    }
-                }
-
-                Key::Home => {
-                    if modifiers.ctrl {
-                        // windows behavior
-                        (galley.begin(), None)
-                    } else {
-                        (galley.cursor_begin_of_row(cursor), None)
-                    }
-                }
-                Key::End => {
-                    if modifiers.ctrl {
-                        // windows behavior
-                        (galley.end(), None)
-                    } else {
-                        (galley.cursor_end_of_row(cursor), None)
-                    }
-                }
-
-                _ => unreachable!(),
             }
-        };
+            Key::ArrowUp => {
+                if modifiers.command {
+                    // mac and windows behavior
+                    (galley.begin(), None)
+                } else {
+                    galley.cursor_up_one_row(cursor, *h_pos)
+                }
+            }
+            Key::ArrowDown => {
+                if modifiers.command {
+                    // mac and windows behavior
+                    (galley.end(), None)
+                } else {
+                    galley.cursor_down_one_row(cursor, *h_pos)
+                }
+            }
+
+            Key::Home => {
+                if modifiers.ctrl {
+                    // windows behavior
+                    (galley.begin(), None)
+                } else {
+                    (galley.cursor_begin_of_row(cursor), None)
+                }
+            }
+            Key::End => {
+                if modifiers.ctrl {
+                    // windows behavior
+                    (galley.end(), None)
+                } else {
+                    (galley.cursor_end_of_row(cursor), None)
+                }
+            }
+
+            _ => unreachable!(),
+        }
+    };
 
     *cursor = new_cursor;
     *h_pos = new_h_pos;
@@ -373,11 +288,7 @@ mod tests {
 
     fn galley(text: &str) -> Arc<Galley> {
         let mut fonts = Fonts::new(TextOptions::default(), FontDefinitions::default());
-        fonts.with_pixels_per_point(1.0).layout_no_wrap(
-            text.to_owned(),
-            FontId::proportional(14.0),
-            Color32::WHITE,
-        )
+        fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(14.0), Color32::WHITE)
     }
 
     fn press(range: &mut CCursorRange, galley: &Galley, modifiers: Modifiers, key: Key) {
@@ -406,10 +317,7 @@ mod tests {
     fn arrows_collapse_a_selection_to_its_end_on_screen() {
         let galley = galley("abc אבג def");
         // The Hebrew word, from the right of "א" to the left of "ג":
-        let before_alef = CCursor {
-            prefer_next_row: true,
-            ..CCursor::new(4)
-        };
+        let before_alef = CCursor { prefer_next_row: true, ..CCursor::new(4) };
         let after_gimel = CCursor::new(7);
         let hebrew = CCursorRange::two(before_alef, after_gimel);
         assert_eq!(hebrew.as_sorted_char_range(), CharIndex(4)..CharIndex(7));

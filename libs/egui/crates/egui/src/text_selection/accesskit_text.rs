@@ -22,9 +22,7 @@ pub(crate) fn row_text_runs(row: &PlacedRow) -> Vec<Range<usize>> {
     let mut runs = Vec::new();
     let mut start = 0;
     for i in 1..glyph_count {
-        if row.glyphs[i].bidi_level != row.glyphs[i - 1].bidi_level
-            || i - start == MAX_CHARS_PER_TEXT_RUN
-        {
+        if row.glyphs[i].bidi_level != row.glyphs[i - 1].bidi_level || i - start == MAX_CHARS_PER_TEXT_RUN {
             runs.push(start..i);
             start = i;
         }
@@ -46,30 +44,15 @@ fn text_run_id(parent_id: Id, row: usize, run: usize) -> Id {
 /// A column on the boundary between two runs is the start of the second run when the cursor
 /// sticks to the char after it (`prefer_next_row`), and the end of the first one otherwise,
 /// so the position names the run edge the cursor is drawn at.
-fn text_run_position(
-    parent_id: Id,
-    galley: &Galley,
-    row: usize,
-    column: CharIndex,
-    prefer_next_row: bool,
-) -> accesskit::TextPosition {
+fn text_run_position(parent_id: Id, galley: &Galley, row: usize, column: CharIndex, prefer_next_row: bool) -> accesskit::TextPosition {
     let column = column.0;
     let runs = galley.rows.get(row).map(row_text_runs).unwrap_or_default();
     let run_index = runs
         .iter()
-        .position(|run| {
-            if prefer_next_row {
-                column < run.end
-            } else {
-                column <= run.end
-            }
-        })
+        .position(|run| if prefer_next_row { column < run.end } else { column <= run.end })
         .unwrap_or_else(|| runs.len().saturating_sub(1));
     let run_start = runs.get(run_index).map_or(0, |run| run.start);
-    accesskit::TextPosition {
-        node: text_run_id(parent_id, row, run_index).accesskit_id(),
-        character_index: column - run_start,
-    }
+    accesskit::TextPosition { node: text_run_id(parent_id, row, run_index).accesskit_id(), character_index: column - run_start }
 }
 
 /// Update accesskit with the current text state.
@@ -96,20 +79,8 @@ pub fn update_accesskit_for_text_widget(
             let anchor = galley.layout_from_cursor(cursor_range.secondary);
             let focus = galley.layout_from_cursor(cursor_range.primary);
             builder.set_text_selection(accesskit::TextSelection {
-                anchor: text_run_position(
-                    parent_id,
-                    galley,
-                    anchor.row,
-                    anchor.column,
-                    cursor_range.secondary.prefer_next_row,
-                ),
-                focus: text_run_position(
-                    parent_id,
-                    galley,
-                    focus.row,
-                    focus.column,
-                    cursor_range.primary.prefer_next_row,
-                ),
+                anchor: text_run_position(parent_id, galley, anchor.row, anchor.column, cursor_range.secondary.prefer_next_row),
+                focus: text_run_position(parent_id, galley, focus.row, focus.column, cursor_range.primary.prefer_next_row),
             });
         }
 
@@ -148,11 +119,7 @@ pub fn update_accesskit_for_text_widget(
             let (x0, x1) = if glyphs.is_empty() {
                 (row_rect.min.x - row.pos.x, row_rect.max.x - row.pos.x)
             } else {
-                glyphs
-                    .iter()
-                    .fold((f32::INFINITY, f32::NEG_INFINITY), |(x0, x1), glyph| {
-                        (x0.min(glyph.pos.x), x1.max(glyph.max_x()))
-                    })
+                glyphs.iter().fold((f32::INFINITY, f32::NEG_INFINITY), |(x0, x1), glyph| (x0.min(glyph.pos.x), x1.max(glyph.max_x())))
             };
 
             let mut value = String::with_capacity(run.len());
@@ -163,11 +130,7 @@ pub fn update_accesskit_for_text_widget(
                 let old_len = value.len();
                 value.push(glyph.chr);
                 character_lengths.push((value.len() - old_len) as _);
-                character_positions.push(if is_rtl {
-                    x1 - glyph.max_x()
-                } else {
-                    glyph.pos.x - x0
-                });
+                character_positions.push(if is_rtl { x1 - glyph.max_x() } else { glyph.pos.x - x0 });
                 character_widths.push(glyph.advance_width);
             }
             if glyphs.len() < run.len() {
@@ -183,11 +146,7 @@ pub fn update_accesskit_for_text_widget(
 
             ctx.accesskit_node_builder(run_id, |builder| {
                 builder.set_role(accesskit::Role::TextRun);
-                builder.set_text_direction(if is_rtl {
-                    accesskit::TextDirection::RightToLeft
-                } else {
-                    accesskit::TextDirection::LeftToRight
-                });
+                builder.set_text_direction(if is_rtl { accesskit::TextDirection::RightToLeft } else { accesskit::TextDirection::LeftToRight });
                 // TODO(mwcampbell): Set more node fields for the row
                 // once AccessKit adapters expose text formatting info.
 
@@ -200,27 +159,15 @@ pub fn update_accesskit_for_text_widget(
                     builder.set_next_on_line(next_id.accesskit_id());
                 }
 
-                let run_rect = emath::Rect::from_min_max(
-                    emath::pos2(row.pos.x + x0, row_rect.min.y),
-                    emath::pos2(row.pos.x + x1, row_rect.max.y),
-                );
+                let run_rect = emath::Rect::from_min_max(emath::pos2(row.pos.x + x0, row_rect.min.y), emath::pos2(row.pos.x + x1, row_rect.max.y));
                 let rect = global_from_galley * run_rect;
-                builder.set_bounds(accesskit::Rect {
-                    x0: rect.min.x.into(),
-                    y0: rect.min.y.into(),
-                    x1: rect.max.x.into(),
-                    y1: rect.max.y.into(),
-                });
+                builder.set_bounds(accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() });
                 builder.set_value(value);
                 builder.set_character_lengths(character_lengths);
                 builder.set_character_positions(character_positions);
                 builder.set_character_widths(character_widths);
 
-                let run_word_starts: Vec<u8> = word_starts
-                    .iter()
-                    .filter(|&&ws| run.contains(&ws))
-                    .map(|&ws| (ws - run.start) as u8)
-                    .collect();
+                let run_word_starts: Vec<u8> = word_starts.iter().filter(|&&ws| run.contains(&ws)).map(|&ws| (ws - run.start) as u8).collect();
                 builder.set_word_starts(run_word_starts);
             });
         }
@@ -241,19 +188,11 @@ mod tests {
         ctx.enable_accesskit();
         let mut output = ctx.run_ui(RawInput::default(), |ui| add_contents(ui));
         output.textures_delta.clear();
-        output
-            .platform_output
-            .accesskit_update
-            .expect("Missing accesskit update")
+        output.platform_output.accesskit_update.expect("Missing accesskit update")
     }
 
     fn node(update: &TreeUpdate, id: NodeId) -> &Node {
-        &update
-            .nodes
-            .iter()
-            .find(|(node_id, _)| *node_id == id)
-            .unwrap()
-            .1
+        &update.nodes.iter().find(|(node_id, _)| *node_id == id).unwrap().1
     }
 
     fn label<'a>(update: &'a TreeUpdate, text: &str) -> &'a Node {
@@ -272,12 +211,7 @@ mod tests {
             .iter()
             .map(|&id| node(update, id))
             .filter(|run| run.role() == Role::TextRun)
-            .map(|run| {
-                (
-                    run.value().unwrap().to_owned(),
-                    run.text_direction().unwrap(),
-                )
-            })
+            .map(|run| (run.value().unwrap().to_owned(), run.text_direction().unwrap()))
             .collect()
     }
 
@@ -297,27 +231,13 @@ mod tests {
 
         let root = node(&update, update.tree.as_ref().unwrap().root);
         assert_eq!(root.language(), Some("ar"));
-        assert_eq!(
-            label(&update, "مرحبا").language(),
-            None,
-            "inherits the root's"
-        );
+        assert_eq!(label(&update, "مرحبا").language(), None, "inherits the root's");
         assert_eq!(label(&update, "Bonjour").language(), Some("fr"));
 
         let hebrew = label(&update, "שלום").language();
         assert_eq!(hebrew, None, "inherits its Ui's");
-        let hebrew_id = update
-            .nodes
-            .iter()
-            .find(|(_, node)| node.value() == Some("שלום"))
-            .unwrap()
-            .0;
-        let scope = &update
-            .nodes
-            .iter()
-            .find(|(_, node)| node.children().contains(&hebrew_id))
-            .unwrap()
-            .1;
+        let hebrew_id = update.nodes.iter().find(|(_, node)| node.value() == Some("שלום")).unwrap().0;
+        let scope = &update.nodes.iter().find(|(_, node)| node.children().contains(&hebrew_id)).unwrap().1;
         assert_eq!(scope.language(), Some("he"));
     }
 
@@ -331,10 +251,7 @@ mod tests {
             ui.label(mixed);
         });
 
-        assert_eq!(
-            runs(&update, arabic),
-            [(arabic.to_owned(), TextDirection::RightToLeft)]
-        );
+        assert_eq!(runs(&update, arabic), [(arabic.to_owned(), TextDirection::RightToLeft)]);
         assert_eq!(
             runs(&update, mixed),
             [
@@ -354,11 +271,7 @@ mod tests {
         assert!(positions[0].abs() < 0.01, "{positions:?}");
         assert!(positions.is_sorted(), "{positions:?}");
         let end = positions.last().unwrap() + widths.last().unwrap();
-        assert!(
-            (f64::from(end) - bounds.width()).abs() < 0.01,
-            "{end} vs {}",
-            bounds.width()
-        );
+        assert!((f64::from(end) - bounds.width()).abs() < 0.01, "{end} vs {}", bounds.width());
 
         // Runs on one line link to each other in logical order:
         let ids = label(&update, mixed).children();
@@ -372,33 +285,17 @@ mod tests {
         let id = Id::unique("text");
         accesskit_update(&ctx, |ui| {
             let text = "abc אבג 12 def\nשלום";
-            let galley = ui.painter().layout_no_wrap(
-                text.to_owned(),
-                FontId::proportional(14.0),
-                Color32::WHITE,
-            );
+            let galley = ui.painter().layout_no_wrap(text.to_owned(), FontId::proportional(14.0), Color32::WHITE);
             assert!(row_text_runs(&galley.rows[0]).len() >= 3);
             for index in 0..=text.chars().count() {
                 for prefer_next_row in [false, true] {
-                    let cursor = CCursor {
-                        index: epaint::text::CharIndex(index),
-                        prefer_next_row,
-                    };
+                    let cursor = CCursor { index: epaint::text::CharIndex(index), prefer_next_row };
                     let layout = galley.layout_from_cursor(cursor);
-                    let position =
-                        text_run_position(id, &galley, layout.row, layout.column, prefer_next_row);
-                    let back =
-                        crate::text_selection::cursor_range::ccursor_from_accesskit_text_position(
-                            id, &galley, &position,
-                        )
-                        .unwrap();
+                    let position = text_run_position(id, &galley, layout.row, layout.column, prefer_next_row);
+                    let back = crate::text_selection::cursor_range::ccursor_from_accesskit_text_position(id, &galley, &position).unwrap();
                     assert_eq!(back.index, cursor.index, "{position:?}");
                     // Where the direction changes, the caret stays at the same run edge:
-                    assert_eq!(
-                        galley.pos_from_cursor(back),
-                        galley.pos_from_cursor(cursor),
-                        "{cursor:?} {position:?}"
-                    );
+                    assert_eq!(galley.pos_from_cursor(back), galley.pos_from_cursor(cursor), "{cursor:?} {position:?}");
                 }
             }
         });

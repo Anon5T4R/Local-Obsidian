@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regenerate every app icon file from assets/app-icon/localobsidian.svg (and its small-size
-# variant, localobsidian-small.svg).
+# Regenerate every app icon file from assets/app-icon/localnotebook.svg (and its small-size
+# variant, localnotebook-small.svg).
 #
 # Needs: resvg (brew install resvg / cargo install resvg). The outputs are committed, so building
 # and packaging never need these tools.
@@ -13,8 +13,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR="$ROOT/assets/app-icon"
-SVG="$DIR/localobsidian.svg"
-SMALL="$DIR/localobsidian-small.svg"
+SVG="$DIR/localnotebook.svg"
+SMALL="$DIR/localnotebook-small.svg"
 ID="com.localobsidian.app"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -38,7 +38,7 @@ source_for() {
   if [ "$1" -le 32 ]; then echo "$SMALL"; else echo "$SVG"; fi
 }
 
-render "$SVG" 1024 "$DIR/localobsidian-1024.png"
+render "$SVG" 1024 "$DIR/localnotebook-1024.png"
 
 # Linux hicolor theme (also the runtime window icon on Windows and Linux: 256x256).
 for s in 16 24 32 48 64 128 256 512; do
@@ -54,6 +54,6 @@ for s in 16 20 24 32 40 48 64 128 256; do
   render "$(source_for "$s")" "$s" "$TMP/ico-$s.png"
   ICO_PNGS+=("$TMP/ico-$s.png")
 done
-(cd "$ROOT" && cargo run -q -p xtask -- ico "$DIR/localobsidian.ico" "${ICO_PNGS[@]}")
+(cd "$ROOT" && cargo run -q -p xtask -- ico "$DIR/localnotebook.ico" "${ICO_PNGS[@]}")
 
 echo "icons written to $DIR"

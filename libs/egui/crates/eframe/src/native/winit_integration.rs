@@ -46,13 +46,8 @@ pub enum PassMode {
 pub fn create_egui_context(storage: Option<&dyn crate::Storage>) -> egui::Context {
     profiling::function_scope!();
 
-    pub const IS_DESKTOP: bool = cfg!(any(
-        target_os = "freebsd",
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "openbsd",
-        target_os = "windows",
-    ));
+    pub const IS_DESKTOP: bool =
+        cfg!(any(target_os = "freebsd", target_os = "linux", target_os = "macos", target_os = "openbsd", target_os = "windows",));
 
     let egui_ctx = egui::Context::default();
 
@@ -110,12 +105,7 @@ pub trait WinitApp {
 
     fn save_and_destroy(&mut self);
 
-    fn run_ui_and_paint(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
-        mode: PassMode,
-    ) -> crate::Result<EventResult>;
+    fn run_ui_and_paint(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, mode: PassMode) -> crate::Result<EventResult>;
 
     fn suspended(&mut self, event_loop: &ActiveEventLoop) -> crate::Result<EventResult>;
 
@@ -128,12 +118,7 @@ pub trait WinitApp {
         event: winit::event::DeviceEvent,
     ) -> crate::Result<EventResult>;
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
-        event: winit::event::WindowEvent,
-    ) -> crate::Result<EventResult>;
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: winit::event::WindowEvent) -> crate::Result<EventResult>;
 
     #[cfg(feature = "accesskit")]
     fn on_accesskit_event(&mut self, event: accesskit_winit::Event) -> crate::Result<EventResult>;

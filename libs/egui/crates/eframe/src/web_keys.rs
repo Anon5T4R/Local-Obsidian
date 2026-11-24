@@ -9,9 +9,7 @@
 /// Length alone doesn't decide: some keys type several characters (Arabic keyboards type `لا`
 /// with one key).
 pub fn is_named_key(key: &str) -> bool {
-    key.len() > 1
-        && key.starts_with(|c: char| c.is_ascii_uppercase())
-        && key.bytes().all(|b| b.is_ascii_alphanumeric())
+    key.len() > 1 && key.starts_with(|c: char| c.is_ascii_uppercase()) && key.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
 /// The text typed by a key press with this `KeyboardEvent.key` value, if any.
@@ -22,11 +20,7 @@ pub fn text_from_key(key: &str) -> Option<&str> {
 /// The letter key for a `KeyboardEvent.code` value `KeyA` … `KeyZ`.
 fn letter_for_code(code: &str) -> Option<egui::Key> {
     let letter = code.strip_prefix("Key")?;
-    if letter.len() == 1 && letter.bytes().all(|b| b.is_ascii_uppercase()) {
-        egui::Key::from_name(letter)
-    } else {
-        None
-    }
+    if letter.len() == 1 && letter.bytes().all(|b| b.is_ascii_uppercase()) { egui::Key::from_name(letter) } else { None }
 }
 
 /// Whether a layout is Latin, from the characters its keys `KeyA` … `KeyZ` type.
@@ -145,21 +139,13 @@ impl KeyResolver {
         {
             self.pressed.insert(code.to_owned(), logical_key);
         }
-        KeyDown {
-            key: logical_key,
-            physical_key,
-            query_layout_map,
-        }
+        KeyDown { key: logical_key, physical_key, query_layout_map }
     }
 
     /// Resolve a `keyup`: the logical key and the physical key.
     pub fn key_up(&mut self, key: &str, code: &str) -> (Option<egui::Key>, Option<egui::Key>) {
         let physical_key = egui::Key::from_name(code);
-        let logical_key = self
-            .pressed
-            .remove(code)
-            .or_else(|| self.resolve(key, code))
-            .or(physical_key);
+        let logical_key = self.pressed.remove(code).or_else(|| self.resolve(key, code)).or(physical_key);
         (logical_key, physical_key)
     }
 
@@ -212,38 +198,24 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn printable_keys_are_text() {
-        for key in [
-            "a", "A", "F", "1", " ", "/", "é", "ф", "Ж", "ש", "ب", "لا", "λ", "ß", "😀",
-        ] {
+        for key in ["a", "A", "F", "1", " ", "/", "é", "ф", "Ж", "ש", "ب", "لا", "λ", "ß", "😀"] {
             assert_eq!(text_from_key(key), Some(key), "{key:?}");
         }
     }
 
     /// What `KeyA` … `KeyZ` type on each layout, without modifiers.
-    const RUSSIAN: [&str; 26] = [
-        "ф", "и", "с", "в", "у", "а", "п", "р", "ш", "о", "л", "д", "ь", "т", "щ", "з", "й", "к",
-        "ы", "е", "г", "м", "ц", "ч", "н", "я",
-    ];
-    const ARABIC: [&str; 26] = [
-        "ش", "لا", "ؤ", "ي", "ث", "ب", "ل", "ا", "ه", "ت", "ن", "م", "ة", "ى", "خ", "ح", "ض", "ق",
-        "س", "ف", "ع", "ر", "ص", "ء", "غ", "ئ",
-    ];
-    const HEBREW: [&str; 26] = [
-        "ש", "נ", "ב", "ג", "ק", "כ", "ע", "י", "ן", "ח", "ל", "ך", "צ", "מ", "ם", "פ", "/", "ר",
-        "ד", "א", "ו", "ה", "'", "ס", "ט", "ז",
-    ];
-    const GREEK: [&str; 26] = [
-        "α", "β", "ψ", "δ", "ε", "φ", "γ", "η", "ι", "ξ", "κ", "λ", "μ", "ν", "ο", "π", ";", "ρ",
-        "σ", "τ", "θ", "ω", "ς", "χ", "υ", "ζ",
-    ];
-    const DVORAK: [&str; 26] = [
-        "a", "x", "j", "e", ".", "u", "i", "d", "c", "h", "t", "n", "m", "b", "r", "l", "'", "p",
-        "o", "y", "g", "k", ",", "q", "f", ";",
-    ];
-    const AZERTY: [&str; 26] = [
-        "q", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", ",", "n", "o", "p", "a", "r",
-        "s", "t", "u", "v", "z", "x", "y", "w",
-    ];
+    const RUSSIAN: [&str; 26] =
+        ["ф", "и", "с", "в", "у", "а", "п", "р", "ш", "о", "л", "д", "ь", "т", "щ", "з", "й", "к", "ы", "е", "г", "м", "ц", "ч", "н", "я"];
+    const ARABIC: [&str; 26] =
+        ["ش", "لا", "ؤ", "ي", "ث", "ب", "ل", "ا", "ه", "ت", "ن", "م", "ة", "ى", "خ", "ح", "ض", "ق", "س", "ف", "ع", "ر", "ص", "ء", "غ", "ئ"];
+    const HEBREW: [&str; 26] =
+        ["ש", "נ", "ב", "ג", "ק", "כ", "ע", "י", "ן", "ח", "ל", "ך", "צ", "מ", "ם", "פ", "/", "ר", "ד", "א", "ו", "ה", "'", "ס", "ט", "ז"];
+    const GREEK: [&str; 26] =
+        ["α", "β", "ψ", "δ", "ε", "φ", "γ", "η", "ι", "ξ", "κ", "λ", "μ", "ν", "ο", "π", ";", "ρ", "σ", "τ", "θ", "ω", "ς", "χ", "υ", "ζ"];
+    const DVORAK: [&str; 26] =
+        ["a", "x", "j", "e", ".", "u", "i", "d", "c", "h", "t", "n", "m", "b", "r", "l", "'", "p", "o", "y", "g", "k", ",", "q", "f", ";"];
+    const AZERTY: [&str; 26] =
+        ["q", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", ",", "n", "o", "p", "a", "r", "s", "t", "u", "v", "z", "x", "y", "w"];
 
     const LAYOUTS: [(&str, [&str; 26], bool); 6] = [
         ("Russian", RUSSIAN, false),
@@ -269,12 +241,7 @@ mod tests {
             .collect()
     }
 
-    fn assert_resolves_like(
-        name: &str,
-        resolver: &mut KeyResolver,
-        layout: &[&str; 26],
-        latin: bool,
-    ) {
+    fn assert_resolves_like(name: &str, resolver: &mut KeyResolver, layout: &[&str; 26], latin: bool) {
         for (i, key) in resolved(resolver, layout).into_iter().enumerate() {
             let expected = if latin {
                 // Letters as typed; punctuation as typed (Dvorak `KeyQ` is `'`).
@@ -325,10 +292,7 @@ mod tests {
         assert_eq!(down.key, Some(egui::Key::Q));
         assert_eq!(down.physical_key, Some(egui::Key::Q));
         // Digits and punctuation keys still resolve as typed.
-        assert_eq!(
-            resolver.key_down(".", "Slash", false).key,
-            Some(egui::Key::Period)
-        );
+        assert_eq!(resolver.key_down(".", "Slash", false).key, Some(egui::Key::Period));
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -379,10 +343,7 @@ mod tests {
     fn key_up_releases_the_key_pressed() {
         let mut resolver = KeyResolver::default();
         resolver.set_layout_map(HEBREW);
-        assert_eq!(
-            resolver.key_down("/", "KeyQ", false).key,
-            Some(egui::Key::Q)
-        );
+        assert_eq!(resolver.key_down("/", "KeyQ", false).key, Some(egui::Key::Q));
 
         // The user switches to a Latin layout while holding the key.
         resolver.set_layout_map(DVORAK);

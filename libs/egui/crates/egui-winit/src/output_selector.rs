@@ -53,16 +53,10 @@ pub(crate) fn select_clipboard_commands(commands: &[OutputCommand]) -> OutputSel
     for (index, command) in commands.iter().enumerate() {
         match command {
             OutputCommand::CopyText(_) => {
-                selection.regular = Some(SelectedRegular {
-                    index,
-                    kind: RegularClipboardKind::Text,
-                });
+                selection.regular = Some(SelectedRegular { index, kind: RegularClipboardKind::Text });
             }
             OutputCommand::CopyImage(_) => {
-                selection.regular = Some(SelectedRegular {
-                    index,
-                    kind: RegularClipboardKind::Image,
-                });
+                selection.regular = Some(SelectedRegular { index, kind: RegularClipboardKind::Image });
             }
             OutputCommand::TextSelectionSettled(_) => {
                 selection.primary = Some(index);
@@ -113,10 +107,7 @@ mod tests {
         assert_eq!(output.platform_output.num_completed_passes, 2);
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selected_text(&output.platform_output.commands, selection),
-            "first pass"
-        );
+        assert_eq!(selected_text(&output.platform_output.commands, selection), "first pass");
         assert_eq!(selection.primary, None);
         output.drop_without_applying_deltas();
     }
@@ -135,10 +126,7 @@ mod tests {
         assert_eq!(pass, 2);
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selected_text(&output.platform_output.commands, selection),
-            "pass 1"
-        );
+        assert_eq!(selected_text(&output.platform_output.commands, selection), "pass 1");
         output.drop_without_applying_deltas();
     }
 
@@ -157,17 +145,8 @@ mod tests {
         assert_eq!(pass, 2);
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selection.regular,
-            Some(SelectedRegular {
-                index: 1,
-                kind: RegularClipboardKind::Text,
-            })
-        );
-        assert_eq!(
-            selected_text(&output.platform_output.commands, selection),
-            "text after image"
-        );
+        assert_eq!(selection.regular, Some(SelectedRegular { index: 1, kind: RegularClipboardKind::Text }));
+        assert_eq!(selected_text(&output.platform_output.commands, selection), "text after image");
         output.drop_without_applying_deltas();
     }
 
@@ -181,13 +160,7 @@ mod tests {
         });
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selection.regular,
-            Some(SelectedRegular {
-                index: 1,
-                kind: RegularClipboardKind::Image,
-            })
-        );
+        assert_eq!(selection.regular, Some(SelectedRegular { index: 1, kind: RegularClipboardKind::Image }));
         output.drop_without_applying_deltas();
     }
 
@@ -201,14 +174,8 @@ mod tests {
         });
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selection.regular.map(|regular| regular.kind),
-            Some(RegularClipboardKind::Text)
-        );
-        assert_eq!(
-            selected_text(&output.platform_output.commands, selection),
-            ""
-        );
+        assert_eq!(selection.regular.map(|regular| regular.kind), Some(RegularClipboardKind::Text));
+        assert_eq!(selected_text(&output.platform_output.commands, selection), "");
         output.drop_without_applying_deltas();
     }
 
@@ -228,11 +195,7 @@ mod tests {
         assert_eq!(pass, 2);
 
         let selection = select_clipboard_commands(&output.platform_output.commands);
-        assert_eq!(
-            selected_text(&output.platform_output.commands, selection),
-            "status",
-            "last emitted command wins regardless of pass or trigger"
-        );
+        assert_eq!(selected_text(&output.platform_output.commands, selection), "status", "last emitted command wins regardless of pass or trigger");
         output.drop_without_applying_deltas();
     }
 
@@ -241,29 +204,17 @@ mod tests {
         let ctx = Context::default();
         ctx.set_fonts(FontDefinitions::empty());
         let output = ctx.run_ui(RawInput::default(), |ui| {
-            ui.ctx()
-                .send_cmd(OutputCommand::TextSelectionSettled("first".to_owned()));
-            ui.ctx()
-                .open_url(OpenUrl::same_tab("https://example.com/one"));
+            ui.ctx().send_cmd(OutputCommand::TextSelectionSettled("first".to_owned()));
+            ui.ctx().open_url(OpenUrl::same_tab("https://example.com/one"));
             ui.ctx().copy_text("regular".to_owned());
-            ui.ctx()
-                .send_cmd(OutputCommand::TextSelectionSettled("second".to_owned()));
-            ui.ctx()
-                .open_url(OpenUrl::same_tab("https://example.com/two"));
+            ui.ctx().send_cmd(OutputCommand::TextSelectionSettled("second".to_owned()));
+            ui.ctx().open_url(OpenUrl::same_tab("https://example.com/two"));
         });
 
         let commands = &output.platform_output.commands;
         let selection = select_clipboard_commands(commands);
-        assert_eq!(
-            selection.primary,
-            Some(3),
-            "the last PRIMARY command wins independently"
-        );
-        assert_eq!(
-            selected_text(commands, selection),
-            "regular",
-            "a later PRIMARY command does not supersede regular text"
-        );
+        assert_eq!(selection.primary, Some(3), "the last PRIMARY command wins independently");
+        assert_eq!(selected_text(commands, selection), "regular", "a later PRIMARY command does not supersede regular text");
         assert!(matches!(commands[1], OutputCommand::OpenUrl(_)));
         assert!(matches!(commands[4], OutputCommand::OpenUrl(_)));
         output.drop_without_applying_deltas();
@@ -276,10 +227,8 @@ mod tests {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             // The command has no owner identity, so the deterministic policy is the later
             // emitted selection, not an attempt to infer which editor has focus.
-            ui.ctx()
-                .send_cmd(OutputCommand::TextSelectionSettled("editor A".to_owned()));
-            ui.ctx()
-                .send_cmd(OutputCommand::TextSelectionSettled("editor B".to_owned()));
+            ui.ctx().send_cmd(OutputCommand::TextSelectionSettled("editor A".to_owned()));
+            ui.ctx().send_cmd(OutputCommand::TextSelectionSettled("editor B".to_owned()));
         });
 
         let commands = &output.platform_output.commands;
@@ -303,10 +252,7 @@ mod tests {
         let selection = select_clipboard_commands(&commands);
         assert_eq!(
             selection.regular,
-            Some(SelectedRegular {
-                index: 1,
-                kind: RegularClipboardKind::Image,
-            }),
+            Some(SelectedRegular { index: 1, kind: RegularClipboardKind::Image }),
             "validity/transport errors belong to the winner, never to an earlier command"
         );
     }
@@ -321,11 +267,7 @@ mod tests {
                 ui.ctx().copy_text("same".to_owned());
             });
             let selection = select_clipboard_commands(&output.platform_output.commands);
-            assert_eq!(
-                selected_text(&output.platform_output.commands, selection),
-                expected,
-                "each logical batch keeps its own regular command"
-            );
+            assert_eq!(selected_text(&output.platform_output.commands, selection), expected, "each logical batch keeps its own regular command");
             output.drop_without_applying_deltas();
         }
     }

@@ -3,7 +3,7 @@
 # VERSION and NFPM_ARCH.
 #
 #   nfpm package -f packaging/linux/nfpm.yaml -p deb -t dist/release/
-name: localobsidian
+name: localnotebook
 arch: ${NFPM_ARCH}
 platform: linux
 version: ${VERSION}
@@ -12,8 +12,15 @@ version_schema: semver
 release: 1
 section: utils
 priority: optional
-maintainer: ${LOCALOBSIDIAN_MAINTAINER}
+maintainer: ${LOCALNOTEBOOK_MAINTAINER}
 vendor: Local Notebook contributors
+# The product was called Local Obsidian (package `localobsidian`): this one takes its place on upgrade.
+replaces:
+  - localobsidian
+conflicts:
+  - localobsidian
+provides:
+  - localobsidian
 homepage: https://github.com/Anon5T4R/Local-Obsidian
 license: MIT OR Apache-2.0
 description: |-
@@ -58,8 +65,8 @@ overrides:
       - xdg-desktop-portal
 
 contents:
-  - src: ${STAGE}/usr/bin/localobsidian
-    dst: /usr/bin/localobsidian
+  - src: ${STAGE}/usr/bin/localnotebook
+    dst: /usr/bin/localnotebook
     file_info: { mode: 0755 }
   - src: ${STAGE}/usr/share/
     dst: /usr/share/

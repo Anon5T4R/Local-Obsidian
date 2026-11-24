@@ -12,17 +12,18 @@ pkgdesc='Notas, wikilinks e anexos numa pasta comum, 100% offline (Rust + egui)'
 arch=(x86_64)
 url='https://github.com/Anon5T4R/Local-Obsidian'
 license=('MIT OR Apache-2.0')
-provides=('localobsidian')
-conflicts=('localobsidian')
+provides=('localnotebook' 'localobsidian')
+conflicts=('localnotebook' 'localobsidian')
+replaces=('localobsidian')
 depends=(glibc gcc-libs libxcb libxrandr libxi libxcursor libxkbcommon)
 optdepends=('xdg-desktop-portal: seletor nativo de arquivos (GNOME/KDE ja trazem)')
 options=(!debug)
-source=("localobsidian-$pkgver-linux-x86_64.tar.gz")
+source=("localnotebook-$pkgver-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {
   cd "$srcdir"
   install -dm755 "$pkgdir/usr"
-  cp -a "localobsidian-$pkgver-linux-x86_64/bin" "$pkgdir/usr/"
-  cp -a "localobsidian-$pkgver-linux-x86_64/share" "$pkgdir/usr/"
+  cp -a "localnotebook-$pkgver-linux-x86_64/bin" "$pkgdir/usr/"
+  cp -a "localnotebook-$pkgver-linux-x86_64/share" "$pkgdir/usr/"
 }

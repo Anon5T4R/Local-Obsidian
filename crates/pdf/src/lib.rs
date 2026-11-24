@@ -30,7 +30,7 @@ use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
-use localobsidian_md::preview::{Align, Block, ListItem, Span};
+use localnotebook_md::preview::{Align, Block, ListItem, Span};
 use skrifa::instance::{LocationRef, Size as SkSize};
 use skrifa::{FontRef, MetadataProvider};
 
@@ -1191,7 +1191,7 @@ fn channel(value: f32) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use localobsidian_md::preview;
+    use localnotebook_md::preview;
 
     fn faces() -> Faces {
         Faces { regular: Face::new(epaint_default_fonts::UBUNTU_LIGHT), mono: Face::new(epaint_default_fonts::HACK_REGULAR), fallbacks: Vec::new() }
@@ -1199,7 +1199,7 @@ mod tests {
 
     /// A scratch file the test removes.
     fn scratch(name: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("localobsidian-pdf-{name}-{}.pdf", std::process::id()));
+        let path = std::env::temp_dir().join(format!("localnotebook-pdf-{name}-{}.pdf", std::process::id()));
         let _ = std::fs::remove_file(&path);
         path
     }
