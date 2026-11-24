@@ -67,7 +67,7 @@ OPTIONS:
       --version    print the version and exit
 
 The interface language follows the system's; the About window (Help menu) lets you pick another
-one and checks for updates. Updates install from the GitHub releases of Anon5T4R/Local-Obsidian.
+one and checks for updates. Updates install from the GitHub releases of Styx-Studios/Local-Notebook.
 
 SCRIPTS AND AI AGENTS:
   localnotebook commands [--search TEXT]         every command as JSON (the palette's ids)

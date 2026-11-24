@@ -15,7 +15,7 @@ pub use local_ai::{Connection, Msg, PROVIDERS, Provider, provider};
 
 /// This app's identity in the shared crate: the data folder (`<data dir>/LocalNotebook`), the
 /// keychain service and what OpenRouter sees as referer.
-pub const APP: local_ai::App = local_ai::App { id: "LocalNotebook", url: "https://github.com/Anon5T4R/Local-Obsidian" };
+pub const APP: local_ai::App = local_ai::App { id: "LocalNotebook", url: "https://github.com/Styx-Studios/Local-Notebook" };
 
 /// The identity under the product's old name (Local Obsidian): the data folder and the keychain
 /// service the connections and their keys were saved under before the rename.
@@ -321,7 +321,7 @@ mod tests {
     #[test]
     fn the_identity_is_this_app() {
         assert_eq!(APP.id, "LocalNotebook");
-        assert!(APP.url.contains("Local-Obsidian"));
+        assert!(APP.url.contains("Styx-Studios/Local-Notebook"));
     }
 
     fn connection(id: &str) -> Connection {
