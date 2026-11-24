@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pasta com duas notas do ícone do desktop (estilo noite da suíte; fonte: art/icon.svg).
+  Canvas: 108 × 108dp (adaptive icon spec). O desenho original (viewBox 100) é escalado a 0,72 e centrado
+  em (54,54): o ponto mais distante do centro fica a ~32dp, dentro da zona segura (raio 33dp).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="18"
+        android:translateY="17.28"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <!-- fundo da pasta -->
+        <path
+            android:pathData="M14,30A6,6 0 0 1 20,24H40L46,30H80A6,6 0 0 1 86,36V44H14Z"
+            android:fillColor="#3923C7" />
+        <!-- nota branca -->
+        <path
+            android:pathData="M29,16H57A3,3 0 0 1 60,19V53A3,3 0 0 1 57,56H29A3,3 0 0 1 26,53V19A3,3 0 0 1 29,16Z"
+            android:fillColor="#FFFFFF" />
+        <!-- nota clara, com as linhas de texto -->
+        <path
+            android:pathData="M43,22H71A3,3 0 0 1 74,25V59A3,3 0 0 1 71,62H43A3,3 0 0 1 40,59V25A3,3 0 0 1 43,22Z"
+            android:fillColor="#B1A5FD" />
+        <path
+            android:pathData="M47,32H62M47,39H67M47,46H58"
+            android:strokeColor="#15171D"
+            android:strokeWidth="3"
+            android:strokeLineCap="round" />
+        <!-- frente da pasta -->
+        <path
+            android:pathData="M12,44A4,4 0 0 1 16,40H84A4,4 0 0 1 88,44L84,80A6,6 0 0 1 78,86H22A6,6 0 0 1 16,80Z"
+            android:fillColor="#644FEE" />
+        <!-- monograma na frente da pasta -->
+        <path
+            android:pathData="M34.2,70.5A2.3,2.3 0 1 0 38.8,70.5A2.3,2.3 0 1 0 34.2,70.5Z"
+            android:fillColor="#15171D" />
+        <path
+            android:pathData="M41,72V64.5M41,67C41,62.5 46,62.5 46,67V72M46,67C46,62.5 51,62.5 51,67V72"
+            android:strokeColor="#15171D"
+            android:strokeWidth="2.6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M53.5,68A4,4 0 1 0 61.5,68A4,4 0 1 0 53.5,68Z"
+            android:strokeColor="#15171D"
+            android:strokeWidth="2.6" />
+        <path
+            android:pathData="M61.5,59V72"
+            android:strokeColor="#15171D"
+            android:strokeWidth="2.6"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

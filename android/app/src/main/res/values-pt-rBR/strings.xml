@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ── Boas-vindas ─────────────────────────────────────────────── -->
+    <string name="welcome_tagline">Suas notas em Markdown, nativas e rápidas.</string>
+    <string name="open_vault">Abrir vault</string>
+    <string name="reopen_vault">Reabrir %1$s</string>
+    <string name="open_other_vault">Abrir outro vault</string>
+    <string name="recent_vaults">Vaults recentes</string>
+    <string name="forget_vault">Esquecer</string>
+    <string name="no_vaults_yet">Nenhum vault ainda. Abra uma pasta para começar.</string>
+
+    <!-- ── Ações comuns ────────────────────────────────────────────── -->
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_ok">OK</string>
+    <string name="action_delete">Excluir</string>
+    <string name="action_rename">Renomear</string>
+    <string name="action_retry">Tentar de novo</string>
+    <string name="action_done">Pronto</string>
+    <string name="action_clear">Limpar</string>
+    <string name="action_back">Voltar</string>
+    <string name="action_forward">Avançar</string>
+
+    <!-- ── Tela do vault ───────────────────────────────────────────── -->
+    <string name="cd_open_menu">Abrir menu</string>
+    <string name="cd_expand_sidebar">Expandir barra lateral</string>
+    <string name="cd_search">Buscar</string>
+    <string name="cd_settings">Ajustes</string>
+    <string name="cd_more">Mais</string>
+    <string name="cd_review">Revisar flashcards</string>
+    <string name="menu_outline">Sumário</string>
+    <string name="menu_find_in_note">Buscar na nota</string>
+    <string name="menu_export_pdf">Exportar como PDF</string>
+    <string name="vault_read_error">Não consegui ler o vault</string>
+    <string name="pick_a_note">Escolha uma nota</string>
+    <string name="unsaved">Não salvo</string>
+
+    <!-- ── Árvore de arquivos ──────────────────────────────────────── -->
+    <string name="cd_switch_vault">Trocar de vault</string>
+    <string name="cd_daily_note">Nota do dia</string>
+    <string name="cd_refresh">Atualizar</string>
+    <string name="cd_new">Novo</string>
+    <string name="cd_collapse_sidebar">Recolher barra lateral</string>
+    <string name="filter_notes">Filtrar notas…</string>
+    <string name="new_note">Nova nota</string>
+    <string name="new_folder">Nova pasta</string>
+    <string name="new_from_template">Nova a partir de modelo</string>
+    <string name="new_note_here">Nova nota aqui</string>
+    <string name="new_folder_here">Nova pasta aqui</string>
+    <string name="move_to">Mover para…</string>
+    <string name="pin_to_top">Fixar no topo</string>
+    <string name="unpin">Desafixar</string>
+    <string name="section_pinned">Fixadas</string>
+    <string name="delete_note_q">Excluir a nota?</string>
+    <string name="delete_folder_q">Excluir a pasta?</string>
+    <string name="move_dialog_title">Mover \"%1$s\" para…</string>
+    <string name="new_note_from_template">Nova nota a partir de modelo</string>
+    <string name="new_note_from">Nova nota a partir de \"%1$s\"</string>
+    <string name="empty_vault">Este vault está vazio.\nToque em + para criar uma nota.</string>
+    <string name="empty_filter">Nenhuma nota corresponde a este filtro.</string>
+
+    <!-- ── Busca ───────────────────────────────────────────────────── -->
+    <string name="cd_close_search">Fechar a busca</string>
+    <string name="search_placeholder">Buscar nas notas…</string>
+    <string name="search_hint">Digite para buscar em todas as notas.</string>
+    <string name="search_no_results">Nenhum resultado para \"%1$s\"</string>
+
+    <!-- ── Ajustes ─────────────────────────────────────────────────── -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_preview_font">Tamanho da fonte do preview</string>
+    <string name="settings_font_sample">Um pangrama que exercita a fonte com acentuação.</string>
+    <string name="settings_sort_order">Ordenação dos arquivos</string>
+
+    <!-- ── Editor: buscar e substituir ─────────────────────────────── -->
+    <string name="find_placeholder">Buscar na nota…</string>
+    <string name="replace_placeholder">Substituir por…</string>
+    <string name="cd_prev_match">Ocorrência anterior</string>
+    <string name="cd_next_match">Próxima ocorrência</string>
+    <string name="cd_replace">Substituir</string>
+    <string name="cd_close_find">Fechar a barra de busca</string>
+    <string name="action_replace">Substituir</string>
+    <string name="action_replace_all">Todas</string>
+
+    <!-- ── Editor: menu de inserção ────────────────────────────────── -->
+    <string name="ins_heading1">Título 1</string>
+    <string name="ins_heading2">Título 2</string>
+    <string name="ins_heading3">Título 3</string>
+    <string name="ins_bold">Negrito</string>
+    <string name="ins_italic">Itálico</string>
+    <string name="ins_strikethrough">Tachado</string>
+    <string name="ins_highlight">Destaque</string>
+    <string name="ins_inline_code">Código em linha</string>
+    <string name="ins_code_block">Bloco de código</string>
+    <string name="ins_table">Tabela</string>
+    <string name="ins_bullet_list">Lista com marcadores</string>
+    <string name="ins_numbered_list">Lista numerada</string>
+    <string name="ins_checkbox">Caixa de seleção</string>
+    <string name="ins_wikilink">Wikilink</string>
+    <string name="ins_image_embed">Imagem (embutida)</string>
+    <string name="ins_image_gallery">Imagem da galeria</string>
+    <string name="ins_quote">Citação</string>
+    <string name="ins_divider">Divisor</string>
+
+    <!-- ── Flashcards ──────────────────────────────────────────────── -->
+    <string name="review_title">Revisão</string>
+    <string name="review_progress">%1$d feitos · faltam %2$d</string>
+    <string name="cd_close_review">Fechar a revisão</string>
+    <string name="review_show_answer">Mostrar resposta</string>
+    <string name="grade_again">De novo</string>
+    <string name="grade_hard">Difícil</string>
+    <string name="grade_good">Bom</string>
+    <string name="grade_easy">Fácil</string>
+    <string name="review_finished">Sessão concluída</string>
+    <string name="review_no_cards">Nenhum cartão ainda</string>
+    <string name="review_nothing_due">Nada para revisar agora</string>
+    <string name="review_reviewed">%1$d cartão(ões) revisado(s).</string>
+    <string name="review_in_vault">%1$d cartão(ões) no vault. Eles voltam no dia em que vencem.</string>
+    <string name="review_syntax_intro">Um cartão é um callout dentro de qualquer nota — continua legível como Markdown comum:</string>
+    <string name="review_syntax_example">&gt; [!card]- Pergunta\n&gt; Resposta\n\n&gt; [!card] Título\n&gt; uma frase com ==destaques==</string>
+    <string name="review_syntax_outro">Cada ==destaque== vira um cartão de lacuna. Salve a nota e ele aparece aqui.</string>
+    <string name="review_schedule_failed">Não consegui salvar o agendamento — esta sessão não está sendo registrada.</string>
+
+    <!-- ── Diagramas ───────────────────────────────────────────────── -->
+    <string name="diagram_title">Diagrama</string>
+    <string name="cd_close_diagram">Fechar o diagrama</string>
+    <string name="open_diagram">📊 Abrir diagrama</string>
+
+    <!-- ── Visualizadores ──────────────────────────────────────────── -->
+    <string name="notes_button">Notas</string>
+    <string name="open_in_app">Abrir em outro app</string>
+    <string name="convert_to_markdown">Converter para Markdown</string>
+    <string name="docx_no_preview">Documento do Word\nNão há visualização no Android.</string>
+    <string name="toc_no_headings">Esta nota não tem títulos.</string>
+    <string name="unknown_error">Erro desconhecido</string>
+
+    <!-- ── Mensagens ───────────────────────────────────────────────── -->
+    <string name="toast_save_failed">Não consegui salvar \"%1$s\" — o arquivo no disco ainda é a versão anterior</string>
+    <string name="toast_rename_failed">Não consegui renomear \"%1$s\"</string>
+    <string name="toast_links_updated">%1$d link(s) atualizado(s) em %2$d nota(s)</string>
+    <string name="toast_move_into_itself">Não dá para mover uma pasta para dentro dela mesma</string>
+    <string name="toast_name_exists">\"%1$s\" já existe lá</string>
+    <string name="toast_move_failed">Não consegui mover \"%1$s\"</string>
+    <string name="toast_link_unresolved">Nenhuma nota chamada \"%1$s\"</string>
+    <string name="diagnostics_title">Diagnóstico do vault</string>
+    <string name="menu_diagnostics">Diagnóstico do vault</string>
+    <string name="diagnostics_clean">Nada a relatar: nenhum link morto, nenhuma nota órfã, nenhum nome duplicado.</string>
+    <string name="diagnostics_broken">Links mortos (%1$d)</string>
+    <string name="diagnostics_orphans">Notas órfãs (%1$d)</string>
+    <string name="diagnostics_duplicates">Nomes duplicados (%1$d)</string>
+    <string name="diagnostics_notes_count">%1$d notas com este nome</string>    <string name="menu_backup">Backup do vault (.zip)</string>
+    <string name="backup_running">Fazendo backup…</string>
+    <string name="backup_done">%1$d arquivos no backup</string>
+    <string name="backup_done_skipped">%1$d arquivos no backup · %2$d não puderam ser lidos</string>
+    <string name="backup_failed">O backup falhou</string>    <string name="stats_title">Estatísticas de revisão</string>
+    <string name="menu_stats">Estatísticas de revisão</string>
+    <string name="stats_total">Cartões</string>
+    <string name="stats_due">Vencendo</string>
+    <string name="stats_fresh">Novos</string>
+    <string name="stats_retention">Retenção</string>
+    <string name="stats_ease">Facilidade méd.</string>
+    <string name="stats_suspended">Suspensos</string>
+    <string name="stats_forecast">Próximos 14 dias</string>
+    <string name="stats_top_notes">Notas com mais cartões</string>    <string name="epub_unreadable">Não consegui ler este EPUB.</string>
+    <string name="menu_anki_import">Importar do Anki (.apkg)</string>
+    <string name="anki_reading">Lendo o baralho…</string>
+    <string name="anki_confirm_title">Importar do Anki</string>
+    <string name="anki_confirm_body">%1$d cartões encontrados. Vão para %2$d nota(s) com o nome \"%3$s\".</string>
+    <string name="anki_import">Importar</string>
+    <string name="anki_done">%1$d cartões importados em %2$d nota(s)</string>
+    <string name="anki_failed">Não consegui ler esse .apkg</string>
+    <string name="anki_needs_legacy">Este pacote usa o formato comprimido novo do Anki, que este app não abre. No Anki, exporte o baralho de novo marcando \"Suportar versões antigas do Anki\".</string>
+    <string name="anki_media_note">Imagens e áudio não são importados aqui — importe no desktop se o baralho tiver mídia.</string>
+    <!-- Catalogo de insercao -->
+    <string name="ins_cat_basics">Basico</string>
+    <string name="ins_cat_structure">Estrutura</string>
+    <string name="ins_cat_links">Links</string>
+    <string name="ins_cat_study">Estudo</string>
+    <string name="ins_cat_callouts">Caixas</string>
+    <string name="ins_cat_diagrams">Diagramas e matematica</string>
+    <string name="ins_cat_data">Dados</string>
+    <string name="ins_cat_symbols">Simbolos</string>
+    <string name="ins_h1">Titulo 1</string>
+    <string name="ins_h1_desc">Nivel mais alto da nota</string>
+    <string name="ins_h2">Titulo 2</string>
+    <string name="ins_h2_desc">Uma secao</string>
+    <string name="ins_h3">Titulo 3</string>
+    <string name="ins_h3_desc">Uma subsecao</string>
+    <string name="ins_bold_desc">Enfase forte</string>
+    <string name="ins_italic_desc">Enfase leve</string>
+    <string name="ins_strike">Riscado</string>
+    <string name="ins_strike_desc">Riscado, mantido como registro</string>
+    <string name="ins_highlight_desc">Marca o texto, e vira lacuna num flashcard</string>
+    <string name="ins_inline_code_desc">Um comando ou identificador no meio da frase</string>
+    <string name="ins_comment">Comentario privado</string>
+    <string name="ins_comment_desc">Fica no arquivo, nunca aparece na leitura</string>
+    <string name="ins_bullet">Lista com marcadores</string>
+    <string name="ins_bullet_desc">Itens sem ordem</string>
+    <string name="ins_numbered">Lista numerada</string>
+    <string name="ins_numbered_desc">Passos em ordem</string>
+    <string name="ins_task">Caixa de marcar</string>
+    <string name="ins_task_desc">Da para marcar na leitura</string>
+    <string name="ins_quote_desc">Palavras de outra pessoa</string>
+    <string name="ins_table_desc">Linhas e colunas</string>
+    <string name="ins_code_block_desc">Varias linhas, nada dentro e interpretado</string>
+    <string name="ins_hr">Divisor</string>
+    <string name="ins_hr_desc">Uma linha entre secoes</string>
+    <string name="ins_wikilink_desc">Digite para buscar suas notas</string>
+    <string name="ins_wikilink_alias">Link com outro texto</string>
+    <string name="ins_wikilink_alias_desc">Aponta para a nota, mostra as palavras que voce escolher</string>
+    <string name="ins_heading_link">Link para uma secao</string>
+    <string name="ins_heading_link_desc">Abre a nota e rola ate aquele titulo</string>
+    <string name="ins_embed">Embutir uma nota</string>
+    <string name="ins_embed_desc">Mostra a outra nota aqui, sem copiar</string>
+    <string name="ins_embed_section">Embutir uma secao</string>
+    <string name="ins_embed_section_desc">So aquele pedaco da outra nota</string>
+    <string name="ins_web_link">Link da web</string>
+    <string name="ins_web_link_desc">Um endereco fora do vault</string>
+    <string name="ins_image">Imagem que ja esta no vault</string>
+    <string name="ins_image_desc">Pelo nome do arquivo</string>
+    <string name="ins_image_pick">Imagem da galeria</string>
+    <string name="ins_image_pick_desc">Copia para dentro do vault e referencia</string>
+    <string name="ins_card_qa">Flashcard</string>
+    <string name="ins_card_qa_desc">Pergunta e resposta, entrando na repeticao espacada</string>
+    <string name="ins_card_cloze">Cartao com lacuna</string>
+    <string name="ins_card_cloze_desc">Cada destaque vira um cartao</string>
+    <string name="ins_mnemonic">Mnemonico</string>
+    <string name="ins_mnemonic_desc">A interrogacao e o que o torna revisavel</string>
+    <string name="ins_callout_info">Caixa de nota</string>
+    <string name="ins_callout_info_desc">Algo que vale destacar</string>
+    <string name="ins_callout_tip">Caixa de dica</string>
+    <string name="ins_callout_tip_desc">Um conselho, um atalho</string>
+    <string name="ins_callout_warning">Caixa de aviso</string>
+    <string name="ins_callout_warning_desc">Algo que pode dar errado</string>
+    <string name="ins_callout_danger">Caixa de perigo</string>
+    <string name="ins_callout_danger_desc">Algo que nao pode passar batido</string>
+    <string name="ins_callout_success">Caixa de acerto</string>
+    <string name="ins_callout_success_desc">Uma conclusao fechada</string>
+    <string name="ins_callout_question">Caixa de pergunta</string>
+    <string name="ins_callout_question_desc">Um ponto em aberto</string>
+    <string name="ins_callout_example">Caixa de exemplo</string>
+    <string name="ins_callout_example_desc">Um caso que ilustra</string>
+    <string name="ins_callout_fold">Caixa dobravel</string>
+    <string name="ins_callout_fold_desc">Escondida ate voce tocar</string>
+    <string name="ins_mermaid_flow">Fluxograma</string>
+    <string name="ins_mermaid_flow_desc">Caixas e setas, com decisoes</string>
+    <string name="ins_mermaid_sequence">Diagrama de sequencia</string>
+    <string name="ins_mermaid_sequence_desc">Quem fala com quem, em ordem</string>
+    <string name="ins_mermaid_mindmap">Mapa mental</string>
+    <string name="ins_mermaid_mindmap_desc">Um centro e seus ramos</string>
+    <string name="ins_math_inline">Formula na linha</string>
+    <string name="ins_math_inline_desc">Matematica dentro da frase</string>
+    <string name="ins_math_block">Bloco de formula</string>
+    <string name="ins_math_block_desc">Matematica em linha propria, centralizada</string>
+    <string name="ins_frontmatter">Propriedades da nota</string>
+    <string name="ins_frontmatter_desc">Apelidos, tags e campos consultaveis</string>
+    <string name="ins_tag">Tag</string>
+    <string name="ins_tag_desc">Digite para escolher entre as tags deste vault</string>
+    <string name="ins_index">Nota de indice</string>
+    <string name="ins_index_desc">Secoes que se preenchem sozinhas pelas suas tags</string>
+    <string name="ins_query_tag">Lista por tag</string>
+    <string name="ins_query_tag_desc">Uma lista viva, nunca editada na mao</string>
+    <string name="ins_query_field">Lista por campo</string>
+    <string name="ins_query_field_desc">Usa um campo de propriedade seu</string>
+    <string name="ins_today">Data de hoje</string>
+    <string name="ins_today_desc">Calculada na hora de inserir</string>
+    <string name="ins_now">Hora agora</string>
+    <string name="ins_now_desc">Calculada na hora de inserir</string>
+    <string name="ins_arrow_right">Seta para a direita</string>
+    <string name="ins_arrow_right_desc">Leva a, resulta em</string>
+    <string name="ins_arrow_left">Seta para a esquerda</string>
+    <string name="ins_arrow_left_desc">Vem de</string>
+    <string name="ins_arrow_up">Seta para cima</string>
+    <string name="ins_arrow_up_desc">Sobe, aumenta</string>
+    <string name="ins_arrow_down">Seta para baixo</string>
+    <string name="ins_arrow_down_desc">Desce, diminui</string>
+    <string name="ins_check">Certo</string>
+    <string name="ins_check_desc">Presente, correto</string>
+    <string name="ins_cross">Errado</string>
+    <string name="ins_cross_desc">Ausente, descartado</string>
+    <string name="ins_em_dash">Travessao</string>
+    <string name="ins_em_dash_desc">Quebra a frase</string>
+    <string name="ins_ellipsis">Reticencias</string>
+    <string name="ins_ellipsis_desc">Algo deixado por dizer</string>
+    <string name="insert_title">Inserir</string>
+    <string name="insert_search_hint">Buscar o que inserir</string>
+    <string name="insert_no_match">Nada encontrado</string>
+    <string name="insert_hint_slash">Ou digite / no editor</string>
+    <string name="tag_complete_notes">%d notas</string>
+    <string name="query_sort_no_created">sort: criado — %1$d de %2$d notas não declaram data de criação, então esta ordem não quer dizer nada</string>
+    <string name="query_sort_not_iso">sort: criado — %1$s não é AAAA-MM-DD, e datas são comparadas como texto; escreva como 2026-07-21</string>
+    <string name="menu_export_html">Exportar como HTML</string>
+    <string name="menu_random_note">Abrir nota aleatória</string>
+    <string name="toast_no_other_note">Não há outra nota para abrir</string>
+    <string name="toast_export_html_done">%1$s exportada como HTML</string>
+    <string name="toast_export_html_failed">Não foi possível gravar o arquivo HTML</string>
+
+    <!-- ── Atualizações ────────────────────────────────────────────── -->
+    <string name="settings_updates">Atualizações</string>
+    <string name="update_auto_title">Procurar atualizações automaticamente</string>
+    <string name="update_auto_body">Desligado por padrão. Ligado, o Local Obsidian procura versão nova no máximo uma vez por dia. A única conexão é com o GitHub, para ler as releases de Anon5T4R/OpenObsidianAndroid; nada sobre você ou as suas notas é enviado.</string>
+    <string name="update_check_now">Verificar agora</string>
+    <string name="update_checking">Verificando…</string>
+    <string name="update_status_never">Ainda não verificado.</string>
+    <string name="update_status_up_to_date">Em dia (verificado em %1$s).</string>
+    <string name="update_status_available">Nova versão %1$s disponível.</string>
+    <string name="update_status_error">Não foi possível verificar: %1$s.</string>
+    <string name="update_current_version">Versão instalada: %1$s</string>
+    <string name="update_error_network">sem conexão com o GitHub</string>
+    <string name="update_error_http">o GitHub respondeu com erro %1$d</string>
+    <string name="update_error_parse">resposta inesperada do GitHub</string>
+    <string name="update_error_too_large">o arquivo é maior que o permitido</string>
+    <string name="update_error_digest">o download não confere com o checksum publicado no GitHub e foi descartado</string>
+    <string name="update_error_storage">não foi possível salvar o download</string>
+    <string name="update_error_install">a instalação não foi concluída</string>
+    <string name="update_banner">O Local Obsidian %1$s está disponível</string>
+    <string name="update_action">Atualizar</string>
+    <string name="update_action_version">Atualizar para %1$s</string>
+    <string name="update_dismiss">Dispensar</string>
+    <string name="update_downloading">Baixando o Local Obsidian %1$s… %2$d%%</string>
+    <string name="update_installing">Instalando o Local Obsidian %1$s…</string>
+    <string name="update_permission_title">Permitir instalar atualizações</string>
+    <string name="update_permission_body">O Android só deixa o Local Obsidian instalar a própria atualização depois que você libera \"Instalar apps desconhecidos\" para ele. Na próxima tela, ligue a chave e volte: a atualização continua sozinha. O Android só aceita a versão nova se ela for assinada com a mesma chave da instalada.</string>
+    <string name="update_permission_open">Abrir configurações</string>
+    <string name="update_done_notice">Atualizado para o Local Obsidian %1$s.</string>
+    <string name="update_cancelled_notice">Atualização cancelada.</string>
+    <string name="update_failed_notice">A atualização falhou: %1$s</string>
+</resources>
