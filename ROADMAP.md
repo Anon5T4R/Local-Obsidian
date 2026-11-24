@@ -1,4 +1,4 @@
-# Local Obsidian roadmap
+# Local Notebook roadmap
 
 The honest state of the app: what works today, what it deliberately does not do, and what is planned. Release notes
 list what changed in each version.
@@ -61,7 +61,7 @@ list what changed in each version.
   and the header states the scope and its numbers (cards in the deck · due today · done in the session). Cards
   render the note's Markdown; the statistics panel follows the session's deck, with retention, average ease, a
   14-day forecast and the queue of upcoming cards with their source note. The schedule lives in
-  `.openobsidian/srs.json`, **the same file OpenObsidianAndroid reads** (same fields, same order, no extra state);
+  `.openobsidian/srs.json`, **the same file the Android app reads** (same fields, same order, no extra state);
   the card stores a stable id (hash of the question), so editing the answer does not reset the scheduling.
 - **Query blocks**: a ` ```query ` fence is not code to read, it is a question to answer — `tag:`, `path:`, `has:`
   and any frontmatter field (`tipo: patologia`), with `sort: titulo|modificado|caminho [desc]` and `limit:`.

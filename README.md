@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/app-icon/hicolor/128x128/apps/com.localobsidian.app.png" width="96" height="96" alt="Local Obsidian icon">
+  <img src="assets/app-icon/hicolor/128x128/apps/com.localobsidian.app.png" width="96" height="96" alt="Local Notebook icon">
 </p>
 
-<h1 align="center">Local Obsidian</h1>
+<h1 align="center">Local Notebook</h1>
 
 <p align="center">
   Markdown notes in a plain folder, for Windows, Linux and Android. No account, no sync service, written in Rust.<br>
@@ -16,11 +16,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/main-dark.png">
-    <img src="docs/images/readme/main-light.png" width="820" alt="Local Obsidian with a note open in split view">
+    <img src="docs/images/readme/main-light.png" width="820" alt="Local Notebook with a note open in split view">
   </picture>
 </p>
 
-Local Obsidian is not affiliated with Obsidian or Dynalist Inc. It reads the same kind of vault (a
+Local Notebook is not affiliated with Obsidian or Dynalist Inc. It opens the same kind of vault (a
 folder of Markdown files), but it is a separate app.
 
 ## How your notes are stored
@@ -82,7 +82,10 @@ commit with locked dependencies checked by `cargo-deny`.
 
 ## Where it comes from
 
-Local Obsidian is a rewrite of **OpenObsidian**, an earlier app by the same maintainer built with
+Until version 1.9 this app was called Local Obsidian; it was renamed because Obsidian is another
+company's trademark (the repository keeps the old name until it moves to the organization).
+
+Local Notebook is a rewrite of **OpenObsidian**, an earlier app by the same maintainer built with
 Electron, React and TypeScript. The old app is the specification of behaviour; the code is new, in
 Rust, on the structure every Local app shares (it was started from our app template). Deliberate
 differences from the Electron app are recorded in [UPSTREAM-SYNC.md](UPSTREAM-SYNC.md).
@@ -128,7 +131,7 @@ cargo xtask ci        # all local checks
 
 ## How it is made
 
-Local Obsidian follows the same rules as every Local app: local files and no account, Rust only
+Local Notebook follows the same rules as every Local app: local files and no account, Rust only
 (including the UI and the cryptography), one self-contained repository per app, governed
 dependencies, signed releases built from a tag, optional AI with your own provider, and MCP so
 agents can use the app. Most of the code is written by AI coding agents (Claude Code and OpenCode)
