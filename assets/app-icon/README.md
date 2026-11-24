@@ -1,13 +1,14 @@
 # App icon
 
-The Local Obsidian icon: a note page with a Markdown `#` knocked out of it, on the suite's tile.
+The Local Obsidian icon in the suite's "night" style: a dark tile with a violet rim and a folder holding Markdown
+pages, with `.md` drawn as paths. The Android app uses the same drawing (`android/art/icon.svg`).
 
 ## Files
 
 | File | What it is |
 |---|---|
 | `localobsidian.svg` | the master: the full-bleed 512 px tile (corner radius 100) Windows and Linux use as is |
-| `localobsidian-small.svg` | the same art with a bolder, wider `#`; used for 16, 20, 24 and 32 px only |
+| `localobsidian-small.svg` | the small-size variant; used for 16, 20, 24 and 32 px only |
 | `localobsidian-1024.png` | the master at 1024 px, for stores, README and the issue tracker |
 | `hicolor/<size>x<size>/apps/com.localobsidian.app.png` | the freedesktop icon theme tree (16 to 512 px) and the runtime window icon (256 px) |
 | `hicolor/scalable/apps/com.localobsidian.app.svg` | the scalable theme entry (a copy of the master) |
