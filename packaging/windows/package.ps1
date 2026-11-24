@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Build, sign and package Local Obsidian for Windows.
+  Build, sign and package Local Notebook for Windows.
 
 .DESCRIPTION
   Produces, in $env:DIST (default: dist/release):
@@ -15,7 +15,7 @@
 
   Needs: Rust (MSVC toolchain + the target), the Windows SDK (rc.exe, signtool.exe), and WiX v5:
   dotnet tool install --global wix --version 5.0.2
-  The WiX UI and Util extensions (installer dialogs, "Launch Local Obsidian" on Finish) are added to the
+  The WiX UI and Util extensions (installer dialogs, "Launch Local Notebook" on Finish) are added to the
   global WiX extension cache by this script (wix extension add -g ..., needs network once).
 
 .EXAMPLE
@@ -78,7 +78,7 @@ New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
 if (-not $env:LOCALOBSIDIAN_BUILD_DATE) { $env:LOCALOBSIDIAN_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd') }
 
-Write-Output "Local Obsidian $Version for Windows $Arch ($Target)"
+Write-Output "Local Notebook $Version for Windows $Arch ($Target)"
 
 if (-not $SkipBuild) {
   . (Join-Path $PSScriptRoot 'fonts.ps1')

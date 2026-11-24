@@ -1,4 +1,4 @@
-# AGENTS.md — Local Obsidian
+# AGENTS.md — Local Notebook
 
 App desktop da suíte Local: **Rust puro + egui forkado**, sem webview/React/TS. O vault é a pasta
 do usuário (arquivos `.md` + frontmatter + wikilinks + `_attachments/`); o único estado próprio é

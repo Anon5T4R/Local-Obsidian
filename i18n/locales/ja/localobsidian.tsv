@@ -1,4 +1,4 @@
-# 日本語 (ja) interface catalog for Local Obsidian.
+# 日本語 (ja) interface catalog for Local Notebook.
 # Columns, separated by a TAB:  context <TAB> English source text <TAB> translation
 #   context  usually empty. `@plural`, `@id` and `@msg` mean something to the apps; any other
 #            word is a label that tells apart two meanings of the same English.
@@ -29,8 +29,8 @@
 	Last modified	更新日時
 	Refresh the vault	保管庫を再読み込み
 	Check for Updates…	アップデートを確認…
-	About Local Obsidian	Local Obsidian について
-	Local Obsidian	Local Obsidian
+	About Local Notebook	Local Notebook について
+	Local Notebook	Local Notebook
 	A vault is a folder of Markdown notes: no database, no lock-in.	保管庫は Markdown ノートのフォルダです。データベースも囲い込みもありません。
 	New note	新規ノート
 	Rename note	ノート名を変更

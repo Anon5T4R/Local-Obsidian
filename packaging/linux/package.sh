@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and package Local Obsidian for Linux (<arch> is x86_64 or aarch64):
+# Build and package Local Notebook for Linux (<arch> is x86_64 or aarch64):
 #
 #   $DIST/localobsidian-<version>-linux-<arch>.AppImage         any distro with glibc >= the build host's
 #   $DIST/localobsidian-<version>-linux-<arch>.AppImage.zsync   delta updates (needs zsyncmake)
@@ -37,10 +37,10 @@ case "$ARCH" in
   aarch64 | arm64) ARCH=aarch64; DEB_ARCH=arm64 ;;
   *) echo "unsupported architecture $ARCH" >&2; exit 2 ;;
 esac
-export LOCALOBSIDIAN_MAINTAINER="${LOCALOBSIDIAN_MAINTAINER:-Local Obsidian maintainers <localobsidian@users.noreply.github.com>}"
+export LOCALOBSIDIAN_MAINTAINER="${LOCALOBSIDIAN_MAINTAINER:-Local Notebook maintainers <localobsidian@users.noreply.github.com>}"
 BASENAME="localobsidian-$VERSION-linux-$ARCH"
 
-echo "==> Local Obsidian $VERSION for Linux $ARCH ($FORMATS)"
+echo "==> Local Notebook $VERSION for Linux $ARCH ($FORMATS)"
 
 if [[ "$SKIP_BUILD" = 0 ]]; then
   # shellcheck source=../fonts.sh
@@ -113,7 +113,7 @@ if has appimage; then
     aarch64) RUNTIME_SHA256=00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444 ;;
     *) RUNTIME_SHA256='' ;;
   esac
-  APPDIR="$WORK/Local Obsidian.AppDir"
+  APPDIR="$WORK/Local Notebook.AppDir"
   cp -R "$STAGE" "$APPDIR"
   ln -s usr/bin/localobsidian "$APPDIR/AppRun"
   cp "$HERE/$APP_ID.desktop" "$APPDIR/$APP_ID.desktop"

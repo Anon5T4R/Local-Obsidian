@@ -1,6 +1,6 @@
 # App icon
 
-The Local Obsidian icon in the suite's "night" style: a dark tile with a violet rim and a folder holding Markdown
+The Local Notebook icon in the suite's "night" style: a dark tile with a violet rim and a folder holding Markdown
 pages, with `.md` drawn as paths. The Android app uses the same drawing (`android/art/icon.svg`).
 
 ## Files

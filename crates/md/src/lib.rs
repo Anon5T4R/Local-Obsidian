@@ -1,4 +1,4 @@
-//! Local Obsidian's note format, with no UI and no filesystem: YAML frontmatter, `#tags`,
+//! Local Notebook's note format, with no UI and no filesystem: YAML frontmatter, `#tags`,
 //! `[[wikilinks]]`, `![[embeds]]`, link rewriting on rename, and the preview model.
 //!
 //! The rules are ported from OpenObsidian's TypeScript (`frontmatter.ts`, the tag extraction in

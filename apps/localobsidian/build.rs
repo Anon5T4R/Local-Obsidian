@@ -60,9 +60,9 @@ fn windows_resources() {
     }
     let mut res = winresource::WindowsResource::new();
     res.set_icon("../../assets/app-icon/localobsidian.ico")
-        .set("ProductName", "Local Obsidian")
-        .set("FileDescription", "Local Obsidian - notes, wikilinks and attachments in a plain folder")
-        .set("LegalCopyright", "Copyright (c) the Local Obsidian authors. MIT OR Apache-2.0.")
+        .set("ProductName", "Local Notebook")
+        .set("FileDescription", "Local Notebook - notes, wikilinks and attachments in a plain folder")
+        .set("LegalCopyright", "Copyright (c) the Local Notebook authors. MIT OR Apache-2.0.")
         .set("OriginalFilename", "localobsidian.exe")
         .set("InternalName", "localobsidian");
     if let Err(e) = res.compile() {

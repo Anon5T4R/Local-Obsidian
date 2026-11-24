@@ -1,4 +1,4 @@
-//! Local Obsidian's Markdown editing commands, with no UI and no filesystem.
+//! Local Notebook's Markdown editing commands, with no UI and no filesystem.
 //!
 //! The editor surface itself is egui's text widget (IME, bidi and clipboard come with it); what
 //! lives here are the edits a Markdown note needs and a generic text box does not have: wrapping the

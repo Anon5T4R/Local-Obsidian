@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's vault: the folder scan, the note tree, the index (tags, aliases, backlinks), link resolution and safe file writes"
+description = "Local Notebook's vault: the folder scan, the note tree, the index (tags, aliases, backlinks), link resolution and safe file writes"
 
 [lints]
 workspace = true

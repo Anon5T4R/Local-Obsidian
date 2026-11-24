@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's document import: an .odt or .docx (a ZIP of XML) read into this app's Markdown"
+description = "Local Notebook's document import: an .odt or .docx (a ZIP of XML) read into this app's Markdown"
 
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-//! The commands Local Obsidian offers an agent.
+//! The commands Local Notebook offers an agent.
 //!
 //! The list is the vault app's own: the palette's commands (`src/app/commands.rs`) plus the read and
 //! write side of the same document — `note.open`, `note.read`, `note.write`, `vault.inspect`,
@@ -68,7 +68,7 @@ pub const SPECS: &[Spec] = &[
     Spec { id: "ai.flashcards", label: "Create flashcards from this note", menu: "AI", app_only: true },
     Spec { id: "help.keys", label: "Keyboard shortcuts and help", menu: "Help", app_only: true },
     Spec { id: "help.updates", label: "Check for Updates…", menu: "Help", app_only: true },
-    Spec { id: "help.about", label: "About Local Obsidian", menu: "Help", app_only: true },
+    Spec { id: "help.about", label: "About Local Notebook", menu: "Help", app_only: true },
 ];
 
 /// The spec of `id`, if the app has that command.

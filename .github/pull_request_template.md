@@ -1,5 +1,5 @@
 <!--
-Obrigado por contribuir com o Local Obsidian.
+Obrigado por contribuir com o Local Notebook.
 
 Baseie o PR em `main`, a única branch de integração. Apague as seções que não se aplicam.
 -->

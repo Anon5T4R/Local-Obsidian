@@ -13,7 +13,7 @@ release: 1
 section: utils
 priority: optional
 maintainer: ${LOCALOBSIDIAN_MAINTAINER}
-vendor: Local Obsidian contributors
+vendor: Local Notebook contributors
 homepage: https://github.com/Anon5T4R/Local-Obsidian
 license: MIT OR Apache-2.0
 description: |-

@@ -265,7 +265,7 @@ fn connection_of(draft: &ui::ConnectionDraft) -> ai::Connection {
     ai::Connection {
         id: "default".to_string(),
         provider: draft.provider.trim().to_string(),
-        label: "Local Obsidian".to_string(),
+        label: "Local Notebook".to_string(),
         base_url: draft.base_url.trim().to_string(),
         model: draft.model.trim().to_string(),
     }

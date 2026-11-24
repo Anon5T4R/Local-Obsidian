@@ -1,9 +1,9 @@
-//! The agent-native command line of Local Obsidian: `mcp` (the MCP server on stdio), `run` (a
+//! The agent-native command line of Local Notebook: `mcp` (the MCP server on stdio), `run` (a
 //! script of commands, headless), `commands` (the catalogue) and their usage. Anything else is the
 //! window, or the `--help`/`--version` this app always had.
 //!
 //! The plumbing is the suite's `craft-mcp`: the server, the script steps with `"$N"` references and
-//! the `--automation-read-root`/`--automation-write-root` flags. The commands are Local Obsidian's
+//! the `--automation-read-root`/`--automation-write-root` flags. The commands are Local Notebook's
 //! ([`super::catalogue`]), so the CLI, the MCP server and the palette reach the same ids.
 
 use std::io::Write;
@@ -18,7 +18,7 @@ use super::session::Session;
 
 /// How the agent-native command line is used (the app's own `--help` is in `src/main.rs`).
 pub const USAGE: &str = "\
-localobsidian — Local Obsidian automation
+localobsidian — Local Notebook automation
 
 USAGE:
   localobsidian mcp [--connect PORT|HOST:PORT | --headless] [--automation-read-root DIR]...

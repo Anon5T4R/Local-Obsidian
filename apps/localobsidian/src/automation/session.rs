@@ -1,4 +1,4 @@
-//! Running Local Obsidian's commands without a window: a vault open, its notes read and written
+//! Running Local Notebook's commands without a window: a vault open, its notes read and written
 //! through the app's own state.
 //!
 //! The same functions serve the headless session ([`Session`], behind `localobsidian mcp`,
@@ -61,7 +61,7 @@ impl Session {
             }
             "app.info" => Ok(json!({
                 "id": "localobsidian",
-                "name": "Local Obsidian",
+                "name": "Local Notebook",
                 "version": env!("CARGO_PKG_VERSION"),
                 "state": state(&self.vault),
             })),

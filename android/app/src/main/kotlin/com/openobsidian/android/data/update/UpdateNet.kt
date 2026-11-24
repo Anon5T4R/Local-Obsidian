@@ -15,11 +15,11 @@ class UpdateException(val failure: UpdateFailure, val code: Int = 0, cause: Thro
     IOException("update: $failure ${if (code != 0) code else ""}".trim(), cause)
 
 /**
- * A única rede do app: ler as releases do repositório no GitHub e baixar o APK escolhido. Só https, sem
+ * A única rede do app: ler a release mais recente do repositório no GitHub e baixar o APK escolhido. Só https, sem
  * cookies nem dados do usuário; o User-Agent é genérico. Nada aqui toca o vault ou as notas.
  */
 object UpdateNet {
-    const val RELEASES_URL = "https://api.github.com/repos/Anon5T4R/Local-Obsidian/releases?per_page=100"
+    const val LATEST_URL = "https://api.github.com/repos/Anon5T4R/Local-Obsidian/releases/latest"
     private const val USER_AGENT = "LocalObsidian-Android"
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 30_000
@@ -27,9 +27,9 @@ object UpdateNet {
     const val MAX_APK_BYTES = 100L * 1024 * 1024
     private const val MAX_REDIRECTS = 5
 
-    /** O JSON da lista de releases. */
-    fun fetchReleasesJson(): String {
-        val conn = open(RELEASES_URL, accept = "application/vnd.github+json")
+    /** O JSON da release mais recente. */
+    fun fetchLatestJson(): String {
+        val conn = open(LATEST_URL, accept = "application/vnd.github+json")
         try {
             val bytes = conn.inputStream.use { readCapped(it, MAX_JSON_BYTES) }
             return String(bytes, Charsets.UTF_8)

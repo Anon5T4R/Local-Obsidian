@@ -2358,7 +2358,7 @@ fn every_window_fits_the_narrowest_window() {
         ("connections", WindowForTest::Connections, "Connections"),
         ("calendar", WindowForTest::Calendar, "Calendar"),
         ("help", WindowForTest::Help, "Help"),
-        ("about", WindowForTest::About, "About Local Obsidian"),
+        ("about", WindowForTest::About, "About Local Notebook"),
         ("settings", WindowForTest::Settings, "Settings"),
         ("ai connection", WindowForTest::AiConnection, "AI connection"),
         ("flashcards", WindowForTest::Flashcards, "Cards per section"),

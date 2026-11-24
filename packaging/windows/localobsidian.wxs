@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Local Obsidian MSI (WiX Toolset v5: `dotnet tool install -g wix`, plus the UI and Util extensions:
+  Local Notebook MSI (WiX Toolset v5: `dotnet tool install -g wix`, plus the UI and Util extensions:
   `wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2`). Built by package.ps1:
 
     wix build localobsidian.wxs -arch x64 -ext WixToolset.UI.wixext/5.0.2 -ext WixToolset.Util.wixext/5.0.2
@@ -17,18 +17,18 @@
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
-      Name="Local Obsidian"
-      Manufacturer="Local Obsidian contributors"
+      Name="Local Notebook"
+      Manufacturer="Local Notebook contributors"
       Version="$(var.Version)"
       UpgradeCode="6FD469BA-5674-475C-814D-99C8D251321C"
       Scope="perMachine"
       Compressed="yes"
       Language="1033">
-    <SummaryInformation Description="Local Obsidian - notes, wikilinks and attachments in a plain folder" Manufacturer="Local Obsidian contributors" />
+    <SummaryInformation Description="Local Notebook - notes, wikilinks and attachments in a plain folder" Manufacturer="Local Notebook contributors" />
     <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
          (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
     <MajorUpgrade AllowSameVersionUpgrades="yes"
-        DowngradeErrorMessage="A newer version of Local Obsidian is already installed." />
+        DowngradeErrorMessage="A newer version of Local Notebook is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="LocalObsidianIcon.ico" SourceFile="$(var.IconPath)" />
@@ -38,7 +38,7 @@
     <Property Id="ARPHELPLINK" Value="https://github.com/Anon5T4R/Local-Obsidian/issues" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="Local Obsidian" />
+      <Directory Id="INSTALLFOLDER" Name="Local Notebook" />
     </StandardDirectory>
     <!-- The folder of the installed version (written by the app's own key below), so an upgrade
          installs where the user chose instead of moving back to Program Files. Searched into its
@@ -51,7 +51,7 @@
     <StandardDirectory Id="ProgramMenuFolder" />
     <StandardDirectory Id="DesktopFolder" />
 
-    <Feature Id="Main" Title="Local Obsidian" Level="1">
+    <Feature Id="Main" Title="Local Notebook" Level="1">
       <ComponentGroupRef Id="LocalObsidianFiles" />
     </Feature>
 
@@ -60,8 +60,8 @@
 
   <!--
     Interactive install UI: Welcome -> Destination Folder -> Ready to install -> progress ->
-    "Completed" (Finish), with a "Launch Local Obsidian" checkbox (checked by default). Destination
-    Folder shows Program Files\Local Obsidian, or the installed version's folder on an upgrade;
+    "Completed" (Finish), with a "Launch Local Notebook" checkbox (checked by default). Destination
+    Folder shows Program Files\Local Notebook, or the installed version's folder on an upgrade;
     Change... browses, and a folder that can't be used (InvalidDirDlg) is refused before anything
     is installed. Failure and cancellation end on WiX's standard FatalError / UserExit dialogs
     instead of the completion page. Maintenance (running the MSI again, Repair/Remove from Apps)
@@ -82,11 +82,11 @@
     <WixVariable Id="WixUIBannerBmp" Value="$(var.UiBannerBmp)" />
 
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT"
-        Value="Local Obsidian has been installed. You can start it at any time from the Start menu." />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Local Obsidian" />
+        Value="Local Notebook has been installed. You can start it at any time from the Start menu." />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Local Notebook" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
 
-    <!-- "Launch Local Obsidian" on Finish. WixUnelevatedShellExec (Util extension) asks the desktop shell
+    <!-- "Launch Local Notebook" on Finish. WixUnelevatedShellExec (Util extension) asks the desktop shell
          (Explorer) to start the program, so it runs as the signed-in user at normal integrity even
          when the installer UI itself is elevated; it never runs from the elevated/SYSTEM server
          side. It is a UI-only control event, so silent and passive installs never run it.
@@ -178,8 +178,8 @@
     <ComponentGroup Id="LocalObsidianFiles" Directory="INSTALLFOLDER">
       <Component Id="LocalObsidianApp" Guid="761C3024-F9B0-4A7F-8540-C264C40DA7D1">
         <File Id="LocalObsidianExe" Source="$(var.BinDir)\localobsidian.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Local Obsidian"
-              Description="Local Obsidian - notes, wikilinks and attachments in a plain folder" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Local Notebook"
+              Description="Local Notebook - notes, wikilinks and attachments in a plain folder" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
               Icon="LocalObsidianIcon.ico" IconIndex="0" />
         </File>
 
@@ -194,7 +194,7 @@
            from the desktop without fetching the MSI on first launch) with its own component and
            registry key path, so an uninstall removes it. -->
       <Component Id="LocalObsidianDesktopShortcut" Directory="DesktopFolder" Guid="076B7B85-D2B9-46EE-9B92-0DE5C4DC1A2A">
-        <Shortcut Id="DesktopShortcut" Name="Local Obsidian" Description="Local Obsidian - notes, wikilinks and attachments in a plain folder"
+        <Shortcut Id="DesktopShortcut" Name="Local Notebook" Description="Local Notebook - notes, wikilinks and attachments in a plain folder"
             Target="[#LocalObsidianExe]" WorkingDirectory="INSTALLFOLDER" Icon="LocalObsidianIcon.ico" IconIndex="0" />
         <RegistryValue Root="HKLM" Key="Software\Local Obsidian\Shortcuts" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
       </Component>

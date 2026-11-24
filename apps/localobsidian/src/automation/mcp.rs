@@ -1,4 +1,4 @@
-//! The MCP server of Local Obsidian: the suite's [`craft_mcp::Server`] in front of the app's
+//! The MCP server of Local Notebook: the suite's [`craft_mcp::Server`] in front of the app's
 //! commands, which run either headless ([`session::Session`]) or in the running window
 //! ([`craft_mcp::remote::Remote`] over its control channel, `localobsidian --control PORT`).
 //!
@@ -119,11 +119,11 @@ impl<B: Backend> Automation<B> {
 
 impl<B: Backend> Handler for Automation<B> {
     fn server_info(&self) -> ServerInfo {
-        ServerInfo { name: "localobsidian", title: "Local Obsidian", version: env!("CARGO_PKG_VERSION") }
+        ServerInfo { name: "localobsidian", title: "Local Notebook", version: env!("CARGO_PKG_VERSION") }
     }
 
     fn instructions(&self) -> String {
-        "Local Obsidian works on a vault: a plain folder of Markdown notes with `[[wikilinks]]`, tags, \
+        "Local Notebook works on a vault: a plain folder of Markdown notes with `[[wikilinks]]`, tags, \
          frontmatter and attachments in `_attachments/`. Every action is a command: command_list \
          discovers the ids, their labels and their parameters; vault.inspect lists the notes with the \
          paths the other commands take; command_run runs one command with its JSON params; \

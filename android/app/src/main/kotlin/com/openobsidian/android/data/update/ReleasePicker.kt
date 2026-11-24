@@ -1,10 +1,9 @@
 package com.openobsidian.android.data.update
 
-import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-/** Uma release do Local Obsidian Android publicada no GitHub, com o APK que a atualização baixa. */
+/** Uma release do Local Notebook Android publicada no GitHub, com o APK que a atualização baixa. */
 data class AndroidRelease(
     val version: String,
     val tag: String,
@@ -45,37 +44,30 @@ data class AndroidRelease(
 }
 
 /**
- * Escolhe, da lista de releases do repositório (`GET /repos/{owner}/{repo}/releases`), a do app. O
- * repositório é o do desktop e publica também as releases dele (tags `vX.Y.Z`, ignoradas): valem tags `android-vX.Y.Z` que não sejam
- * rascunho nem pré-release e que tragam um `.apk`. Pura (org.json), testada na JVM.
+ * Lê a release mais recente do repositório (`GET /repos/{owner}/{repo}/releases/latest`), que é a do desktop e do
+ * Android juntos: tag `vX.Y.Z`, com o `.apk` como mais um asset. Vale se não for rascunho nem pré-release, se a tag for
+ * semver e se trouxer um `.apk`; a versão é a da tag (igual ao `versionName`, `cargo xtask version` mantém os dois).
+ * Pura (org.json), testada na JVM.
  */
 object ReleasePicker {
-    const val TAG_PREFIX = "android-v"
-
-    /** Só o que este repositório publica (o Local Obsidian, repo do desktop com o Android em `android/`): o APK vem de `releases/download/` dele e de mais lugar nenhum. */
+    /** Só o que este repositório publica (o Local Notebook, repo do desktop com o Android em `android/`): o APK vem de `releases/download/` dele e de mais lugar nenhum. */
     const val DOWNLOAD_PREFIX = "https://github.com/Anon5T4R/Local-Obsidian/releases/download/"
 
-    /** Todas as releases Android válidas, da mais nova para a mais velha. Lança [UpdateException] (PARSE). */
-    fun candidates(json: String): List<AndroidRelease> {
-        val array = try {
-            JSONArray(json)
+    /** A release mais recente com APK, ou null se ela não serve (sem APK, rascunho, pré-release, tag que não é semver). Lança [UpdateException] (PARSE). */
+    fun latest(json: String): AndroidRelease? {
+        val release = try {
+            JSONObject(json)
         } catch (_: JSONException) {
             throw UpdateException(UpdateFailure.PARSE)
         }
-        val out = mutableListOf<AndroidRelease>()
-        for (i in 0 until array.length()) {
-            val release = array.optJSONObject(i) ?: continue
-            parseRelease(release)?.let(out::add)
-        }
-        return out.sortedByDescending { AppVersion.parse(it.version) }
+        // A API responde {"message": ...} quando falha (limite de taxa, 404): sem tag_name não é uma release.
+        if (!release.has("tag_name")) throw UpdateException(UpdateFailure.PARSE)
+        return parseRelease(release)
     }
 
-    /** A release Android mais nova publicada, ou null se não há nenhuma. */
-    fun newest(json: String): AndroidRelease? = candidates(json).firstOrNull()
-
-    /** A release mais nova se ela for mais nova que [currentVersion]; null quando o app está em dia. */
+    /** A release mais recente se ela for mais nova que [currentVersion]; null quando o app está em dia. */
     fun newerThan(json: String, currentVersion: String): AndroidRelease? =
-        newest(json)?.takeIf { AppVersion.isNewer(it.version, currentVersion) }
+        latest(json)?.takeIf { AppVersion.isNewer(it.version, currentVersion) }
 
     /** O APK só vem das releases deste repositório, por https (o GitHub redireciona para o próprio CDN, também por https). */
     fun isAllowedDownload(url: String): Boolean = url.startsWith(DOWNLOAD_PREFIX)
@@ -83,8 +75,9 @@ object ReleasePicker {
     private fun parseRelease(o: JSONObject): AndroidRelease? {
         if (o.optBoolean("draft", false) || o.optBoolean("prerelease", false)) return null
         val tag = o.optString("tag_name", "")
-        if (!tag.startsWith(TAG_PREFIX)) return null
-        val version = tag.removePrefix(TAG_PREFIX)
+        // Só `vX.Y.Z`: o prefixo é parte do contrato (as tags antigas `android-v…` não valem).
+        if (!tag.startsWith("v")) return null
+        val version = tag.removePrefix("v")
         val parsed = AppVersion.parse(version) ?: return null
         if (parsed.pre.isNotEmpty()) return null
         val assets = o.optJSONArray("assets") ?: return null

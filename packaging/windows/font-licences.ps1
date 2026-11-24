@@ -3,7 +3,7 @@
 function Write-FontLicences([string] $Destination, [string] $CraftFontsDir) {
   if ($env:CRAFT_FONTS_REQUIRED -and -not $CraftFontsDir) { throw 'CRAFT_FONTS_REQUIRED is set but CRAFT_FONTS_DIR is missing' }
   $parts = [Collections.Generic.List[string]]::new()
-  $parts.Add("Local Obsidian font licences`n")
+  $parts.Add("Local Notebook font licences`n")
   # egui's bundled fonts (Ubuntu Light, Hack, Noto Emoji) are covered by NOTICE, which ships beside
   # this file; the craft-fonts faces embedded from the checkout are listed below.
   if ($CraftFontsDir) {

@@ -42,7 +42,7 @@ impl LocalApp {
             }
             "app.info" => Ok(json!({
                 "id": "localobsidian",
-                "name": "Local Obsidian",
+                "name": "Local Notebook",
                 "version": env!("CARGO_PKG_VERSION"),
                 "backend": "window",
                 "state": session::state(&self.vault),

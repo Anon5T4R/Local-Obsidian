@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian - notes, wikilinks and attachments in a plain folder (egui)"
+description = "Local Notebook - notes, wikilinks and attachments in a plain folder (egui)"
 default-run = "localobsidian"
 
 [lints]

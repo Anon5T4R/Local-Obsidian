@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's note format: YAML frontmatter, tags, wikilinks, embeds and the preview model (no UI, no filesystem)"
+description = "Local Notebook's note format: YAML frontmatter, tags, wikilinks, embeds and the preview model (no UI, no filesystem)"
 
 [lints]
 workspace = true

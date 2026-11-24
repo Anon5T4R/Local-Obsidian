@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's PDF export: the reading view's blocks laid out on A4 pages and written as real, selectable text"
+description = "Local Notebook's PDF export: the reading view's blocks laid out on A4 pages and written as real, selectable text"
 
 [lints]
 workspace = true

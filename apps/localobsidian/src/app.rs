@@ -186,7 +186,7 @@ impl LocalApp {
         let mut updater = Updater::new(&APP, env!("CARGO_PKG_VERSION")).with_pins_path(pins);
         updater.offer(craft_update::Release {
             tag: "v99.0.0".to_string(),
-            name: "Local Obsidian v99.0.0".to_string(),
+            name: "Local Notebook v99.0.0".to_string(),
             html_url: "https://example.invalid/local-obsidian-v99".to_string(),
             ..Default::default()
         });
@@ -646,7 +646,7 @@ impl LocalApp {
                     self.updater.check_now(ui.ctx());
                     ui.close();
                 }
-                if ui.button(tl!("About Local Obsidian")).clicked() {
+                if ui.button(tl!("About Local Notebook")).clicked() {
                     self.about_open = true;
                     ui.close();
                 }
@@ -760,7 +760,7 @@ impl LocalApp {
     fn welcome(&mut self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
             ui.add_space(48.0);
-            ui.heading(tl!("Local Obsidian"));
+            ui.heading(tl!("Local Notebook"));
             ui.add_space(4.0);
             ui.label(tl!("A vault is a folder of Markdown notes: no database, no lock-in."));
             ui.add_space(12.0);
@@ -1178,7 +1178,7 @@ impl LocalApp {
 
     fn about(&mut self, ui: &mut egui::Ui) {
         let mut open = self.about_open;
-        egui::Window::new(tl!("About Local Obsidian"))
+        egui::Window::new(tl!("About Local Notebook"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Local Obsidian
+Name=Local Notebook
 GenericName=Notes
 Comment=Notes, wikilinks and attachments in a plain folder, 100% offline
 Exec=localobsidian %F

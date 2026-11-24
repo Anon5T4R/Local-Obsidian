@@ -1,10 +1,10 @@
-//! Agent-native Local Obsidian: the commands the vault app offers an agent, a headless session that
+//! Agent-native Local Notebook: the commands the vault app offers an agent, a headless session that
 //! runs them, the MCP server on top of it and the control channel of the running window.
 //!
 //! The plumbing is the suite's `craft-mcp` (`libs/craft-libs/crates/mcp`, source `local-libs`):
 //! the stdio server, the `run --script` steps with `"$N"` references, the
 //! `--automation-read-root`/`--automation-write-root` flags and `--connect PORT`. What this module
-//! adds is Local Obsidian's own: the command catalogue ([`catalogue`]), the session ([`session`])
+//! adds is Local Notebook's own: the command catalogue ([`catalogue`]), the session ([`session`])
 //! over the [`crate::vault_state::VaultState`] the app already has, the MCP handler ([`mcp`]) and
 //! the window's loopback control channel ([`control`]).
 //!

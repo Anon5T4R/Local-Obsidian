@@ -785,7 +785,7 @@ impl Sheet {
     fn write(self, fonts: &Loaded) -> Result<Vec<u8>, Error> {
         let settings = krilla::SerializeSettings { compress_content_streams: true, enable_tagging: false, ..Default::default() };
         let metadata =
-            Metadata { creator: "Local Obsidian".to_string(), producer: "Local Obsidian".to_string(), title: Some(self.title), ..Default::default() };
+            Metadata { creator: "Local Notebook".to_string(), producer: "Local Notebook".to_string(), title: Some(self.title), ..Default::default() };
         let mut writer = Writer::new(settings, metadata);
         let size = Size::from_wh(PAGE.0, PAGE.1).ok_or_else(|| Error::Pdf("the page size is invalid".to_string()))?;
         let total = self.pages.len();

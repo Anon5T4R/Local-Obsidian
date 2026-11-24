@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's spaced repetition: SM-2 scheduling, flashcard extraction from callouts, and the .openobsidian/srs.json file the Android app shares"
+description = "Local Notebook's spaced repetition: SM-2 scheduling, flashcard extraction from callouts, and the .openobsidian/srs.json file the Android app shares"
 
 [lints]
 workspace = true

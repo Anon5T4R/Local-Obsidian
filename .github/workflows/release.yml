@@ -1,7 +1,8 @@
 name: Release
 
 # Tag vX.Y.Z -> builda Windows (MSI + portable) e Linux (AppImage, deb, rpm, tar.gz),
-# empacota o Arch a partir do tarball e publica tudo na GitHub Release da tag.
+# empacota o Arch a partir do tarball, builda o APK assinado do Android (mesma versão do desktop,
+# conferida contra a tag) e publica tudo na mesma GitHub Release da tag, que é a `latest`.
 #
 # O TEMPLATE não tem release: um app nascido herda este workflow e passa a taguear. Antes da
 # primeira tag, rode `cargo xtask version X.Y.Z` e `minisign-nascimento.ps1` (README.md).
@@ -119,8 +120,75 @@ jobs:
           path: '*.pkg.tar.zst'
           if-no-files-found: error
 
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # Reconstrói a keystore e o keystore.properties a partir de 2 Secrets:
+      #   KEYSTORE_B64            = base64 do openobsidian-release.jks
+      #   KEYSTORE_PROPERTIES_B64 = base64 do keystore.properties (senhas já corretas)
+      # A linha storeFile é forçada para o nome do .jks recriado aqui (evita path absoluto de
+      # Windows que não existe no runner Linux). A chave precisa ser a MESMA das releases
+      # anteriores, senão o APK não instala por cima da versão publicada.
+      - name: Restaurar keystore de assinatura
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PROPERTIES_B64: ${{ secrets.KEYSTORE_PROPERTIES_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PROPERTIES_B64" ]; then
+            echo "::error::Faltam os Secrets KEYSTORE_B64 e/ou KEYSTORE_PROPERTIES_B64. Cadastre em Settings → Secrets and variables → Actions e rode de novo."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > openobsidian-release.jks
+          echo "$KEYSTORE_PROPERTIES_B64" | base64 -d | grep -v '^storeFile=' > keystore.properties
+          echo "storeFile=openobsidian-release.jks" >> keystore.properties
+
+      # O atualizador do app compara a tag da release com a versão instalada: tag e versionName
+      # têm que ser a mesma (`cargo xtask version set X.Y.Z` escreve os dois).
+      - name: Conferir tag x versionName
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VN=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [ "v$VN" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::A tag $GITHUB_REF_NAME não bate com o versionName v$VN do Android."
+            exit 1
+          fi
+
+      - name: Build release APK (assinado)
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --console=plain
+
+      - name: Renomear APK com a tag
+        run: |
+          mkdir -p out
+          NAME="${GITHUB_REF_NAME:-manual}"
+          cp app/build/outputs/apk/release/app-release.apk "out/LocalNotebook-Android-${NAME}.apk"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: android/out/*.apk
+          if-no-files-found: error
+
   publish:
-    needs: [windows, linux, arch]
+    needs: [windows, linux, arch, android]
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -173,12 +241,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          files=(dist/windows/* dist/linux/* dist/arch/* dist/SHA256SUMS.txt)
+          files=(dist/windows/* dist/linux/* dist/arch/* dist/android/* dist/SHA256SUMS.txt)
           if gh release view "$tag" > /dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --clobber
           else
             gh release create "$tag" "${files[@]}" \
-              --title "Local Obsidian ${tag}" --generate-notes
+              --title "Local Notebook ${tag}" --generate-notes
           fi
         env:
           GH_TOKEN: ${{ github.token }}

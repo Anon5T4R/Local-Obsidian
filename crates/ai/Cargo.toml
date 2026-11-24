@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
-description = "Local Obsidian's BYOK AI: the shared local-ai client with this app's identity, and a chat that streams"
+description = "Local Notebook's BYOK AI: the shared local-ai client with this app's identity, and a chat that streams"
 
 [lints]
 workspace = true

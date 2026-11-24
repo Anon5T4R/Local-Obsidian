@@ -1,4 +1,4 @@
-//! BYOK AI for Local Obsidian: the shared `local-ai` client, wearing this app's identity.
+//! BYOK AI for Local Notebook: the shared `local-ai` client, wearing this app's identity.
 //!
 //! The wire format, the provider presets and the keychain are the suite's (`libs/local-ai`); what
 //! lives here is only what differs per app: the config folder and the keychain service the

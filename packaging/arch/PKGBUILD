@@ -1,4 +1,4 @@
-# PKGBUILD do Local Obsidian para Arch (uso pessoal do Joao; nao publicado no AUR).
+# PKGBUILD do Local Notebook para Arch (uso pessoal do Joao; nao publicado no AUR).
 # Instala a arvore FHS (bin/ + share/) do tarball da release - o mesmo artefato
 # que o package.sh gera. O sha256 fica SKIP no repo (o hash so existe apos a
 # release); o job arch do CI substitui pelo real ao construir o pacote.

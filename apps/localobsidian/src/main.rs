@@ -1,4 +1,4 @@
-//! Local Obsidian - notes, wikilinks and attachments in a plain folder (Rust + egui, no account,
+//! Local Notebook - notes, wikilinks and attachments in a plain folder (Rust + egui, no account,
 //! no telemetry, no third-party servers).
 //!
 //! Usage: `localobsidian [--version] [--help]`. A born app adds its own arguments here.

@@ -1,4 +1,4 @@
-# Español (es) interface catalog for Local Obsidian.
+# Español (es) interface catalog for Local Notebook.
 # Columns, separated by a TAB:  context <TAB> English source text <TAB> translation
 #   context  usually empty. `@plural`, `@id` and `@msg` mean something to the apps; any other
 #            word is a label that tells apart two meanings of the same English.
@@ -29,8 +29,8 @@
 	Last modified	Última modificación
 	Refresh the vault	Actualizar el cofre
 	Check for Updates…	Buscar actualizaciones…
-	About Local Obsidian	Acerca de Local Obsidian
-	Local Obsidian	Local Obsidian
+	About Local Notebook	Acerca de Local Notebook
+	Local Notebook	Local Notebook
 	A vault is a folder of Markdown notes: no database, no lock-in.	Un cofre es una carpeta de notas Markdown: sin base de datos, sin dependencias.
 	New note	Nota nueva
 	Rename note	Renombrar nota

@@ -167,7 +167,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(checking = true) }
         val now = System.currentTimeMillis()
         try {
-            val json = withContext(Dispatchers.IO) { UpdateNet.fetchReleasesJson() }
+            val json = withContext(Dispatchers.IO) { UpdateNet.fetchLatestJson() }
             val newer = withContext(Dispatchers.Default) { ReleasePicker.newerThan(json, BuildConfig.VERSION_NAME) }
             settings.setUpdateCheckResult(now, if (newer != null) "available" else "uptodate", newer?.toJson())
         } catch (e: UpdateException) {
@@ -215,7 +215,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Abre "instalar apps desconhecidos" do Local Obsidian; ao voltar com a permissão, a atualização continua. */
+    /** Abre "instalar apps desconhecidos" do Local Notebook; ao voltar com a permissão, a atualização continua. */
     fun openInstallPermission(context: Context) {
         _state.update { it.copy(needsInstallPermission = false) }
         resumeAfterPermission = true

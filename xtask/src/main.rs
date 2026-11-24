@@ -29,7 +29,8 @@ commands:
                   (LOCALOBSIDIAN_QA_THEME=light|dark pins the theme and suffixes the files)
   qa-sample [n]   copy n notes from the user's own vault into target/qa-vault-real (read-only there)
   version [set X.Y.Z]
-                  print the workspace version, or bump it (the single source) and refresh Cargo.lock
+                  print the workspace version, or bump it (the single source), the Android
+                  versionName/versionCode and Cargo.lock
 
 A born app adds its own commands (ci, models, parity.) next to these.
 ";

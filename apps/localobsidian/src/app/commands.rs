@@ -83,7 +83,7 @@ impl LocalApp {
                 .enabled(note),
             Command::new("help.keys", tl!("Keyboard shortcuts and help"), help),
             Command::new("help.updates", tl!("Check for Updates…"), help),
-            Command::new("help.about", tl!("About Local Obsidian"), help),
+            Command::new("help.about", tl!("About Local Notebook"), help),
         ]);
         list
     }

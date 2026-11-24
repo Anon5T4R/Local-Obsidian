@@ -31,7 +31,7 @@ object UpdateInstaller {
         updatesDir(context).listFiles()?.forEach { it.delete() }
     }
 
-    /** "Instalar apps desconhecidos" liberado para o Local Obsidian? Sem isso o sistema recusa a sessão. */
+    /** "Instalar apps desconhecidos" liberado para o Local Notebook? Sem isso o sistema recusa a sessão. */
     fun canInstall(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
 
     /** Cria a sessão, copia o APK e a entrega ao sistema. Lança [UpdateException] (INSTALL). */
