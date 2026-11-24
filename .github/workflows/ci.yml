@@ -5,7 +5,10 @@ name: CI
 on:
   push:
     branches: [main, master]
+    # O Android (android/) tem o CI próprio, o android-ci.yml.
+    paths-ignore: ["android/**", ".github/workflows/android-*.yml"]
   pull_request:
+    paths-ignore: ["android/**", ".github/workflows/android-*.yml"]
   workflow_dispatch:
 
 permissions:
