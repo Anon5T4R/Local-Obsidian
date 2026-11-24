@@ -4,7 +4,7 @@ App desktop da suíte Local: **Rust puro + egui forkado**, sem webview/React/TS.
 do usuário (arquivos `.md` + frontmatter + wikilinks + `_attachments/`); o único estado próprio é
 `.openobsidian/srs.json`. Sem conta, telemetria ou serviço de terceiro.
 
-Comportamento vem do **OpenObsidian** (`C:\Dev\OpenObsidian\desktop`, Electron v1.2.1) como spec;
+Comportamento vem do **OpenObsidian** (`C:\Dev\legado\OpenObsidian\desktop`, Electron v1.2.1) como spec;
 estrutura vem do padrão craft (`docs/planos/padrao-craft.md` no dev-notes). Contrato de vault
 compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
 
@@ -92,4 +92,4 @@ vão para o app. As três vias têm teste em `tests/agent_native.rs`.
 Menções a `storytold/*` em código, comentários, docs e atribuições são referência histórica e
 obrigação de licença. **Nada** é lido de `C:\Dev\storytold` em build, teste ou release: tudo vem do
 próprio repo (crates.io pinado pelo lock + `libs/`/`assets/craft-fonts` vendored). O spec funcional
-do port vive em `C:\Dev\OpenObsidian\desktop` e é **somente leitura**.
+do port vive em `C:\Dev\legado\OpenObsidian\desktop` e é **somente leitura**.
