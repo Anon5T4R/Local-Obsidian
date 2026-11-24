@@ -19,7 +19,7 @@ class UpdateException(val failure: UpdateFailure, val code: Int = 0, cause: Thro
  * cookies nem dados do usuário; o User-Agent é genérico. Nada aqui toca o vault ou as notas.
  */
 object UpdateNet {
-    const val LATEST_URL = "https://api.github.com/repos/Anon5T4R/Local-Obsidian/releases/latest"
+    fun latestUrl(repo: String): String = "https://api.github.com/repos/$repo/releases/latest"
     private const val USER_AGENT = "LocalNotebook-Android"
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 30_000
@@ -27,9 +27,25 @@ object UpdateNet {
     const val MAX_APK_BYTES = 100L * 1024 * 1024
     private const val MAX_REDIRECTS = 5
 
-    /** O JSON da release mais recente. */
-    fun fetchLatestJson(): String {
-        val conn = open(LATEST_URL, accept = "application/vnd.github+json")
+    /** O JSON da release mais recente e o repositório que respondeu (o APK só vale com o prefixo dele). */
+    data class Latest(val repo: String, val json: String)
+
+    /**
+     * Consulta [ReleasePicker.REPO_PRIMARY] e, só se ele responder 404 (ainda não transferido), o
+     * [ReleasePicker.REPO_FALLBACK]. Qualquer outro erro (limite de taxa, 5xx, rede) sobe sem tentar o antigo.
+     * [get] devolve o corpo de uma URL ou lança [UpdateException]; injetável nos testes.
+     */
+    fun fetchLatest(get: (String) -> String = ::fetchJson): Latest {
+        try {
+            return Latest(ReleasePicker.REPO_PRIMARY, get(latestUrl(ReleasePicker.REPO_PRIMARY)))
+        } catch (e: UpdateException) {
+            if (e.failure != UpdateFailure.HTTP || e.code != HttpURLConnection.HTTP_NOT_FOUND) throw e
+        }
+        return Latest(ReleasePicker.REPO_FALLBACK, get(latestUrl(ReleasePicker.REPO_FALLBACK)))
+    }
+
+    private fun fetchJson(url: String): String {
+        val conn = open(url, accept = "application/vnd.github+json")
         try {
             val bytes = conn.inputStream.use { readCapped(it, MAX_JSON_BYTES) }
             return String(bytes, Charsets.UTF_8)

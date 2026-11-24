@@ -167,8 +167,8 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(checking = true) }
         val now = System.currentTimeMillis()
         try {
-            val json = withContext(Dispatchers.IO) { UpdateNet.fetchLatestJson() }
-            val newer = withContext(Dispatchers.Default) { ReleasePicker.newerThan(json, BuildConfig.VERSION_NAME) }
+            val latest = withContext(Dispatchers.IO) { UpdateNet.fetchLatest() }
+            val newer = withContext(Dispatchers.Default) { ReleasePicker.newerThan(latest.json, latest.repo, BuildConfig.VERSION_NAME) }
             settings.setUpdateCheckResult(now, if (newer != null) "available" else "uptodate", newer?.toJson())
         } catch (e: UpdateException) {
             settings.setUpdateCheckResult(now, "error:${e.failure.name}:${e.code}", null)
