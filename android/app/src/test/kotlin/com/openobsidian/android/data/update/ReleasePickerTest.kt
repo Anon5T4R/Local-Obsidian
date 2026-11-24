@@ -12,7 +12,7 @@ class ReleasePickerTest {
 
     private fun asset(name: String, digest: String? = null, url: String? = null) = """
         {"name":"$name","size":12345,
-         "browser_download_url":"${url ?: "https://github.com/Anon5T4R/OpenObsidianAndroid/releases/download/x/$name"}",
+         "browser_download_url":"${url ?: "https://github.com/Anon5T4R/Local-Obsidian/releases/download/x/$name"}",
          "digest":${if (digest == null) "null" else "\"$digest\""}}
     """.trimIndent()
 
@@ -20,29 +20,29 @@ class ReleasePickerTest {
         {"tag_name":"$tag","draft":$draft,"prerelease":$prerelease,"assets":[${assets.joinToString(",")}]}
     """.trimIndent()
 
-    /** Como a API devolve: uma release com outro prefixo de tag misturada às do app, fora de ordem. */
+    /** Como a API devolve: releases do desktop (tag vX.Y.Z, até com APK) misturadas às do Android, fora de ordem; com outro prefixo de tag misturada às do app, fora de ordem. */
     private val sample = "[" + listOf(
-        release("desktop-v0.13.0", listOf(asset("OpenObsidian-desktop.msi"), asset("outro.apk"))),
-        release("v0.4.0", listOf(asset("LocalObsidian-Android-0.4.0.apk"))),
-        release("v0.9.0", listOf(asset("LocalObsidian-Android-0.9.0.apk")), draft = true),
-        release("v0.8.0", listOf(asset("LocalObsidian-Android-0.8.0.apk")), prerelease = true),
-        release("v0.7.0", listOf(asset("notas.txt"), asset("LocalObsidian-Android-0.7.0.aab"))),
-        release("v0.6.0-rc.1", listOf(asset("LocalObsidian-Android-0.6.0-rc.1.apk"))),
-        release("v0.4.1", listOf(asset("LocalObsidian-Android-0.4.1.apk", digest = "sha256:" + hex.uppercase()))),
-        release("v0.5.0", listOf(asset("SHA256SUMS"), asset("LocalObsidian-Android-0.5.0.apk", digest = "sha256:$hex"))),
-        release("vlixo", listOf(asset("x.apk"))),
-        release("v0.10.0", listOf(asset("evil.apk", url = "http://github.com/evil.apk"))),
-        release("v0.11.0", listOf(asset("evil.apk", url = "https://example.com/evil.apk"))),
-        release("v0.12.0", listOf(asset("evil.apk", url = "https://github.com/Anon5T4R/Local-Keys/releases/download/x/evil.apk"))),
+        release("v1.9.3", listOf(asset("LocalObsidian-1.9.3.msi"), asset("outro.apk"))),
+        release("android-v0.4.0", listOf(asset("LocalObsidian-Android-0.4.0.apk"))),
+        release("android-v0.9.0", listOf(asset("LocalObsidian-Android-0.9.0.apk")), draft = true),
+        release("android-v0.8.0", listOf(asset("LocalObsidian-Android-0.8.0.apk")), prerelease = true),
+        release("android-v0.7.0", listOf(asset("notas.txt"), asset("LocalObsidian-Android-0.7.0.aab"))),
+        release("android-v0.6.0-rc.1", listOf(asset("LocalObsidian-Android-0.6.0-rc.1.apk"))),
+        release("android-v0.4.1", listOf(asset("LocalObsidian-Android-0.4.1.apk", digest = "sha256:" + hex.uppercase()))),
+        release("android-v0.5.0", listOf(asset("SHA256SUMS"), asset("LocalObsidian-Android-0.5.0.apk", digest = "sha256:$hex"))),
+        release("android-vlixo", listOf(asset("x.apk"))),
+        release("android-v0.10.0", listOf(asset("evil.apk", url = "http://github.com/evil.apk"))),
+        release("android-v0.11.0", listOf(asset("evil.apk", url = "https://example.com/evil.apk"))),
+        release("android-v0.12.0", listOf(asset("evil.apk", url = "https://github.com/Anon5T4R/Local-Keys/releases/download/x/evil.apk"))),
     ).joinToString(",") + "]"
 
     @Test
     fun escolhe_a_android_mais_nova_publicada_com_apk() {
         val newest = ReleasePicker.newest(sample)!!
         assertEquals("0.5.0", newest.version)
-        assertEquals("v0.5.0", newest.tag)
+        assertEquals("android-v0.5.0", newest.tag)
         assertEquals("LocalObsidian-Android-0.5.0.apk", newest.apkName)
-        assertEquals("https://github.com/Anon5T4R/OpenObsidianAndroid/releases/download/x/LocalObsidian-Android-0.5.0.apk", newest.apkUrl)
+        assertEquals("https://github.com/Anon5T4R/Local-Obsidian/releases/download/x/LocalObsidian-Android-0.5.0.apk", newest.apkUrl)
         assertEquals(12345L, newest.apkSize)
         assertEquals(hex, newest.sha256)
     }
@@ -63,9 +63,9 @@ class ReleasePickerTest {
     }
 
     @Test
-    fun lista_vazia_ou_so_outro_prefixo_nao_tem_atualizacao() {
+    fun lista_vazia_ou_so_release_do_desktop_nao_tem_atualizacao() {
         assertNull(ReleasePicker.newest("[]"))
-        assertNull(ReleasePicker.newest("[" + release("desktop-v0.13.0", listOf(asset("a.apk"))) + "]"))
+        assertNull(ReleasePicker.newest("[" + release("v1.9.3", listOf(asset("a.apk"))) + "]"))
     }
 
     @Test

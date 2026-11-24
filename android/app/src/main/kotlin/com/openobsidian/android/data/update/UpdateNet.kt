@@ -19,7 +19,7 @@ class UpdateException(val failure: UpdateFailure, val code: Int = 0, cause: Thro
  * cookies nem dados do usuário; o User-Agent é genérico. Nada aqui toca o vault ou as notas.
  */
 object UpdateNet {
-    const val RELEASES_URL = "https://api.github.com/repos/Anon5T4R/OpenObsidianAndroid/releases?per_page=30"
+    const val RELEASES_URL = "https://api.github.com/repos/Anon5T4R/Local-Obsidian/releases?per_page=100"
     private const val USER_AGENT = "LocalObsidian-Android"
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 30_000

@@ -304,7 +304,7 @@
     <!-- ── Atualizações ────────────────────────────────────────────── -->
     <string name="settings_updates">Updates</string>
     <string name="update_auto_title">Check for updates automatically</string>
-    <string name="update_auto_body">Off by default. When on, Local Obsidian looks for a new version at most once a day. The only connection is to GitHub, to read the releases of Anon5T4R/OpenObsidianAndroid; nothing about you or your notes is sent.</string>
+    <string name="update_auto_body">Off by default. When on, Local Obsidian looks for a new version at most once a day. The only connection is to GitHub, to read the releases of Anon5T4R/Local-Obsidian; nothing about you or your notes is sent.</string>
     <string name="update_check_now">Check now</string>
     <string name="update_checking">Checking…</string>
     <string name="update_status_never">Not checked yet.</string>

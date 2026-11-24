@@ -1,6 +1,6 @@
 # Local Obsidian (Android)
 
-O **Local Obsidian** no Android (repositório `OpenObsidianAndroid`): um editor de notas em **Markdown**, inspirado no Obsidian. Abre uma
+O **Local Obsidian** no Android (mora em `android/` do repositório `Anon5T4R/Local-Obsidian`, junto do desktop): um editor de notas em **Markdown**, inspirado no Obsidian. Abre uma
 pasta local do seu dispositivo (um "vault") via Storage Access Framework e
 trabalha direto nos seus arquivos `.md` — sem nuvem, sem banco de dados, sem
 lock-in. Tudo continua sendo arquivos de texto na sua pasta.
@@ -76,11 +76,11 @@ lock-in. Tudo continua sendo arquivos de texto na sua pasta.
 - **Desligado por padrão.** Em Configurações → Atualizações, o usuário liga a
   verificação automática (no máximo uma vez por dia) ou toca em "Verificar agora".
   É a **única** conexão de rede do app: lê as releases de
-  `Anon5T4R/OpenObsidianAndroid` no GitHub e nada sobre o usuário ou as notas é enviado.
-- Só baixa APK de `https://github.com/Anon5T4R/OpenObsidianAndroid/releases/download/`,
+  `Anon5T4R/Local-Obsidian` no GitHub e nada sobre o usuário ou as notas é enviado.
+- Só baixa APK de `https://github.com/Anon5T4R/Local-Obsidian/releases/download/`,
   confere o SHA-256 publicado pelo GitHub no asset e entrega o arquivo ao instalador
   do Android, que só aceita a versão assinada com a mesma chave da instalada.
-- Release = tag `vX.Y.Z` (igual ao `versionName`); o workflow publica
+- Release = tag `android-vX.Y.Z` (X.Y.Z igual ao `versionName`; as tags `vX.Y.Z` são do desktop e o atualizador as ignora); o workflow publica
   `LocalObsidian-Android-vX.Y.Z.apk`.
 
 ### Integridade

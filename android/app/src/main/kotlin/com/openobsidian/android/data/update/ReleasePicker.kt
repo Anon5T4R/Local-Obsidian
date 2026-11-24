@@ -46,14 +46,14 @@ data class AndroidRelease(
 
 /**
  * Escolhe, da lista de releases do repositório (`GET /repos/{owner}/{repo}/releases`), a do app. O
- * repositório só publica o Android: valem tags `vX.Y.Z` que não sejam
+ * repositório é o do desktop e publica também as releases dele (tags `vX.Y.Z`, ignoradas): valem tags `android-vX.Y.Z` que não sejam
  * rascunho nem pré-release e que tragam um `.apk`. Pura (org.json), testada na JVM.
  */
 object ReleasePicker {
-    const val TAG_PREFIX = "v"
+    const val TAG_PREFIX = "android-v"
 
-    /** Só o que este repositório publica: o APK vem de `releases/download/` dele e de mais lugar nenhum. */
-    const val DOWNLOAD_PREFIX = "https://github.com/Anon5T4R/OpenObsidianAndroid/releases/download/"
+    /** Só o que este repositório publica (o Local Obsidian, repo do desktop com o Android em `android/`): o APK vem de `releases/download/` dele e de mais lugar nenhum. */
+    const val DOWNLOAD_PREFIX = "https://github.com/Anon5T4R/Local-Obsidian/releases/download/"
 
     /** Todas as releases Android válidas, da mais nova para a mais velha. Lança [UpdateException] (PARSE). */
     fun candidates(json: String): List<AndroidRelease> {
