@@ -186,7 +186,9 @@ mod tests {
     #[test]
     fn the_app_id_is_reverse_dns_and_matches_the_desktop_file_name() {
         assert_eq!(APP_ID, "com.localobsidian.app");
-        assert_eq!(APP_ID, format!("com.{}.app", APP.id));
+        // The suite catalog keeps the packaging id the product shipped with (Local Obsidian's), as it
+        // does for the other renamed apps, so an installed copy is still the same app to the system.
+        assert_eq!(APP_ID, APP.bundle_id());
     }
 
     #[test]
