@@ -112,7 +112,7 @@ an egui interface.
 
 `Ctrl+Shift+F` search, `Ctrl+Shift+O` outline, `Ctrl+B` / `Ctrl+I` / `Ctrl+E` bold / italic / code,
 `Ctrl+Shift+E` highlight, `Ctrl+Enter` checkbox, `Ctrl+S` save (it also autosaves),
-`Ctrl+=` / `Ctrl+-` / `Ctrl+0` zoom. Help → Shortcuts and help lists them all, with the note syntax.
+`Ctrl+=` / `Ctrl+-` / `Ctrl+0` zoom. Help → Keyboard shortcuts and help lists them all, with the note syntax.
 
 ## Build from source
 
