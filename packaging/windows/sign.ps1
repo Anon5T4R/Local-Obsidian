@@ -55,7 +55,7 @@ if (-not $haveCert -and -not $haveAzure) {
 }
 
 $script:SignTool = Find-SignTool
-$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'Local Notebook', '/du', 'https://github.com/Anon5T4R/Local-Obsidian')
+$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'Local Notebook', '/du', 'https://github.com/Styx-Studios/Local-Notebook')
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "localnotebook-sign-$([IO.Path]::GetRandomFileName())"
 New-Item -ItemType Directory -Path $tmp | Out-Null
 

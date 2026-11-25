@@ -21,7 +21,7 @@ conflicts:
   - localobsidian
 provides:
   - localobsidian
-homepage: https://github.com/Anon5T4R/Local-Obsidian
+homepage: https://github.com/Styx-Studios/Local-Notebook
 license: MIT OR Apache-2.0
 description: |-
   Notes, wikilinks and attachments in a plain folder, 100% offline: file tree with

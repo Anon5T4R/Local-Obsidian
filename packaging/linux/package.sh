@@ -161,7 +161,7 @@ if has appimage; then
   # Update information: AppImageUpdate and AppImageLauncher read it from the file and fetch only
   # the blocks that changed in a newer release, through the .zsync published next to each AppImage
   # on GitHub Releases. A fork's builds point at its own releases through GITHUB_REPOSITORY.
-  REPO="${GITHUB_REPOSITORY:-Anon5T4R/Local-Obsidian}"
+  REPO="${GITHUB_REPOSITORY:-Styx-Studios/Local-Notebook}"
   UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|localnotebook-*-linux-$ARCH.AppImage.zsync"
   # Extract-and-run: works without FUSE (containers, CI). The output embeds the static runtime,
   # so users don't need libfuse2 either. With zsyncmake on the host (CI installs the zsync

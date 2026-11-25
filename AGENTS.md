@@ -10,13 +10,13 @@ compartilhado com o OpenObsidianAndroid: files-only (backlog B18).
 
 ## Regras
 - **Dependências:** toda dep que entra/sai/atualiza exige `Cargo.lock` commitado + linha no
-  inventário do repo `Anon5T4R/local-deps` (regra completa em `local-deps/WORKFLOW.md`).
+  inventário do repo `Styx-Studios/local-deps` (regra completa em `local-deps/WORKFLOW.md`).
 - **Sem fontes git:** nenhuma dependência pode apontar para `git+` (o CI valida; vale para o
   `Cargo.lock` da raiz e o de `libs/craft-libs`). Tudo vem do crates.io (pinado pelo lock) ou de
   `libs/` (vendored). Dep nova também precisa ser pure Rust (sem C) e compatível com o egui forkado
   via `[patch]`.
 - **egui/winit/craft-libs do fork vendored**, nunca do crates.io; nunca `lab-ui`.
-- **craft-update tem fonte única** (`Anon5T4R/local-libs`): a cópia em `libs/craft-libs/crates/update`
+- **craft-update tem fonte única** (`Styx-Studios/local-libs`): a cópia em `libs/craft-libs/crates/update`
   é espelho — mudança se faz na fonte e replica com `scripts/sync.ps1 -Mode push`.
 - **Never-crash:** nada de `unwrap`/`expect`/`panic!`/`unreachable!`/`todo!` fora de testes (o clippy
   barra), `unsafe` proibido. Toda entrada (caminho, arquivo, argumento) é hostil até prova em

@@ -1,7 +1,7 @@
 //! The app's own entry in the suite catalog, as `craft-update` knows apps.
 //!
 //! Every app of the suite that updates itself takes its entry from the catalog at
-//! `craft_update::suite`, whose single source is `Anon5T4R/local-libs`
+//! `craft_update::suite`, whose single source is `Styx-Studios/local-libs`
 //! (`crates/update/src/suite.rs`); it reaches this repository through
 //! `scripts/sync.ps1 -Mode push` as a mirror under `libs/craft-libs/crates/update`. The entry
 //! `LOCALNOTEBOOK` holds this app's id, display name, tagline and repository, so the About window,

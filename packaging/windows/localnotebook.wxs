@@ -33,9 +33,9 @@
 
     <Icon Id="LocalNotebookIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="LocalNotebookIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Anon5T4R/Local-Obsidian" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/Anon5T4R/Local-Obsidian" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/Anon5T4R/Local-Obsidian/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Styx-Studios/Local-Notebook" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/Styx-Studios/Local-Notebook" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Styx-Studios/Local-Notebook/issues" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="Local Notebook" />

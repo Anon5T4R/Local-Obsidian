@@ -1,6 +1,6 @@
 # Local Notebook (Android)
 
-O **Local Notebook** no Android (mora em `android/` do repositório `Anon5T4R/Local-Obsidian`, junto do desktop): um editor de notas em **Markdown**, inspirado no Obsidian. Abre uma
+O **Local Notebook** no Android (mora em `android/` do repositório `Styx-Studios/Local-Notebook`, junto do desktop): um editor de notas em **Markdown**, inspirado no Obsidian. Abre uma
 pasta local do seu dispositivo (um "vault") via Storage Access Framework e
 trabalha direto nos seus arquivos `.md` — sem nuvem, sem banco de dados, sem
 lock-in. Tudo continua sendo arquivos de texto na sua pasta.
@@ -76,8 +76,8 @@ lock-in. Tudo continua sendo arquivos de texto na sua pasta.
 - **Desligado por padrão.** Em Configurações → Atualizações, o usuário liga a
   verificação automática (no máximo uma vez por dia) ou toca em "Verificar agora".
   É a **única** conexão de rede do app: lê a release mais recente
-  (`releases/latest`) de `Anon5T4R/Local-Obsidian` no GitHub e nada sobre o usuário ou as notas é enviado.
-- Só baixa APK de `https://github.com/Anon5T4R/Local-Obsidian/releases/download/`,
+  (`releases/latest`) de `Styx-Studios/Local-Notebook` no GitHub e nada sobre o usuário ou as notas é enviado.
+- Só baixa APK de `https://github.com/Styx-Studios/Local-Notebook/releases/download/`,
   confere o SHA-256 publicado pelo GitHub no asset e entrega o arquivo ao instalador
   do Android, que só aceita a versão assinada com a mesma chave da instalada.
 - Release = a mesma tag `vX.Y.Z` do desktop: a versão é uma só (`cargo xtask version set X.Y.Z` escreve o `versionName`
